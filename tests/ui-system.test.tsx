@@ -42,6 +42,7 @@ describe("UI foundation", () => {
     expect(screen.getByText("Upcoming renewals")).toBeInTheDocument();
     expect(screen.getByText("Top open deals")).toBeInTheDocument();
     expect(screen.getAllByText("Recognised sales").length).toBeGreaterThan(1);
+    expect(screen.getByRole("button", { name: "Add manual B2B deal" })).toBeInTheDocument();
   });
 
   it("renders separate report archive output actions", () => {
