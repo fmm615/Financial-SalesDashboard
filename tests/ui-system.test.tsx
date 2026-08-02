@@ -49,6 +49,8 @@ describe("UI foundation", () => {
     render(<ReportsPage />);
     expect(screen.getAllByText("PDF").length).toBeGreaterThan(0);
     expect(screen.getAllByText("CSV").length).toBeGreaterThan(0);
-    expect(screen.getByRole("textbox", { name: "Search records" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search report archive" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Report type" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate report" })).toBeInTheDocument();
   });
 });
