@@ -1,0 +1,5 @@
+"use client";
+import type { ReactNode } from "react";
+import { PrimaryButton } from "@/components/ui";
+export function FormField({ label, children }: { label: string; children: ReactNode }) { return <label className="block text-sm font-medium text-slate-700"><span className="mb-2 block">{label}</span>{children}</label>; }
+export function ConfirmationDialog({ title, description, onClose }: { title: string; description: string; onClose: () => void }) { return <div className="fixed inset-0 z-50 grid place-items-center bg-ink/30 p-4"><section role="dialog" aria-modal="true" aria-labelledby="dialog-title" className="w-full max-w-md bg-white p-6 shadow-xl"><h2 id="dialog-title" className="text-lg font-medium">{title}</h2><p className="mt-2 text-sm text-slate-600">{description}</p><div className="mt-6 flex justify-end gap-3"><button type="button" className="px-3 py-2 text-sm text-slate-600" onClick={onClose}>Cancel</button><PrimaryButton onClick={onClose}>I understand</PrimaryButton></div></section></div>; }

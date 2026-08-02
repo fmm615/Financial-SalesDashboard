@@ -1,0 +1,103 @@
+# Approved Business Rules
+
+These rules come from the PLAYBOOK Sales & Reporting Dashboard requirements and must carry over to the rebuild.
+
+Do not reinterpret them without explicit approval.
+
+## B2C
+
+- All Stripe sales are B2C. Always.
+- Stripe must never create a B2B deal.
+- Tap provides B2C payments.
+- Approved bank-transfer entries may be recorded manually as B2C.
+
+## B2B
+
+- B2B pipeline and bookings come from HubSpot or approved manual Finance entry.
+- HubSpot is the source for corporate pipeline stages and bookings unless Finance decides a deal should be entered manually.
+
+## Separate financial concepts
+
+Keep these concepts distinct:
+
+- pipeline
+- bookings
+- invoiced amount
+- cash received
+- recognised sales/revenue
+
+A signed/closed-won B2B deal is a booking dated by its HubSpot close date.
+
+Bookings and recognised sales are different numbers.
+
+Show both clearly and never add them together as though they are the same thing.
+
+## Duplicate prevention
+
+Every record must pass two duplicate checks before being counted:
+
+1. Provider/processor transaction ID check.
+2. Content fingerprint check based on email + amount + category + date against records from the previous 48 hours.
+
+This must protect webhook processing and reconciliation from double counting the same transaction.
+
+## Refunds
+
+Refunds are recorded, never deleted.
+
+A refund is a separate entry linked to the original payment.
+
+The original payment remains untouched in the ledger.
+
+## Currency
+
+B2B and B2C reporting is in USD.
+
+If a source record uses another currency, preserve the original currency and conversion rate for audit purposes.
+
+## Missing data
+
+Empty is not zero.
+
+If historical data has not been backfilled, show it as unavailable/not loaded rather than `$0`.
+
+## Manual changes
+
+Every manual financial change must record:
+
+- user
+- timestamp
+- before value
+- after value
+
+The system must be able to answer: "Who changed this and when?"
+
+## Review queue
+
+Support at minimum these flags:
+
+- Refunded
+- Failed
+- Possible duplicate
+- Unmapped product
+- Needs follow-up
+
+Cleared items remain in history and are not deleted.
+
+## Reports
+
+Support:
+
+- monthly reports
+- quarterly reports
+- annual reports
+- on-demand reports for selected date ranges
+
+Every report contains:
+
+- branded PDF
+- CSV bundle of underlying rows
+- archived downloadable copy
+- email delivery when requested/approved
+
+Do not automatically send reports until report generation and financial totals have been proven reliable.

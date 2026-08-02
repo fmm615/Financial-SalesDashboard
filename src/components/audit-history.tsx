@@ -1,0 +1,3 @@
+import type { AuditEntry } from "@/types/dashboard";
+
+export function AuditHistory({ entries, title = "Record history" }: { entries: AuditEntry[]; title?: string }) { return <section aria-label={title}><h3 className="text-sm font-medium text-ink">{title}</h3><ol className="mt-3 space-y-3 border-l border-line pl-4">{entries.map((entry) => <li key={`${entry.timestamp}-${entry.action}`} className="relative text-sm"><span className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-forest" /><p className="font-medium text-ink">{entry.action}</p><p className="mt-0.5 text-slate-500">{entry.user} · {entry.timestamp}</p><p className="mt-1 text-slate-600">{entry.reason}</p></li>)}</ol></section>; }

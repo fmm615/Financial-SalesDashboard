@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function AccessDeniedPage() { return <main className="grid min-h-screen place-items-center bg-stone p-6"><section className="w-full max-w-md border border-line bg-white p-8 text-center shadow-card"><h1 className="text-2xl font-medium text-ink">Access denied</h1><p className="mt-3 text-sm leading-6 text-slate-600">Your account has not been approved for access to the PLAYBOOK Financial Operating System.</p><Link href="/login" className="mt-7 inline-block text-sm font-medium text-forest">Return to sign-in</Link></section></main>; }

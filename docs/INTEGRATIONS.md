@@ -1,0 +1,68 @@
+# Integration Rules
+
+## General pattern
+
+Keep each external provider isolated behind its own integration module.
+
+Suggested structure:
+
+```text
+src/lib/integrations/
+├── stripe/
+├── tap/
+└── hubspot/
+```
+
+Each integration should separate concerns such as:
+
+- client/API access
+- authentication/signature verification
+- payload validation
+- mapping/normalization
+- webhook processing
+- reconciliation/synchronization
+
+## Normalize provider data
+
+Do not allow provider-specific payloads to flow directly through the application.
+
+Convert them into internal domain structures first.
+
+## Stripe
+
+Purpose: B2C payments, renewals and refunds.
+
+Requirements:
+
+- verify webhook signatures
+- record provider event IDs
+- classify Stripe financial sales as B2C at ingestion
+- prevent duplicates
+- support refunds without deleting original payments
+- support reconciliation
+
+## Tap
+
+Purpose: regional B2C payments.
+
+Apply the same reliability principles as Stripe.
+
+## HubSpot
+
+Purpose: B2B deals, stages, bookings and renewals.
+
+Requirements:
+
+- preserve HubSpot IDs
+- validate/mapping fields explicitly
+- keep bookings separate from recognised sales/revenue
+- store useful sync state/errors
+- support reconciliation/daily sync as required
+
+## Reconciliation
+
+Webhooks are not assumed to be perfect.
+
+Reconciliation must safely re-check recent provider records without double counting them.
+
+The approved requirement is a 48-hour lookback with duplicate protection.
