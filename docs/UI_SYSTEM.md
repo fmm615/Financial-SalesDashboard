@@ -1,40 +1,53 @@
-# UI System
+# PLAYBOOK UI System
 
-## Purpose
+## Brand source and intent
 
-The Phase 1 UI establishes a calm, premium internal financial operating system. It is a frontend-only framework using isolated, typed mock data. It must never be mistaken for live financial reporting or access control.
+The UI is derived from the Meet Layla PLAYBOOK experience: a dark ink foundation, vivid violet accent, lime calls to action, Inter typography, soft white surfaces, pill-shaped utility controls, and concise confident hierarchy. The dashboard adapts this family for financial work: it avoids marketing gradients and decorative imagery in operational views, while retaining the warmth, clarity, and premium contrast of the source experience.
 
-## Design principles
+## Tokens
 
-- Scan first: important metrics and their scope are visible before deep detail.
-- Financial clarity: pipeline, bookings, cash, and recognised sales use separate labels and are never combined.
-- Quiet confidence: light type weight, restrained colour, square-to-gently-rounded surfaces, subtle borders, and minimal shadows.
-- Traceability: tables reserve space for flags, source, statuses, and future history.
+All custom visual values are defined in `src/app/globals.css` and exposed through semantic Tailwind tokens. Components must use those tokens rather than new hexadecimal values.
+
+| Token group | Usage |
+| --- | --- |
+| `brand-primary` | PLAYBOOK ink/navy, high-emphasis metric cards, profile identity |
+| `brand-accent` | Violet navigation state, links, progress, B2C chart series, focus association |
+| `brand-lime` | Primary CTA and selected utility emphasis |
+| `canvas`, `surface`, `surface-muted`, `surface-accent` | Warm page and panel surfaces |
+| `text-primary`, `text-secondary`, `text-muted`, `border` | Reading hierarchy and lightweight dividers |
+| `success`, `warning`, `danger` | Semantic financial/review states only |
+| `chart-*` | Stable B2C, B2B recognised, bookings, pipeline, and supporting chart colours |
+
+The actual source values include ink `#0d0b24`, violet `#7b2ff7`, lime `#c7ff00`, and the warm surface family. Radius and shadow tokens are centralised alongside these colours.
 
 ## Typography and spacing
 
-The interface uses system sans-serif typography with medium weights reserved for labels and key values. Layout spacing follows a compact 4px rhythm: 16px gaps for related controls, 20px card padding, and 28px page spacing. Cards use a thin neutral border and a single subtle shadow.
+Inter is the interface typeface, with a system fallback. Headings use a restrained semibold weight and tight letter spacing; body and metadata use normal/medium weights with generous line height. Financial values use tabular numerals. The layout follows a 4px rhythm with 16px control gaps, 20px panel padding, and 28–32px page spacing. The Playfair accent from Meet Layla is intentionally not used in financial figures or tables, preserving quick comparison and reporting clarity.
 
-## Tables and charts
+## Surfaces, cards, tables, and charts
 
-Tables preserve complete financial fields and use controlled horizontal scrolling below desktop widths. Statuses always include text, not colour alone. Charts use muted green and warm neutral series colours, explicit legends, and labelled financial scope. Charts never imply that B2B bookings are recognised revenue.
+Cards use soft white surfaces, a fine border, 14px radius, and low-elevation shadows. Important executive position cards may use ink with lime supporting detail. Cards never use decorative gradients.
 
-## States
+Tables use a quiet tinted header, roomy rows, subtle dividers, right-scroll containment on narrow screens, and a low-key hover state. Financial values should retain tabular alignment and row actions must not visually dominate.
 
-Shared state components cover loading, empty, error, permission-restricted, and not-backfilled states. A not-backfilled value must say `Data not loaded`, `Historical data not available`, or `Not yet backfilled`; it must not display zero.
+Chart mapping is fixed: B2C recognised sales is violet; B2B recognised sales is blue-teal; B2B bookings are warm gold; pipeline is blue; other/supporting series are muted slate. Tooltips, legends, and labels use the same token system. Bookings are always separately labelled from recognised sales.
 
-## Responsive behaviour
+## Badges and states
 
-Desktop is primary, with a persistent sidebar. Tablet and mobile use an accessible slide-over navigation and wrapping metric grids. Tables retain their columns and scroll horizontally rather than hiding critical financial data.
+Badges pair readable text with semantic colour and, where useful, a status icon. Completed and ahead use success; pending and processing use violet; warnings, possible duplicates, and unmapped products use warning; failures and behind-target use danger; historical/unavailable values use the muted surface. No state depends on colour alone.
 
-## Accessibility
+## Motion and micro-interactions
 
-All controls have visible keyboard focus. Tables include captions and semantic headers; dialogs use dialog semantics and labelled close controls. Text and status labels convey information independently of colour. Form controls have associated labels.
+`src/lib/motion.ts` provides reusable `pageTransition`, `sectionReveal`, `cardReveal`, `staggerContainer`, `drawerTransition`, `dialogTransition`, and `fadeTransition` variants. Motion is limited to short opacity, small vertical movement, drawer/dialog orientation, and press feedback. Static financial cards do not lift on hover. Buttons, filters, navigation, drawers, dialogs, and content reveals use subtle feedback only.
 
-## Animation
+`prefers-reduced-motion` is respected in global CSS and motion components, which disable reveal variants when the user requests reduced motion.
 
-Framer Motion is limited to a short entry transition on metric cards. There are no decorative loops, large movement effects, or animation-dependent interactions.
+## Responsive and accessibility rules
 
-## Reusable components
+Desktop retains the persistent sidebar. Tablet and mobile use a branded animated navigation sheet; metrics stack logically and charts shrink without losing labels. Tables use controlled horizontal scrolling rather than hiding financial fields.
 
-`AppShell`, `MetricCard`, `ProgressMetric`, `StatusBadge`, `SectionCard`, `DataTable`, `FilterBar`, `DateRangeSelector`, state components, chart components, `AuditHistory`, `DetailDrawer`, `ConfirmationDialog`, and `FormField` are presentation primitives. Page components compose them with feature mock data; financial calculations and provider behaviour belong outside this UI layer.
+Visible focus rings use the violet focus token. Controls have labels, tables have captions and semantic headers, dialogs/drawers have appropriate roles and accessible close controls, and status information is text-based as well as colour-coded. The design is light mode only.
+
+## Component use
+
+`AppShell`, `MetricCard`, `ProgressMetric`, `StatusBadge`, `SectionCard`, `DataTable`, `FilterBar`, `DateRangeSelector`, chart components, state components, `AuditHistory`, `DetailDrawer`, `ConfirmationDialog`, and `FormField` are the shared presentation system. They do not contain financial calculations, provider logic, or authorization decisions.

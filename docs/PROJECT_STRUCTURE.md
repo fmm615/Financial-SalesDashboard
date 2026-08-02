@@ -29,6 +29,7 @@ Suggested structure:
 │   │   └── summit/
 │   ├── lib/
 │   │   ├── auth/
+│   │   ├── motion.ts         # reusable UI motion variants
 │   │   ├── supabase/
 │   │   ├── validation/
 │   │   └── integrations/

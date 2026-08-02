@@ -1,10 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  --color-brand-primary: 13 11 36;
+  --color-brand-accent: 123 47 247;
+  --color-brand-accent-hover: 105 33 224;
+  --color-brand-lime: 199 255 0;
+  --color-brand-lime-hover: 179 230 0;
+  --color-canvas: 248 247 251;
+  --color-surface: 255 255 255;
+  --color-surface-muted: 244 242 249;
+  --color-surface-accent: 243 238 255;
+  --color-text-primary: 10 10 15;
+  --color-text-secondary: 75 78 92;
+  --color-text-muted: 107 114 128;
+  --color-border: 227 225 235;
+  --color-success: 20 126 90;
+  --color-warning: 175 103 18;
+  --color-danger: 190 47 75;
+  --color-chart-b2c: 123 47 247;
+  --color-chart-b2b: 42 140 165;
+  --color-chart-bookings: 199 143 40;
+  --color-chart-pipeline: 35 99 164;
+  --color-chart-other: 148 163 184;
+  --color-focus: 123 47 247;
+  --shadow-card: 0 1px 2px rgb(13 11 36 / 0.04), 0 8px 22px rgb(13 11 36 / 0.035);
+  --shadow-elevated: 0 18px 48px rgb(13 11 36 / 0.14);
+  --shadow-cta: 0 8px 20px rgb(199 255 0 / 0.28);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-pill: 9999px;
+}
+
 * { box-sizing: border-box; }
-body { margin: 0; background: #f7f7f3; color: #14261f; font-family: Arial, Helvetica, sans-serif; }
-button, input, select { font: inherit; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #7ab59c; outline-offset: 2px; }
-::selection { background: #c5e1d2; }
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { margin: 0; background: rgb(var(--color-canvas)); color: rgb(var(--color-text-primary)); font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+button, input, select, textarea { font: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgb(var(--color-focus) / 0.32); outline-offset: 2px; }
+::selection { background: rgb(var(--color-brand-accent) / 0.16); color: rgb(var(--color-text-primary)); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
