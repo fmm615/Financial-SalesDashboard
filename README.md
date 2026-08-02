@@ -64,7 +64,7 @@ Run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` before 
 
 ## Database foundation (Phase 2)
 
-Supabase migrations, RLS, fake local seed data, validation contracts, repository boundaries, and a raw database-type snapshot now live in this repository. The UI remains mock-driven; no real providers, Google sign-in, report generation, email, or scheduled work is connected.
+Supabase migrations, RLS, fake local seed data, validation contracts, repository boundaries, and a raw database-type snapshot now live in this repository. The UI remains mock-driven while provider data access is introduced feature by feature. Google Sign-In is connected. HubSpot has a server-only, validated webhook and reconciliation foundation; it must be configured and verified against the real portal before it supplies dashboard data. Report generation, email, and scheduled execution remain unconnected.
 
 Read [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) before changing the schema. The two roles are `admin` and `viewer`; every user-initiated write is Admin-only and audited.
 
@@ -84,6 +84,10 @@ Read [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) before changing the schema. T
 The intended login method is Google Sign-In through Supabase Auth, restricted to approved PLAYBOOK users.
 
 The OAuth callback, cookie-session middleware, allowlist role lookup, and server-side Admin/Viewer route protection are implemented. Complete the external configuration and real-email allowlist in [GOOGLE_AUTH_SETUP.md](docs/GOOGLE_AUTH_SETUP.md).
+
+## HubSpot B2B integration
+
+The clean HubSpot integration preserves provider IDs, explicitly maps stages and fields, writes a booking only for closed-won deals, and never derives recognised sales. Configure it using [HUBSPOT_SETUP.md](docs/HUBSPOT_SETUP.md) before enabling a webhook or scheduled reconciliation.
 
 ## Tests
 

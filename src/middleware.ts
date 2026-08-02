@@ -18,6 +18,9 @@ function redirectWithSessionCookies(response: NextResponse, request: NextRequest
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   if (pathname.startsWith("/auth/")) return NextResponse.next();
+  // These endpoints authenticate their distinct callers in the Route Handler:
+  // HubSpot by v3 signature and reconciliation by a server-only cron secret.
+  if (pathname.startsWith("/api/webhooks/") || pathname.startsWith("/api/internal/")) return NextResponse.next();
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
