@@ -79,3 +79,7 @@ Every important manual financial change must be attributable to the logged-in us
 ## Phase 2 enforcement
 
 The database—not the UI—enforces the approved-user and Admin-write boundary through RLS policies. The two allowed roles are `admin` and `viewer`. User-initiated writes must use an authenticated client, not the service-role client, so database triggers record the individual `auth.uid()` in `audit_events`. The service-role key remains server-only and is reserved for future trusted jobs.
+
+## Auth session and routes
+
+Application middleware calls Supabase `getUser()` for protected requests, then checks the authenticated profile and role through RLS. It redirects missing sessions to `/login`, unapproved accounts to `/access-denied`, and Viewers away from Admin-only routes. Client-side hiding of controls is presentation only; RLS remains mandatory for every write.

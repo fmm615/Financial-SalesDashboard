@@ -71,6 +71,10 @@ Database access patterns where a repository abstraction is useful.
 
 Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.
 
+### `middleware.ts` and `app/auth/`
+
+`middleware.ts` is the server-side session, allowlist, and route-authorization gate. `app/auth/callback/route.ts` exchanges the Google OAuth code for a Supabase cookie session. Neither contains OAuth client secrets.
+
 ### `lib/integrations/`
 
 Provider-specific code and normalization.

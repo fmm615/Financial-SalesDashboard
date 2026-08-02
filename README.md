@@ -83,6 +83,8 @@ Read [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) before changing the schema. T
 
 The intended login method is Google Sign-In through Supabase Auth, restricted to approved PLAYBOOK users.
 
+The OAuth callback, cookie-session middleware, allowlist role lookup, and server-side Admin/Viewer route protection are implemented. Complete the external configuration and real-email allowlist in [GOOGLE_AUTH_SETUP.md](docs/GOOGLE_AUTH_SETUP.md).
+
 ## Tests
 
 Critical financial calculations, integrations and authorization flows must be covered by automated tests.
