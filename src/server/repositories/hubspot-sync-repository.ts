@@ -82,13 +82,11 @@ export class SupabaseHubSpotSyncRepository {
     await this.client.from("integration_events")
       .update({ status: "failed", processing_attempts: 1 })
       .eq("id", eventId);
-    await this.client.from("integration_errors")
-      .insert({ provider: "hubspot", integration_event_id: eventId, safe_error_summary: safeErrorSummary });
+    await this.recordIntegrationError({ integrationEventId: eventId, safeErrorSummary });
   }
 
   async recordSyncError(syncRunId: string, error: unknown): Promise<void> {
-    await this.client.from("integration_errors")
-      .insert({ provider: "hubspot", sync_run_id: syncRunId, safe_error_summary: safeMessage(error) });
+    await this.recordIntegrationError({ syncRunId, safeErrorSummary: safeMessage(error) });
   }
 
   async persistDeal(input: HubSpotPersistedDeal): Promise<void> {
@@ -178,5 +176,29 @@ export class SupabaseHubSpotSyncRepository {
         status: "open",
       }, { onConflict: "source_area,source_record_id,flag_type,status", ignoreDuplicates: true });
     if (error) throw new Error(`Could not flag incomplete HubSpot deal for review: ${error.message}`);
+  }
+
+  private async recordIntegrationError(input: { integrationEventId?: string; syncRunId?: string; safeErrorSummary: string }): Promise<void> {
+    const { data, error } = await this.client.from("integration_errors")
+      .insert({
+        provider: "hubspot",
+        integration_event_id: input.integrationEventId ?? null,
+        sync_run_id: input.syncRunId ?? null,
+        safe_error_summary: input.safeErrorSummary,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`Could not record HubSpot integration error: ${error.message}`);
+
+    const { error: flagError } = await this.client.from("review_flags")
+      .upsert({
+        source_area: "integration",
+        source_record_id: data.id,
+        flag_type: "needs_follow_up",
+        status: "open",
+        priority: 2,
+        reason: input.safeErrorSummary,
+      }, { onConflict: "source_area,source_record_id,flag_type,status", ignoreDuplicates: true });
+    if (flagError) throw new Error(`Could not flag HubSpot integration error for review: ${flagError.message}`);
   }
 }

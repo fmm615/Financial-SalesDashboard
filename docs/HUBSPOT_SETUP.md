@@ -8,7 +8,7 @@ The application rejects an unapproved HubSpot stage, an invalid currency, a non-
 
 ## 1. Apply the database migration
 
-Apply `20260802101100_hubspot_sync_identity_constraints.sql`, `20260802101200_add_parked_b2b_stage.sql`, `20260802101300_retain_incomplete_hubspot_deals.sql`, and `20260802101400_retain_hubspot_deals_missing_currency.sql` in Supabase SQL Editor after the existing migrations. The first makes HubSpot company and deal identities usable for idempotent provider upserts; the second retains HubSpot's open `PARKED` stage accurately; the last two protect incomplete source deals from being counted or booked. Do not create or alter tables manually outside the committed migrations.
+Apply `20260802101100_hubspot_sync_identity_constraints.sql`, `20260802101200_add_parked_b2b_stage.sql`, `20260802101300_retain_incomplete_hubspot_deals.sql`, `20260802101400_retain_hubspot_deals_missing_currency.sql`, and `20260802101500_hubspot_admin_review_workflow.sql` in Supabase SQL Editor after the existing migrations. The first makes HubSpot company and deal identities usable for idempotent provider upserts; the second retains HubSpot's open `PARKED` stage accurately; the next two protect incomplete source deals from being counted or booked; the last enables Admin review, documented local corrections, and resolution notes. Do not create or alter tables manually outside the committed migrations.
 
 ## 2. Create a HubSpot private app
 
@@ -52,3 +52,4 @@ Before enabling a scheduler, run the Admin retry against a small known dataset a
 4. A repeated webhook event and a repeated 48-hour sync do not duplicate B2B data.
 5. An unknown stage or invalid FX rate becomes an integration error, not a financial value.
 6. A missing HubSpot amount or currency creates an incomplete B2B deal and open review flag, never a zero-value deal or booking.
+7. An Admin can correct incomplete B2B deal financial data locally with a required reason. The correction, individual actor, before/after values, and any resulting booking remain in Supabase; HubSpot is never changed.

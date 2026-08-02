@@ -67,6 +67,8 @@ A `closed_won` mapped deal creates one separate `b2b_bookings` row using its Hub
 
 A HubSpot deal with no amount or currency is retained as an incomplete source record plus an open `needs_follow_up` review flag. Its monetary values remain `NULL`, it is excluded from totals, and it cannot create a booking until an Admin records a correction.
 
+The Admin Integration Status screen exposes incomplete deal corrections and unresolved HubSpot integration errors. Both actions require Admin access, an explanatory note, and produce audit records. Corrections are local to Supabase and never issue a HubSpot write request.
+
 ## Reconciliation
 
 Webhooks are not assumed to be perfect.

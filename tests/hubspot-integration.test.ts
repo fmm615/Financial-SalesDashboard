@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { normaliseHubSpotDeal } from "@/lib/integrations/hubspot/normalise";
 import { isValidHubSpotSignature } from "@/lib/integrations/hubspot/signature";
+import { hubSpotDealCorrectionSchema, hubSpotErrorResolutionSchema } from "@/lib/validation/hubspot-review-contracts";
 import { processHubSpotWebhook, runHubSpotReconciliation } from "@/server/services/sync-hubspot";
 
 const mapping = {
@@ -125,5 +126,14 @@ describe("HubSpot ingestion orchestration", () => {
     });
     expect(result.lookbackStart.toISOString()).toBe("2026-07-31T12:00:00.000Z");
     expect(source.searchDealsModifiedSince).toHaveBeenCalledWith(result.lookbackStart);
+  });
+});
+
+describe("HubSpot Admin review contracts", () => {
+  it("requires a complete local financial correction and an audit reason", () => {
+    expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "usd", exchangeRateToUsd: "1", reason: "Approved Finance correction" }).success).toBe(true);
+    expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "USD", exchangeRateToUsd: "0", reason: "Approved Finance correction" }).success).toBe(false);
+    expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "USD", exchangeRateToUsd: "1", reason: "" }).success).toBe(false);
+    expect(hubSpotErrorResolutionSchema.safeParse({ resolutionNote: "" }).success).toBe(false);
   });
 });
