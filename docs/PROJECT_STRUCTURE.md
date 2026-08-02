@@ -67,6 +67,10 @@ Business/application operations. Keep API routes thin.
 
 Database access patterns where a repository abstraction is useful.
 
+### `lib/supabase/` and `lib/validation/`
+
+Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.
+
 ### `lib/integrations/`
 
 Provider-specific code and normalization.

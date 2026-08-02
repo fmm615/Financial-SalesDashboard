@@ -75,3 +75,7 @@ Do not include sensitive financial or provider payloads in logs unless strictly 
 ## Admin actions
 
 Every important manual financial change must be attributable to the logged-in user and recorded in the audit log.
+
+## Phase 2 enforcement
+
+The database—not the UI—enforces the approved-user and Admin-write boundary through RLS policies. The two allowed roles are `admin` and `viewer`. User-initiated writes must use an authenticated client, not the service-role client, so database triggers record the individual `auth.uid()` in `audit_events`. The service-role key remains server-only and is reserved for future trusted jobs.

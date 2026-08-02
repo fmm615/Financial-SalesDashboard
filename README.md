@@ -62,9 +62,22 @@ npm run dev
 
 Run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` before review.
 
-## Database migrations
+## Database foundation (Phase 2)
 
-All database changes must be represented in `supabase/migrations/` and committed to Git.
+Supabase migrations, RLS, fake local seed data, validation contracts, repository boundaries, and a raw database-type snapshot now live in this repository. The UI remains mock-driven; no real providers, Google sign-in, report generation, email, or scheduled work is connected.
+
+Read [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) before changing the schema. The two roles are `admin` and `viewer`; every user-initiated write is Admin-only and audited.
+
+### Run Supabase locally
+
+1. Start Docker Desktop.
+2. Copy `.env.example` to `.env.local` only when connecting an application later; do not add real secrets to Git.
+3. Run `npm run supabase:start`.
+4. Run `npm run supabase:reset` to apply every migration and the fake local seed.
+5. Run `npm run supabase:types` to regenerate `src/types/database.generated.ts`.
+6. Run `npm run supabase:test`, then the normal TypeScript, lint, test, and build checks.
+
+`supabase/seed.sql` is development-only and contains no usable credentials.
 
 ## Authentication
 

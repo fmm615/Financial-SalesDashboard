@@ -59,3 +59,11 @@ Do not depend only on frontend validation.
 ## Missing data
 
 Do not store or present unknown/not-backfilled financial values as zero merely because data is absent.
+
+## Phase 2 access and RLS
+
+The schema has only `admin` and `viewer` roles. Every user-initiated write is Admin-only through PostgreSQL RLS; Viewers receive no write policy. All application tables have RLS enabled, anonymous access is revoked, and audit/integration logs are Admin-only reads.
+
+## Money, dates, and types
+
+Store money as `numeric(20,6)` and FX rates as `numeric(20,10)`. Do not use floating point. Store system timestamps as UTC `timestamptz`; store business/reporting dates separately as `date`. The database retains source currency and USD amount rather than inventing conversion or rounding values.

@@ -28,6 +28,10 @@ Test:
 
 Use provider sample/test payloads where possible.
 
+### Database foundation tests
+
+Phase 2 keeps database assertions in `supabase/tests/database_foundation.test.sql` and contract tests in `tests/database-foundation.test.ts`. After applying migrations manually to a local Supabase instance, run `npm run supabase:test` to exercise the pgTAP assertions. They cover provider-ID duplication, Stripe/B2B separation, linked partial refunds, booking versus recognised-sales separation, audit attribution, retained review history, backfill state, and RLS enablement.
+
 ### End-to-end tests
 
 Cover critical workflows such as:
