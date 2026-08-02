@@ -107,6 +107,15 @@ export class SupabaseHubSpotSyncRepository {
       if (error) throw new Error(`Could not save HubSpot stage history: ${error.message}`);
     }
 
+    if (input.financialStatus === "needs_review") {
+      await this.createIncompleteDealReviewFlag(dealId);
+      return;
+    }
+
+    if (!input.pipelineOriginalAmount || !input.originalCurrency || !input.exchangeRateToUsd || !input.pipelineAmountUsd) {
+      throw new Error("Complete HubSpot deal is missing a financial value.");
+    }
+
     // A closed-won HubSpot deal is a booking. This never creates recognised sales.
     if (input.stageCode === "closed_won") {
       if (!input.hubspotCloseDate) throw new Error("Closed-won HubSpot deal has no close date.");
@@ -139,6 +148,7 @@ export class SupabaseHubSpotSyncRepository {
       company_id: companyId,
       name: input.name,
       stage_code: input.stageCode,
+      financial_status: input.financialStatus,
       pipeline_original_amount: input.pipelineOriginalAmount,
       original_currency: input.originalCurrency,
       exchange_rate_to_usd: input.exchangeRateToUsd,
@@ -155,5 +165,18 @@ export class SupabaseHubSpotSyncRepository {
       .single();
     if (error) throw new Error(`Could not upsert HubSpot deal: ${error.message}`);
     return data.id;
+  }
+
+  private async createIncompleteDealReviewFlag(dealId: string): Promise<void> {
+    const { error } = await this.client.from("review_flags")
+      .upsert({
+        source_area: "b2b_deal",
+        source_record_id: dealId,
+        flag_type: "needs_follow_up",
+        priority: 2,
+        reason: "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction.",
+        status: "open",
+      }, { onConflict: "source_area,source_record_id,flag_type,status", ignoreDuplicates: true });
+    if (error) throw new Error(`Could not flag incomplete HubSpot deal for review: ${error.message}`);
   }
 }

@@ -13,10 +13,11 @@ export type NormalisedHubSpotDeal = {
   externalDealId: string;
   name: string;
   stageCode: string;
-  pipelineOriginalAmount: string;
-  originalCurrency: string;
-  exchangeRateToUsd: string;
-  pipelineAmountUsd: string;
+  financialStatus: "complete" | "needs_review";
+  pipelineOriginalAmount: string | null;
+  originalCurrency: string | null;
+  exchangeRateToUsd: string | null;
+  pipelineAmountUsd: string | null;
   hubspotCloseDate: string | null;
   renewalDate: string | null;
   ownerId: string | null;
@@ -24,6 +25,12 @@ export type NormalisedHubSpotDeal = {
   sourceMetadata: Record<string, string>;
   stageHistory: Array<{ stageCode: string; changedAt: string; externalEventId: string | null }>;
 };
+
+export class HubSpotNonB2bDealError extends Error {
+  constructor() {
+    super("HubSpot deal belongs to a non-B2B pipeline.");
+  }
+}
 
 function property(properties: Record<string, string | null>, name: string, label: string): string {
   const value = properties[name]?.trim();
@@ -89,23 +96,32 @@ export function normaliseHubSpotDeal(
   raw: unknown,
   mapping: HubSpotFieldMapping,
   stageMap: Record<string, string>,
+  b2bPipelineId: string,
+  companyCurrency: string,
 ): NormalisedHubSpotDeal {
   const deal = hubSpotDealSchema.parse(raw);
+  const pipelineId = property(deal.properties, mapping.pipeline, "pipeline");
+  if (pipelineId !== b2bPipelineId) throw new HubSpotNonB2bDealError();
   const name = property(deal.properties, mapping.dealName, "deal name");
-  const amount = property(deal.properties, mapping.amount, "amount");
-  if (!decimal.test(amount)) throw new Error("HubSpot deal amount must be a non-negative decimal.");
-
   const hubSpotStage = property(deal.properties, mapping.stage, "stage");
   const stageCode = stageMap[hubSpotStage];
   if (!stageCode) throw new Error(`HubSpot stage '${hubSpotStage}' has no approved PLAYBOOK stage mapping.`);
 
-  const currency = property(deal.properties, mapping.currency, "currency").toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("HubSpot deal currency must be an ISO 4217 code.");
+  const configuredCurrency = optionalProperty(deal.properties, mapping.currency);
+  const currency = configuredCurrency?.toUpperCase() ?? null;
+  if (currency && !/^[A-Z]{3}$/.test(currency)) throw new Error("HubSpot deal currency must be an ISO 4217 code.");
+
+  const amount = optionalProperty(deal.properties, mapping.amount);
+  const financialStatus = amount && currency ? "complete" : "needs_review";
+  if (amount && !decimal.test(amount)) throw new Error("HubSpot deal amount must be a non-negative decimal.");
 
   const configuredFxRate = optionalProperty(deal.properties, mapping.exchangeRateToUsd);
-  const exchangeRateToUsd = currency === "USD" ? "1" : configuredFxRate;
-  if (!exchangeRateToUsd || !decimal.test(exchangeRateToUsd) || exchangeRateToUsd === "0") {
-    throw new Error("A non-USD HubSpot deal requires a valid configured exchange-rate property.");
+  const exchangeRateToUsd = financialStatus === "needs_review" ? null : currency === "USD" ? "1" : configuredFxRate;
+  if (financialStatus === "complete" && currency !== "USD" && companyCurrency !== "USD") {
+    throw new Error("HubSpot company currency is not USD; hs_exchange_rate cannot be used as a USD conversion rate.");
+  }
+  if (financialStatus === "complete" && (!exchangeRateToUsd || !decimal.test(exchangeRateToUsd) || exchangeRateToUsd === "0")) {
+    throw new Error("A non-USD HubSpot deal requires a valid configured exchange rate to the USD company currency.");
   }
 
   const closeDateValue = optionalProperty(deal.properties, mapping.closeDate);
@@ -113,7 +129,7 @@ export function normaliseHubSpotDeal(
   const renewalDateValue = optionalProperty(deal.properties, mapping.renewalDate);
   const renewalDate = renewalDateValue ? parseDate(renewalDateValue, "renewal date") : null;
 
-  if (stageCode === "closed_won" && !hubspotCloseDate) {
+  if (financialStatus === "complete" && stageCode === "closed_won" && !hubspotCloseDate) {
     throw new Error("A closed-won HubSpot deal requires a close date before a booking can be recorded.");
   }
 
@@ -123,16 +139,20 @@ export function normaliseHubSpotDeal(
     externalDealId: deal.id,
     name,
     stageCode,
+    financialStatus,
     pipelineOriginalAmount: amount,
     originalCurrency: currency,
     exchangeRateToUsd,
-    pipelineAmountUsd: multiplyDecimalStrings(amount, exchangeRateToUsd),
+    pipelineAmountUsd: amount && exchangeRateToUsd ? multiplyDecimalStrings(amount, exchangeRateToUsd) : null,
     hubspotCloseDate,
     renewalDate,
     ownerId,
     lastModifiedAt,
     sourceMetadata: {
       hubspot_stage: hubSpotStage,
+      hubspot_pipeline_id: pipelineId,
+      financial_status: financialStatus,
+      ...(currency ? { hubspot_currency: currency } : {}),
       ...(ownerId ? { hubspot_owner_id: ownerId } : {}),
       ...(lastModifiedAt ? { hubspot_last_modified_at: lastModifiedAt } : {}),
     },

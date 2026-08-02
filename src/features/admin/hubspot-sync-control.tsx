@@ -18,7 +18,9 @@ export function HubSpotSyncControl() {
     try {
       const response = await fetch("/api/integrations/hubspot/sync", { method: "POST" });
       const body = await response.json() as SyncResult | { error?: string };
-      if (!response.ok || !("processed" in body)) throw new Error("HubSpot sync could not be started. Review Integration Errors for details.");
+      if (!response.ok || !("processed" in body)) {
+        throw new Error("error" in body && body.error ? body.error : "HubSpot sync could not be started. Review Integration Errors for details.");
+      }
       setResult(body);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "HubSpot sync could not be started.");
@@ -30,7 +32,7 @@ export function HubSpotSyncControl() {
   return (
     <div className="border border-line bg-stone p-6">
       <p className="font-medium text-ink">HubSpot B2B reconciliation</p>
-      <p className="mt-2 max-w-2xl text-sm text-slate-600">Pulls deals modified in the last 48 hours. Imported bookings remain separate from manual recognised sales; unapproved stages and invalid FX values are recorded for review instead of counted.</p>
+      <p className="mt-2 max-w-2xl text-sm text-slate-600">Pulls deals modified in the last 48 hours. Imported bookings remain separate from manual recognised sales; incomplete source deals are retained for Admin review but excluded from financial totals.</p>
       <div className="mt-5"><PrimaryButton onClick={runSync} disabled={isRunning}>{isRunning ? "Syncing HubSpot…" : "Sync HubSpot now"}</PrimaryButton></div>
       {result && <p className="mt-4 text-sm text-emerald-700">Sync complete: {result.processed} processed, {result.failed} sent to Integration Errors.</p>}
       {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}

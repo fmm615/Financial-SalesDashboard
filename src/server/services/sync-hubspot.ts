@@ -3,6 +3,7 @@ import {
   type HubSpotConfig,
 } from "@/lib/integrations/hubspot/config";
 import {
+  HubSpotNonB2bDealError,
   normaliseHubSpotDeal,
 } from "@/lib/integrations/hubspot/normalise";
 import type { HubSpotDealWithCompany } from "@/lib/integrations/hubspot/client";
@@ -49,7 +50,7 @@ async function persistRemoteDeal(
   config: HubSpotConfig,
   repository: HubSpotPersistenceRepository,
 ): Promise<void> {
-  const deal = normaliseHubSpotDeal(remote.deal, config.fieldMapping, config.stageMap);
+  const deal = normaliseHubSpotDeal(remote.deal, config.fieldMapping, config.stageMap, config.b2bPipelineId, config.companyCurrency);
   await repository.persistDeal({
     ...deal,
     company: {
@@ -67,8 +68,8 @@ export async function processHubSpotWebhook(input: {
   source: HubSpotSource;
   config: HubSpotConfig;
   repository: HubSpotWebhookRepository;
-}): Promise<{ processed: number; duplicates: number; failed: number }> {
-  const result = { processed: 0, duplicates: 0, failed: 0 };
+}): Promise<{ processed: number; duplicates: number; ignored: number; failed: number }> {
+  const result = { processed: 0, duplicates: 0, ignored: 0, failed: 0 };
   for (const event of input.events) {
     if (!isDealEvent(event)) continue;
     const recorded = await input.repository.recordWebhookEvent(event.eventId, event.subscriptionType);
@@ -82,6 +83,11 @@ export async function processHubSpotWebhook(input: {
       await input.repository.markEventCompleted(recorded.id);
       result.processed += 1;
     } catch (error) {
+      if (error instanceof HubSpotNonB2bDealError) {
+        await input.repository.markEventCompleted(recorded.id);
+        result.ignored += 1;
+        continue;
+      }
       await input.repository.failEvent(recorded.id, error);
       result.failed += 1;
     }

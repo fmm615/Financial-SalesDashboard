@@ -20,8 +20,18 @@ export type HubSpotDealWithCompany = {
   ownerName: string | null;
 };
 
-function safeErrorLabel(response: Response): string {
-  return `HubSpot API request failed (${response.status} ${response.statusText}).`;
+async function safeErrorLabel(response: Response): Promise<string> {
+  const fallback = `HubSpot API request failed (${response.status} ${response.statusText}).`;
+  try {
+    const payload = await response.json() as { message?: unknown; category?: unknown; correlationId?: unknown };
+    const message = typeof payload.message === "string" ? payload.message.slice(0, 300) : null;
+    const category = typeof payload.category === "string" ? payload.category.slice(0, 80) : null;
+    const correlationId = typeof payload.correlationId === "string" ? payload.correlationId.slice(0, 100) : null;
+    if (!message) return fallback;
+    return `${fallback} ${message}${category ? ` [${category}]` : ""}${correlationId ? ` (correlation ${correlationId})` : ""}`;
+  } catch {
+    return fallback;
+  }
 }
 
 /** HubSpot HTTP access stays provider-specific and never reaches UI code. */
@@ -42,7 +52,7 @@ export class HubSpotClient {
       },
       cache: "no-store",
     });
-    if (!response.ok) throw new Error(safeErrorLabel(response));
+    if (!response.ok) throw new Error(await safeErrorLabel(response));
     return response;
   }
 
@@ -73,7 +83,10 @@ export class HubSpotClient {
       const response = await this.request("/crm/v3/objects/deals/search", {
         method: "POST",
         body: JSON.stringify({
-          filterGroups: [{ filters: [{ propertyName: this.config.fieldMapping.lastModifiedAt ?? "hs_lastmodifieddate", operator: "GTE", value: String(since.getTime()) }] }],
+          filterGroups: [{ filters: [
+            { propertyName: this.config.fieldMapping.lastModifiedAt ?? "hs_lastmodifieddate", operator: "GTE", value: String(since.getTime()) },
+            { propertyName: this.config.fieldMapping.pipeline, operator: "EQ", value: this.config.b2bPipelineId },
+          ] }],
           properties: this.properties,
           propertiesWithHistory: [this.config.fieldMapping.stage],
           limit: 100,

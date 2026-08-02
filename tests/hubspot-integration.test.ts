@@ -5,6 +5,7 @@ import { isValidHubSpotSignature } from "@/lib/integrations/hubspot/signature";
 import { processHubSpotWebhook, runHubSpotReconciliation } from "@/server/services/sync-hubspot";
 
 const mapping = {
+  pipeline: "pipeline",
   dealName: "dealname",
   amount: "amount",
   currency: "hs_currency",
@@ -28,6 +29,7 @@ const rawDeal = {
   id: "123",
   properties: {
     dealname: "Acme annual membership",
+    pipeline: "default",
     amount: "1500.25",
     hs_currency: "USD",
     dealstage: "closedwon",
@@ -43,7 +45,7 @@ const rawDeal = {
 
 describe("HubSpot normalisation", () => {
   it("maps an explicitly approved stage and creates a USD booking value without floating point", () => {
-    const deal = normaliseHubSpotDeal(rawDeal, mapping, stageMap);
+    const deal = normaliseHubSpotDeal(rawDeal, mapping, stageMap, "default", "USD");
     expect(deal.stageCode).toBe("closed_won");
     expect(deal.pipelineAmountUsd).toBe("1500.25");
     expect(deal.hubspotCloseDate).toBe("2026-08-01");
@@ -51,8 +53,24 @@ describe("HubSpot normalisation", () => {
   });
 
   it("refuses unknown stages and non-USD amounts without an explicitly mapped FX rate", () => {
-    expect(() => normaliseHubSpotDeal({ ...rawDeal, properties: { ...rawDeal.properties, dealstage: "unreviewed_stage" } }, mapping, stageMap)).toThrow("no approved PLAYBOOK stage mapping");
-    expect(() => normaliseHubSpotDeal({ ...rawDeal, properties: { ...rawDeal.properties, hs_currency: "BHD" } }, mapping, stageMap)).toThrow("requires a valid configured exchange-rate property");
+    expect(() => normaliseHubSpotDeal({ ...rawDeal, properties: { ...rawDeal.properties, dealstage: "unreviewed_stage" } }, mapping, stageMap, "default", "USD")).toThrow("no approved PLAYBOOK stage mapping");
+    expect(() => normaliseHubSpotDeal({ ...rawDeal, properties: { ...rawDeal.properties, hs_currency: "BHD" } }, mapping, stageMap, "default", "USD")).toThrow("requires a valid configured exchange rate");
+    expect(() => normaliseHubSpotDeal({ ...rawDeal, properties: { ...rawDeal.properties, pipeline: "177536731" } }, mapping, stageMap, "default", "USD")).toThrow("non-B2B pipeline");
+  });
+
+  it("retains a deal with a missing amount for review without assigning it a financial value", () => {
+    const deal = normaliseHubSpotDeal({ ...rawDeal, properties: { ...rawDeal.properties, amount: null } }, mapping, stageMap, "default", "USD");
+    expect(deal.financialStatus).toBe("needs_review");
+    expect(deal.pipelineOriginalAmount).toBeNull();
+    expect(deal.exchangeRateToUsd).toBeNull();
+    expect(deal.pipelineAmountUsd).toBeNull();
+  });
+
+  it("retains a deal with a missing currency for review without inventing an FX rate", () => {
+    const deal = normaliseHubSpotDeal({ ...rawDeal, properties: { ...rawDeal.properties, hs_currency: null } }, mapping, stageMap, "default", "USD");
+    expect(deal.financialStatus).toBe("needs_review");
+    expect(deal.originalCurrency).toBeNull();
+    expect(deal.exchangeRateToUsd).toBeNull();
   });
 });
 
@@ -81,10 +99,10 @@ describe("HubSpot ingestion orchestration", () => {
     const result = await processHubSpotWebhook({
       events: [{ eventId: "99", subscriptionType: "deal.propertyChange", objectId: "123" }],
       source,
-      config: { apiBaseUrl: "https://api.hubapi.com", privateAppToken: "test", fieldMapping: mapping, stageMap },
+      config: { apiBaseUrl: "https://api.hubapi.com", privateAppToken: "test", b2bPipelineId: "default", companyCurrency: "USD", fieldMapping: mapping, stageMap },
       repository,
     });
-    expect(result).toEqual({ processed: 0, duplicates: 1, failed: 0 });
+    expect(result).toEqual({ processed: 0, duplicates: 1, ignored: 0, failed: 0 });
     expect(source.fetchDealWithCompany).not.toHaveBeenCalled();
     expect(repository.persistDeal).not.toHaveBeenCalled();
   });
@@ -101,7 +119,7 @@ describe("HubSpot ingestion orchestration", () => {
     const source = { fetchDealWithCompany: vi.fn(), searchDealsModifiedSince: vi.fn().mockResolvedValue([]) };
     const result = await runHubSpotReconciliation({
       source,
-      config: { apiBaseUrl: "https://api.hubapi.com", privateAppToken: "test", fieldMapping: mapping, stageMap },
+      config: { apiBaseUrl: "https://api.hubapi.com", privateAppToken: "test", b2bPipelineId: "default", companyCurrency: "USD", fieldMapping: mapping, stageMap },
       repository,
       now,
     });

@@ -67,10 +67,11 @@ type B2bDealRow = {
   external_deal_id: string | null;
   name: string;
   stage_code: string;
-  pipeline_original_amount: Decimal;
-  original_currency: string;
-  exchange_rate_to_usd: Decimal;
-  pipeline_amount_usd: Decimal;
+  financial_status: "complete" | "needs_review";
+  pipeline_original_amount: Decimal | null;
+  original_currency: string | null;
+  exchange_rate_to_usd: Decimal | null;
+  pipeline_amount_usd: Decimal | null;
   hubspot_close_date: string | null;
   renewal_date: string | null;
   owner_name: string | null;

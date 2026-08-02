@@ -4,11 +4,11 @@
 
 HubSpot is the primary source for B2B companies, deals, pipeline stages, bookings, and renewals. The integration never creates `b2b_recognised_sales`: recognised sales remain a separate, manual Admin/Finance entry.
 
-The application rejects an unapproved HubSpot stage, a missing amount/currency, a non-USD amount without an explicit FX-rate property, or a closed-won deal without a close date. A rejected item is recorded as a safe integration error and is not counted.
+The application rejects an unapproved HubSpot stage, an invalid currency, a non-USD amount without an explicit FX-rate property, or a closed-won deal without a close date. A deal with a missing amount or currency is retained as an incomplete HubSpot source record and flagged for Admin review; it has no financial amount, creates no booking, and is excluded from totals until an audited correction is supplied.
 
 ## 1. Apply the database migration
 
-Apply `20260802101100_hubspot_sync_identity_constraints.sql` in Supabase SQL Editor after the existing migrations. It makes the HubSpot company and deal identity columns usable for idempotent provider upserts. Do not create or alter tables manually outside the committed migrations.
+Apply `20260802101100_hubspot_sync_identity_constraints.sql`, `20260802101200_add_parked_b2b_stage.sql`, `20260802101300_retain_incomplete_hubspot_deals.sql`, and `20260802101400_retain_hubspot_deals_missing_currency.sql` in Supabase SQL Editor after the existing migrations. The first makes HubSpot company and deal identities usable for idempotent provider upserts; the second retains HubSpot's open `PARKED` stage accurately; the last two protect incomplete source deals from being counted or booked. Do not create or alter tables manually outside the committed migrations.
 
 ## 2. Create a HubSpot private app
 
@@ -18,7 +18,7 @@ Create a private app with read access for deals, companies, and owners. Store it
 
 Do not assume old-project property names are current. In HubSpot, inspect a representative corporate deal and write down the internal property names and the exact pipeline stage IDs. Configure them in `.env.local` using the names in `.env.example`.
 
-`HUBSPOT_STAGE_MAP_JSON` is mandatory. Its values must be existing PLAYBOOK codes: `discovery`, `qualified`, `proposal`, `negotiation`, `closed_won`, or `closed_lost`.
+`HUBSPOT_B2B_PIPELINE_ID` is mandatory. It ensures that the B2C and archive pipelines cannot enter B2B storage. `HUBSPOT_STAGE_MAP_JSON` is mandatory. Its values must be existing PLAYBOOK codes: `discovery`, `qualified`, `proposal`, `negotiation`, `parked`, `closed_won`, or `closed_lost`.
 
 Example only — verify every source key against the live portal before using it:
 
@@ -26,7 +26,7 @@ Example only — verify every source key against the live portal before using it
 HUBSPOT_STAGE_MAP_JSON={"prospecting":"discovery","qualification":"qualified","proposal":"proposal","negotiation":"negotiation","closedwon":"closed_won","closedlost":"closed_lost"}
 ```
 
-For a non-USD HubSpot pipeline, configure an approved source property containing its USD exchange rate in `HUBSPOT_EXCHANGE_RATE_TO_USD_PROPERTY`. The integration retains the source currency, source amount, rate, and USD amount; it never guesses the rate.
+The supplied HubSpot account exposes `deal_currency_code` and `hs_exchange_rate`. HubSpot defines that rate as a conversion into the company currency, so set `HUBSPOT_COMPANY_CURRENCY=USD` only after confirming USD in HubSpot Account defaults. The integration then retains the source currency, source amount, rate, and USD amount. If the HubSpot company currency is not USD, stop: Finance must approve a separate source for USD FX rates before importing non-USD deals.
 
 ## 4. Configure the webhook
 
@@ -51,3 +51,4 @@ Before enabling a scheduler, run the Admin retry against a small known dataset a
 3. No recognised-sale row is created by either case.
 4. A repeated webhook event and a repeated 48-hour sync do not duplicate B2B data.
 5. An unknown stage or invalid FX rate becomes an integration error, not a financial value.
+6. A missing HubSpot amount or currency creates an incomplete B2B deal and open review flag, never a zero-value deal or booking.

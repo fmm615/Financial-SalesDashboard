@@ -4,6 +4,7 @@ const stageCode = z.string().regex(/^[a-z0-9][a-z0-9_-]*$/);
 const stageMapSchema = z.record(z.string().min(1), stageCode);
 
 export type HubSpotFieldMapping = {
+  pipeline: string;
   dealName: string;
   amount: string;
   currency: string;
@@ -18,6 +19,8 @@ export type HubSpotFieldMapping = {
 export type HubSpotConfig = {
   apiBaseUrl: string;
   privateAppToken: string;
+  b2bPipelineId: string;
+  companyCurrency: string;
   webhookClientSecret?: string;
   webhookCallbackUrl?: string;
   fieldMapping: HubSpotFieldMapping;
@@ -50,18 +53,21 @@ export function getHubSpotConfig(env: NodeJS.ProcessEnv = process.env): HubSpotC
   return {
     apiBaseUrl: optional(env, "HUBSPOT_API_BASE_URL") ?? "https://api.hubapi.com",
     privateAppToken: required(env, "HUBSPOT_PRIVATE_APP_TOKEN"),
+    b2bPipelineId: required(env, "HUBSPOT_B2B_PIPELINE_ID"),
+    companyCurrency: required(env, "HUBSPOT_COMPANY_CURRENCY").toUpperCase(),
     webhookClientSecret: optional(env, "HUBSPOT_WEBHOOK_CLIENT_SECRET"),
     webhookCallbackUrl: optional(env, "HUBSPOT_WEBHOOK_CALLBACK_URL"),
     fieldMapping: {
       dealName: optional(env, "HUBSPOT_DEAL_NAME_PROPERTY") ?? "dealname",
+      pipeline: optional(env, "HUBSPOT_PIPELINE_PROPERTY") ?? "pipeline",
       amount: optional(env, "HUBSPOT_AMOUNT_PROPERTY") ?? "amount",
-      currency: optional(env, "HUBSPOT_CURRENCY_PROPERTY") ?? "hs_currency",
+      currency: optional(env, "HUBSPOT_CURRENCY_PROPERTY") ?? "deal_currency_code",
       stage: optional(env, "HUBSPOT_STAGE_PROPERTY") ?? "dealstage",
       closeDate: optional(env, "HUBSPOT_CLOSE_DATE_PROPERTY") ?? "closedate",
       renewalDate: optional(env, "HUBSPOT_RENEWAL_DATE_PROPERTY"),
       ownerId: optional(env, "HUBSPOT_OWNER_ID_PROPERTY") ?? "hubspot_owner_id",
       lastModifiedAt: optional(env, "HUBSPOT_LAST_MODIFIED_PROPERTY") ?? "hs_lastmodifieddate",
-      exchangeRateToUsd: optional(env, "HUBSPOT_EXCHANGE_RATE_TO_USD_PROPERTY"),
+      exchangeRateToUsd: optional(env, "HUBSPOT_EXCHANGE_RATE_TO_USD_PROPERTY") ?? "hs_exchange_rate",
     },
     stageMap: parsedStageMap,
   };
@@ -69,6 +75,7 @@ export function getHubSpotConfig(env: NodeJS.ProcessEnv = process.env): HubSpotC
 
 export function requestedHubSpotDealProperties(mapping: HubSpotFieldMapping): string[] {
   return [...new Set([
+    mapping.pipeline,
     mapping.dealName,
     mapping.amount,
     mapping.currency,
