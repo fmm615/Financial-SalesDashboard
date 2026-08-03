@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { normaliseHubSpotDeal } from "@/lib/integrations/hubspot/normalise";
 import { isValidHubSpotSignature } from "@/lib/integrations/hubspot/signature";
 import { hubSpotDealNameForDisplay } from "@/lib/integrations/hubspot/source-reference";
-import { hubSpotCloseDateCorrectionSchema, hubSpotDealCorrectionSchema, hubSpotDuplicateResolutionSchema, hubSpotErrorResolutionSchema } from "@/lib/validation/hubspot-review-contracts";
+import { hubSpotDealExclusionSchema, hubSpotDealLocalOverrideSchema, hubSpotDuplicateResolutionSchema } from "@/lib/validation/hubspot-review-contracts";
 import { processHubSpotWebhook, runHubSpotHistoricalBackfillBatch, runHubSpotReconciliation } from "@/server/services/sync-hubspot";
 
 const mapping = {
@@ -185,14 +185,21 @@ describe("HubSpot Admin review contracts", () => {
     expect(hubSpotDealNameForDisplay(null)).toBe("Legacy issue — no deal reference was captured.");
   });
 
-  it("requires a complete local financial correction and an audit reason", () => {
-    expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "usd", exchangeRateToUsd: "1", reason: "Approved Finance correction" }).success).toBe(true);
-    expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "USD", exchangeRateToUsd: "0", reason: "Approved Finance correction" }).success).toBe(false);
-    expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "USD", exchangeRateToUsd: "1", reason: "" }).success).toBe(false);
-    expect(hubSpotErrorResolutionSchema.safeParse({ resolutionNote: "" }).success).toBe(false);
+  it("requires an audited duplicate decision", () => {
     expect(hubSpotDuplicateResolutionSchema.safeParse({ decision: "keep_one", keepDealId: null, resolutionNote: "Approved after checking HubSpot" }).success).toBe(false);
     expect(hubSpotDuplicateResolutionSchema.safeParse({ decision: "keep_both", keepDealId: null, resolutionNote: "Separate signed agreements" }).success).toBe(true);
-    expect(hubSpotCloseDateCorrectionSchema.safeParse({ closeDate: "2026-08-02", reason: "Signed agreement confirms the date" }).success).toBe(true);
-    expect(hubSpotCloseDateCorrectionSchema.safeParse({ closeDate: "02/08/2026", reason: "Signed agreement confirms the date" }).success).toBe(false);
+  });
+
+  it("requires complete local financial values or leaves the source value unavailable", () => {
+    const valid = {
+      name: "Acme annual membership", ownerName: "Layla", stageCode: "closed_won",
+      amount: "1500", currency: "usd", exchangeRateToUsd: "1", closeDate: "2026-08-01", renewalDate: null,
+      reason: "Finance verified the signed agreement.",
+    };
+    expect(hubSpotDealLocalOverrideSchema.safeParse(valid).success).toBe(true);
+    expect(hubSpotDealLocalOverrideSchema.safeParse({ ...valid, currency: null }).success).toBe(false);
+    expect(hubSpotDealLocalOverrideSchema.safeParse({ ...valid, amount: null, currency: null, exchangeRateToUsd: null }).success).toBe(true);
+    expect(hubSpotDealExclusionSchema.safeParse({ reason: "Duplicate test record retained only in source history." }).success).toBe(true);
+    expect(hubSpotDealExclusionSchema.safeParse({ reason: "" }).success).toBe(false);
   });
 });

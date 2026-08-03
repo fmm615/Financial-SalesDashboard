@@ -69,6 +69,7 @@ type B2bDealRow = {
   stage_code: string;
   financial_status: "complete" | "needs_review";
   duplicate_review_status: "clear" | "needs_review" | "include" | "exclude";
+  local_record_status: "active" | "excluded";
   pipeline_original_amount: Decimal | null;
   original_currency: string | null;
   exchange_rate_to_usd: Decimal | null;
@@ -183,6 +184,14 @@ export interface Database {
       };
       apply_hubspot_deal_close_date_correction: {
         Args: { p_deal_id: Uuid; p_close_date: string; p_reason: string };
+        Returns: undefined;
+      };
+      apply_hubspot_deal_local_override: {
+        Args: { p_deal_id: Uuid; p_name: string; p_owner_name: string | null; p_stage_code: string; p_amount: Decimal | null; p_currency: string | null; p_exchange_rate_to_usd: Decimal | null; p_close_date: string | null; p_renewal_date: string | null; p_reason: string };
+        Returns: undefined;
+      };
+      exclude_hubspot_deal_locally: {
+        Args: { p_deal_id: Uuid; p_reason: string };
         Returns: undefined;
       };
       resolve_hubspot_integration_error: {

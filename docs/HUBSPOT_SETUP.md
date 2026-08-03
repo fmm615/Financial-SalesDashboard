@@ -10,7 +10,7 @@ The main B2B dashboard displays the HubSpot **deal name**. It intentionally does
 
 ## 1. Apply the database migration
 
-Apply `20260802101100_hubspot_sync_identity_constraints.sql` through `20260803123000_preserve_local_hubspot_close_date_corrections.sql` in order, after the existing migrations. These migrations make HubSpot identity upserts safe, retain `PARKED`, protect incomplete data, enable Admin review, create durable resumable historical-backfill state, add audited duplicate decisions, attach exact source references to new HubSpot issues, allow local audited close-date corrections, create the only permitted source for B2B dashboard/report records, and preserve a local date correction during later read-only HubSpot syncs. Do not create or alter tables manually outside the committed migrations.
+Apply `20260802101100_hubspot_sync_identity_constraints.sql` through `20260803130000_b2b_inline_admin_workflow.sql` in order, after the existing migrations. These migrations make HubSpot identity upserts safe, retain `PARKED`, protect incomplete data, enable Admin review, create durable resumable historical-backfill state, add audited duplicate decisions, attach exact source references to new HubSpot issues, allow local audited corrections and exclusions from B2B Operations, create the only permitted source for B2B dashboard/report totals, and preserve a local date correction during later read-only HubSpot syncs. Do not create or alter tables manually outside the committed migrations.
 
 ## 2. Create a HubSpot private app
 
@@ -50,7 +50,7 @@ Before enabling a scheduler, run the Admin retry against a small known dataset a
 
 The Admin Integration Status page includes **Historical B2B backfill**. It reads every deal from the configured approved B2B pipeline, regardless of age; it does not use the 48-hour filter. One click continues automatically through persisted batches of up to 50 deals with bounded HubSpot request concurrency. The run stores its pagination cursor and totals in `integration_sync_runs`, so closing the browser does not lose progress and a later click resumes safely. Choosing **Start or restart** after a completed run creates a new audit-preserving run; an active run is always resumed instead. Each record still follows the same pipeline, currency, stage, duplicate, booking, incomplete-data, and recognised-sales safeguards.
 
-Every new per-deal validation error stores a compact reference such as `HubSpot deal 12345 — Acme`. The Admin screen shows this reference beside the error; historic issues created before this migration remain explicitly labelled as legacy issues with no captured deal reference. A closed-won deal missing only its close date is retained locally with its known financial values and an Admin correction card. A supplied local date creates an audited local booking; it does not update HubSpot.
+Every new per-deal validation error stores a compact reference such as `HubSpot deal 12345 — Acme`. The B2B Operations table shows every active source deal and its review state. An Admin can correct the full local deal record there—including close date—with a required reason, or exclude a source record locally. A supplied local close date can create an audited local booking; an exclusion keeps the source row and audit history but removes it from PLAYBOOK operational views and totals. Neither action updates HubSpot.
 
 When two complete HubSpot deals have the same normalized name, mapped stage, USD amount, and close-date state, they are not counted until an Admin decides to **keep both** or **keep only one**. The screen displays each source deal’s HubSpot ID and relevant values. Decisions require a note, are audited, affect only PLAYBOOK’s local financial view, and never write to HubSpot.
 
@@ -64,8 +64,9 @@ When two complete HubSpot deals have the same normalized name, mapped stage, USD
 6. A missing HubSpot amount or currency creates an incomplete B2B deal and open review flag, never a zero-value deal or booking.
 7. An Admin can correct incomplete B2B deal financial data locally with a required reason. The correction, individual actor, before/after values, and any resulting booking remain in Supabase; HubSpot is never changed.
 8. A historical backfill can be paused and resumed without duplicating deals or bookings.
-9. Each newly-created per-deal integration issue identifies its HubSpot deal ID/name in Admin review.
+9. Each newly-created per-deal integration issue identifies its HubSpot deal ID/name in B2B Operations.
 10. A possible duplicate displays both source deal IDs and requires an audited keep-both or keep-one decision before it is counted.
 11. A closed-won deal missing only a close date can receive an Admin local date correction and a separately auditable local booking, without a HubSpot write.
 12. B2B dashboards and reports read only `reportable_b2b_deals`; an incomplete, unresolved duplicate, or missing-close-date deal cannot appear in their rows or totals.
 13. A later HubSpot sync with a blank close date cannot remove a locally corrected close date or replace its local audited booking.
+14. An Admin can edit a source deal locally or exclude it locally from B2B Operations with a reason; both actions are auditable and never change HubSpot.

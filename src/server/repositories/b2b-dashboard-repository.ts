@@ -5,120 +5,105 @@ export type B2bDashboardDeal = {
   name: string;
   owner: string | null;
   stage: string;
-  amountUsd: string;
+  amountUsd: string | null;
+  originalAmount: string | null;
+  originalCurrency: string | null;
+  exchangeRateToUsd: string | null;
   closeDate: string | null;
   renewalDate: string | null;
   bookingStatus: "Booked" | "Not booked";
-  recognisedStatus: "Recognised" | "Not recognised" | "Partial";
+  recognisedStatus: "Recognised" | "Not recognised" | "Partial" | "Unavailable";
+  issue: string | null;
 };
 
-export type B2bDashboardSnapshot = {
-  deals: B2bDashboardDeal[];
-  openPipelineUsd: string;
-  bookingsThisQuarterUsd: string;
-  recognisedSalesThisMonthUsd: string;
-};
+export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string };
 
 const USD_SCALE = BigInt(1_000_000);
-
-function requireKnownAmount(value: string | null): string {
-  if (value === null) throw new Error("A reportable B2B deal is missing its USD amount.");
-  return value;
-}
 
 function toScaledUsd(value: string): bigint {
   const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value);
   if (!match) throw new Error("Stored B2B USD value is invalid.");
-  const whole = BigInt(match[1]);
-  const fraction = BigInt((match[2] ?? "").padEnd(6, "0"));
-  return whole * USD_SCALE + fraction;
+  return BigInt(match[1]) * USD_SCALE + BigInt((match[2] ?? "").padEnd(6, "0"));
 }
 
 function formatUsd(value: bigint): string {
-  const negative = value < BigInt(0);
-  const absolute = negative ? -value : value;
-  const whole = absolute / USD_SCALE;
-  const cents = (absolute % USD_SCALE) / BigInt(10_000);
-  return `${negative ? "-" : ""}$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
+  const whole = value / USD_SCALE;
+  const cents = (value % USD_SCALE) / BigInt(10_000);
+  return `$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
 }
 
-function quarterBounds(today: Date): { start: string; end: string } {
-  const quarterStartMonth = Math.floor(today.getUTCMonth() / 3) * 3;
-  const start = new Date(Date.UTC(today.getUTCFullYear(), quarterStartMonth, 1));
-  const end = new Date(Date.UTC(today.getUTCFullYear(), quarterStartMonth + 3, 0));
+function bounds(today: Date, unit: "month" | "quarter"): { start: string; end: string } {
+  const startMonth = unit === "month" ? today.getUTCMonth() : Math.floor(today.getUTCMonth() / 3) * 3;
+  const length = unit === "month" ? 1 : 3;
+  const start = new Date(Date.UTC(today.getUTCFullYear(), startMonth, 1));
+  const end = new Date(Date.UTC(today.getUTCFullYear(), startMonth + length, 0));
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
-function monthBounds(today: Date): { start: string; end: string } {
-  const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-  const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
-  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+function issueForDeal(deal: { financial_status: string; duplicate_review_status: string; stage_code: string; hubspot_close_date: string | null }, reviewReason: string | undefined): string | null {
+  if (deal.duplicate_review_status === "needs_review") return "Possible duplicate";
+  if (deal.financial_status === "needs_review") return reviewReason ?? "Needs financial details";
+  if (deal.stage_code === "closed_won" && !deal.hubspot_close_date) return "Needs close date";
+  return reviewReason ?? null;
 }
 
-/** Reads only the database view that excludes B2B deals awaiting Admin review. */
+/** Returns all active HubSpot source deals for operations, while KPI totals use only reportable rows. */
 export async function getB2bDashboardSnapshot(client: DatabaseClient, today = new Date()): Promise<B2bDashboardSnapshot> {
-  const { data: deals, error: dealsError } = await client
-    .from("reportable_b2b_deals")
-    .select("id,name,stage_code,pipeline_amount_usd,hubspot_close_date,renewal_date,owner_name")
-    .order("updated_at", { ascending: false });
-  if (dealsError) throw new Error(`Could not load reportable B2B deals: ${dealsError.message}`);
-
-  const dealRows = deals ?? [];
-  if (!dealRows.length) {
-    return { deals: [], openPipelineUsd: "$0.00", bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: "$0.00" };
-  }
-
-  const dealIds = dealRows.map((deal) => deal.id);
-  const [{ data: bookings, error: bookingsError }, { data: recognisedSales, error: recognisedSalesError }] = await Promise.all([
-    client.from("b2b_bookings").select("deal_id,booking_date,booking_amount_usd").in("deal_id", dealIds),
-    client.from("b2b_recognised_sales").select("deal_id,recognition_date,recognised_amount_usd").in("deal_id", dealIds),
+  const [allDealsResult, reportableDealsResult] = await Promise.all([
+    client.from("b2b_deals").select("id,name,owner_name,stage_code,financial_status,duplicate_review_status,pipeline_original_amount,original_currency,exchange_rate_to_usd,pipeline_amount_usd,hubspot_close_date,renewal_date").eq("source_system", "hubspot").eq("local_record_status", "active").order("updated_at", { ascending: false }),
+    client.from("reportable_b2b_deals").select("id,stage_code,pipeline_amount_usd"),
   ]);
-  if (bookingsError ?? recognisedSalesError) {
-    throw new Error("Could not load the B2B financial records required for the dashboard.");
-  }
+  if (allDealsResult.error ?? reportableDealsResult.error) throw new Error("Could not load B2B source deals.");
+  const allDeals = allDealsResult.data ?? [];
+  const reportableDeals = reportableDealsResult.data ?? [];
+  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: "$0.00" };
 
-  const bookingByDealId = new Map((bookings ?? []).map((booking) => [booking.deal_id, booking]));
-  const recognisedByDealId = new Map<string, bigint>();
-  for (const sale of recognisedSales ?? []) {
-    recognisedByDealId.set(sale.deal_id, (recognisedByDealId.get(sale.deal_id) ?? BigInt(0)) + toScaledUsd(sale.recognised_amount_usd));
-  }
+  const ids = allDeals.map((deal) => deal.id);
+  const reportableDealIds = new Set(reportableDeals.map((deal) => deal.id));
+  const [{ data: bookings, error: bookingsError }, { data: sales, error: salesError }, { data: flags, error: flagsError }] = await Promise.all([
+    client.from("b2b_bookings").select("deal_id,booking_date,booking_amount_usd").in("deal_id", ids),
+    client.from("b2b_recognised_sales").select("deal_id,recognition_date,recognised_amount_usd").in("deal_id", ids),
+    client.from("review_flags").select("source_record_id,reason").eq("source_area", "b2b_deal").eq("status", "open").in("source_record_id", ids),
+  ]);
+  if (bookingsError ?? salesError ?? flagsError) throw new Error("Could not load B2B deal status details.");
 
-  const quarter = quarterBounds(today);
-  const month = monthBounds(today);
+  const bookingByDeal = new Map((bookings ?? []).map((booking) => [booking.deal_id, booking]));
+  const reviewReasonByDeal = new Map((flags ?? []).map((flag) => [flag.source_record_id, flag.reason]));
+  const recognisedByDeal = new Map<string, bigint>();
+  for (const sale of sales ?? []) recognisedByDeal.set(sale.deal_id, (recognisedByDeal.get(sale.deal_id) ?? BigInt(0)) + toScaledUsd(sale.recognised_amount_usd));
+
   let openPipeline = BigInt(0);
+  for (const deal of reportableDeals) if (deal.stage_code !== "closed_won" && deal.stage_code !== "closed_lost" && deal.pipeline_amount_usd) openPipeline += toScaledUsd(deal.pipeline_amount_usd);
+  const quarter = bounds(today, "quarter");
+  const month = bounds(today, "month");
   let bookingsThisQuarter = BigInt(0);
-  let recognisedSalesThisMonth = BigInt(0);
-
-  for (const deal of dealRows) {
-    if (deal.stage_code !== "closed_won" && deal.stage_code !== "closed_lost") openPipeline += toScaledUsd(requireKnownAmount(deal.pipeline_amount_usd));
-  }
+  // A booking belonging to a locally excluded or unresolved deal is retained for
+  // traceability but must never make its way into an operational financial total.
   for (const booking of bookings ?? []) {
-    if (booking.booking_date >= quarter.start && booking.booking_date <= quarter.end) bookingsThisQuarter += toScaledUsd(booking.booking_amount_usd);
+    if (reportableDealIds.has(booking.deal_id) && booking.booking_date >= quarter.start && booking.booking_date <= quarter.end) {
+      bookingsThisQuarter += toScaledUsd(booking.booking_amount_usd);
+    }
   }
-  for (const sale of recognisedSales ?? []) {
-    if (sale.recognition_date >= month.start && sale.recognition_date <= month.end) recognisedSalesThisMonth += toScaledUsd(sale.recognised_amount_usd);
+  let recognisedSalesThisMonth = BigInt(0);
+  for (const sale of sales ?? []) {
+    if (reportableDealIds.has(sale.deal_id) && sale.recognition_date >= month.start && sale.recognition_date <= month.end) {
+      recognisedSalesThisMonth += toScaledUsd(sale.recognised_amount_usd);
+    }
   }
 
   return {
-    deals: dealRows.map((deal) => {
-      const booking = bookingByDealId.get(deal.id);
-      const recognised = recognisedByDealId.get(deal.id) ?? BigInt(0);
-      const amountUsd = requireKnownAmount(deal.pipeline_amount_usd);
-      const amount = toScaledUsd(amountUsd);
+    deals: allDeals.map((deal) => {
+      const recognised = recognisedByDeal.get(deal.id) ?? BigInt(0);
+      const amount = deal.pipeline_amount_usd ? toScaledUsd(deal.pipeline_amount_usd) : null;
       return {
-        id: deal.id,
-        name: deal.name,
-        owner: deal.owner_name,
-        stage: deal.stage_code,
-        amountUsd,
-        closeDate: deal.hubspot_close_date,
-        renewalDate: deal.renewal_date,
-        bookingStatus: booking ? "Booked" : "Not booked",
-        recognisedStatus: recognised === BigInt(0) ? "Not recognised" : recognised >= amount ? "Recognised" : "Partial",
+        id: deal.id, name: deal.name, owner: deal.owner_name, stage: deal.stage_code,
+        amountUsd: deal.pipeline_amount_usd, originalAmount: deal.pipeline_original_amount, originalCurrency: deal.original_currency, exchangeRateToUsd: deal.exchange_rate_to_usd,
+        closeDate: deal.hubspot_close_date, renewalDate: deal.renewal_date,
+        bookingStatus: bookingByDeal.has(deal.id) ? "Booked" : "Not booked",
+        recognisedStatus: amount === null ? "Unavailable" : recognised === BigInt(0) ? "Not recognised" : recognised >= amount ? "Recognised" : "Partial",
+        issue: issueForDeal(deal, reviewReasonByDeal.get(deal.id)),
       };
     }),
-    openPipelineUsd: formatUsd(openPipeline),
-    bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter),
-    recognisedSalesThisMonthUsd: formatUsd(recognisedSalesThisMonth),
+    openPipelineUsd: formatUsd(openPipeline), bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: formatUsd(recognisedSalesThisMonth),
   };
 }

@@ -7,6 +7,6 @@ export default async function B2bPage() {
     const snapshot = await getB2bDashboardSnapshot(await createServerSupabaseClient());
     return <B2bOperations snapshot={snapshot} />;
   } catch {
-    return <B2bOperations snapshot={null} loadError="Reportable B2B data could not be loaded. Check that the required database migration has been applied." />;
+    return <B2bOperations snapshot={null} loadError="B2B source deals could not be loaded. Check that the required database migration has been applied." />;
   }
 }

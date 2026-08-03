@@ -124,4 +124,16 @@ describe("Phase 2 database migration contracts", () => {
     expect(preserveLocalDate).toContain("old.source_metadata ? 'local_close_date_correction_at'");
     expect(preserveLocalDate).toContain("new.hubspot_close_date := old.hubspot_close_date");
   });
+
+  it("keeps HubSpot source history while allowing only audited local overrides or exclusions", () => {
+    const inlineWorkflow = migration("20260803130000_b2b_inline_admin_workflow.sql");
+    expect(inlineWorkflow).toContain("local_record_status in ('active', 'excluded')");
+    expect(inlineWorkflow).toContain("create or replace function public.apply_hubspot_deal_local_override");
+    expect(inlineWorkflow).toContain("create or replace function public.exclude_hubspot_deal_locally");
+    expect(inlineWorkflow).toContain("insert into public.financial_corrections");
+    expect(inlineWorkflow).toContain("not public.is_admin()");
+    expect(inlineWorkflow).toContain("d.local_record_status = 'active'");
+    expect(inlineWorkflow).toContain("old.source_metadata ? 'local_override_at'");
+    expect(inlineWorkflow).not.toContain("delete from public.b2b_deals");
+  });
 });
