@@ -6,7 +6,7 @@ import { B2bOperations } from "@/features/b2b/b2b-operations";
 import { ReportsPage } from "@/features/reports/reports-page";
 import { ReviewQueuePage } from "@/features/review-queue/review-queue-page";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/executive", useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/executive", useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/components/charts", () => ({ BreakdownChart: () => <div aria-label="Breakdown chart" /> }));
 

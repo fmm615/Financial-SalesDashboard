@@ -71,6 +71,8 @@ The Admin Integration Status screen is for reconciliation/backfill controls and 
 
 B2B Operations may show all active source deals so an Admin can correct them in context, but every dashboard KPI and report total must use `public.reportable_b2b_deals`. That view exposes only complete, active deals that have cleared duplicate review (or were explicitly included) and, for closed-won deals, a known close date. Records awaiting a financial, duplicate, or close-date correction remain traceable but are excluded from every financial total.
 
+The B2B Operations month control changes the reporting period for recognised sales and the containing quarter for bookings. Open pipeline is intentionally a live current-state figure: a deal's current stage cannot be used to reconstruct a historical pipeline snapshot. Metric labels must always name the actual selected month or quarter rather than saying “this month” or “this quarter”.
+
 When HubSpot is unavailable, an Admin may create a **manual Finance B2B deal** directly in B2B Operations. The server validates the original amount, ISO currency, FX rate, stage, and required reason; it records the authenticated Admin through existing source and audit triggers. A closed-won entry with a close date creates a separate manual booking. Manual entry never creates a receipt or recognised-sales record, and exact duplicate candidates are paused for an audited Admin decision. This local workflow never sends a request to HubSpot.
 
 Historical backfill reads the entire configured B2B pipeline in durable, paginated batches. It is separate from the mandatory 48-hour reconciliation: the former loads history once, while the latter keeps recent changes current.

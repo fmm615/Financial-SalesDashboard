@@ -16,7 +16,17 @@ export type B2bDashboardDeal = {
   issue: string | null;
 };
 
-export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string };
+export type B2bReportingPeriod = {
+  month: string;
+  monthLabel: string;
+  quarterLabel: string;
+  monthStart: string;
+  monthEnd: string;
+  quarterStart: string;
+  quarterEnd: string;
+};
+
+export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string; period: B2bReportingPeriod };
 
 const USD_SCALE = BigInt(1_000_000);
 
@@ -32,12 +42,24 @@ function formatUsd(value: bigint): string {
   return `$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
 }
 
-function bounds(today: Date, unit: "month" | "quarter"): { start: string; end: string } {
-  const startMonth = unit === "month" ? today.getUTCMonth() : Math.floor(today.getUTCMonth() / 3) * 3;
-  const length = unit === "month" ? 1 : 3;
-  const start = new Date(Date.UTC(today.getUTCFullYear(), startMonth, 1));
-  const end = new Date(Date.UTC(today.getUTCFullYear(), startMonth + length, 0));
-  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+export function resolveB2bReportingPeriod(selectedMonth: string | undefined, today = new Date()): B2bReportingPeriod {
+  const fallback = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth ?? "") ? selectedMonth! : fallback;
+  const [year, monthIndex] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthIndex - 1, 1));
+  const monthEnd = new Date(Date.UTC(year, monthIndex, 0));
+  const quarterStartMonth = Math.floor((monthIndex - 1) / 3) * 3;
+  const quarterStart = new Date(Date.UTC(year, quarterStartMonth, 1));
+  const quarterEnd = new Date(Date.UTC(year, quarterStartMonth + 3, 0));
+  return {
+    month,
+    monthLabel: new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(date),
+    quarterLabel: `Q${Math.floor((monthIndex - 1) / 3) + 1} ${year}`,
+    monthStart: date.toISOString().slice(0, 10),
+    monthEnd: monthEnd.toISOString().slice(0, 10),
+    quarterStart: quarterStart.toISOString().slice(0, 10),
+    quarterEnd: quarterEnd.toISOString().slice(0, 10),
+  };
 }
 
 function issueForDeal(deal: { financial_status: string; duplicate_review_status: string; stage_code: string; hubspot_close_date: string | null }, reviewReason: string | undefined): string | null {
@@ -48,7 +70,8 @@ function issueForDeal(deal: { financial_status: string; duplicate_review_status:
 }
 
 /** Returns all active HubSpot and Finance-entered B2B deals, while KPI totals use only reportable rows. */
-export async function getB2bDashboardSnapshot(client: DatabaseClient, today = new Date()): Promise<B2bDashboardSnapshot> {
+export async function getB2bDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2bDashboardSnapshot> {
+  const period = resolveB2bReportingPeriod(selectedMonth, today);
   const [allDealsResult, reportableDealsResult] = await Promise.all([
     client.from("b2b_deals").select("id,name,owner_name,stage_code,financial_status,duplicate_review_status,pipeline_original_amount,original_currency,exchange_rate_to_usd,pipeline_amount_usd,hubspot_close_date,renewal_date").in("source_system", ["hubspot", "manual_finance"]).eq("local_record_status", "active").order("updated_at", { ascending: false }),
     client.from("reportable_b2b_deals").select("id,stage_code,pipeline_amount_usd"),
@@ -56,7 +79,7 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
   if (allDealsResult.error ?? reportableDealsResult.error) throw new Error("Could not load B2B source deals.");
   const allDeals = allDealsResult.data ?? [];
   const reportableDeals = reportableDealsResult.data ?? [];
-  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: "$0.00" };
+  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: "$0.00", period };
 
   const ids = allDeals.map((deal) => deal.id);
   const reportableDealIds = new Set(reportableDeals.map((deal) => deal.id));
@@ -74,19 +97,17 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
 
   let openPipeline = BigInt(0);
   for (const deal of reportableDeals) if (deal.stage_code !== "closed_won" && deal.stage_code !== "closed_lost" && deal.pipeline_amount_usd) openPipeline += toScaledUsd(deal.pipeline_amount_usd);
-  const quarter = bounds(today, "quarter");
-  const month = bounds(today, "month");
   let bookingsThisQuarter = BigInt(0);
   // A booking belonging to a locally excluded or unresolved deal is retained for
   // traceability but must never make its way into an operational financial total.
   for (const booking of bookings ?? []) {
-    if (reportableDealIds.has(booking.deal_id) && booking.booking_date >= quarter.start && booking.booking_date <= quarter.end) {
+    if (reportableDealIds.has(booking.deal_id) && booking.booking_date >= period.quarterStart && booking.booking_date <= period.quarterEnd) {
       bookingsThisQuarter += toScaledUsd(booking.booking_amount_usd);
     }
   }
   let recognisedSalesThisMonth = BigInt(0);
   for (const sale of sales ?? []) {
-    if (reportableDealIds.has(sale.deal_id) && sale.recognition_date >= month.start && sale.recognition_date <= month.end) {
+    if (reportableDealIds.has(sale.deal_id) && sale.recognition_date >= period.monthStart && sale.recognition_date <= period.monthEnd) {
       recognisedSalesThisMonth += toScaledUsd(sale.recognised_amount_usd);
     }
   }
@@ -104,6 +125,6 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
         issue: issueForDeal(deal, reviewReasonByDeal.get(deal.id)),
       };
     }),
-    openPipelineUsd: formatUsd(openPipeline), bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: formatUsd(recognisedSalesThisMonth),
+    openPipelineUsd: formatUsd(openPipeline), bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: formatUsd(recognisedSalesThisMonth), period,
   };
 }

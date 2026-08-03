@@ -7,7 +7,7 @@ import { ReportsPage } from "@/features/reports/reports-page";
 import { ReviewQueuePage } from "@/features/review-queue/review-queue-page";
 import { EmptyState, LoadingSkeleton, NotBackfilledState } from "@/components/ui";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/executive", useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/executive", useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/components/charts", () => ({ SalesTrendChart: () => <div aria-label="Sales trend chart" />, BreakdownChart: () => <div aria-label="Breakdown chart" /> }));
 
@@ -42,11 +42,15 @@ describe("UI foundation", () => {
       openPipelineUsd: "$95,000.00",
       bookingsThisQuarterUsd: "$20,000.00",
       recognisedSalesThisMonthUsd: "$2,000.00",
+      period: { month: "2026-08", monthLabel: "August 2026", quarterLabel: "Q3 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31", quarterStart: "2026-07-01", quarterEnd: "2026-09-30" },
       deals: [{ id: "deal-1", name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", originalAmount: "95000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial", issue: "Possible duplicate" }],
     }} />);
-    expect(screen.getByText("Eligible open deals only")).toBeInTheDocument();
+    expect(screen.getByText("Current eligible open deals")).toBeInTheDocument();
     expect(screen.getByText("Closed-won bookings only")).toBeInTheDocument();
-    expect(screen.getByText("This month; separate from bookings")).toBeInTheDocument();
+    expect(screen.getByText("Separate from bookings")).toBeInTheDocument();
+    expect(screen.getByText("Bookings · Q3 2026")).toBeInTheDocument();
+    expect(screen.getByText("Recognised sales · August 2026")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "B2B financial reporting month" })).toHaveValue("2026-08");
     expect(screen.getByText("Annual programme")).toBeInTheDocument();
     expect(screen.getByText("Possible duplicate")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add manual B2B deal" })).toBeInTheDocument();
