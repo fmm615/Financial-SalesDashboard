@@ -53,6 +53,7 @@ describe("UI foundation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add manual B2B deal" }));
     expect(screen.getByRole("dialog", { name: "Manual B2B deal entry" })).toBeInTheDocument();
     expect(screen.getByText(/Cash received requires an invoice and receipt/)).toBeInTheDocument();
+    expect(screen.getByText(/server-validated, duplicate-checked, and audited/)).toBeInTheDocument();
     expect(screen.queryByText("Payment received status")).not.toBeInTheDocument();
     expect(screen.queryByText("Recognised sales status")).not.toBeInTheDocument();
   });

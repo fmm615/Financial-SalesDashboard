@@ -100,18 +100,21 @@ export const reportRequestSchema = z.object({
 });
 
 export const manualB2bDealSchema = z.object({
-  companyId: uuid,
+  companyName: nonEmpty.max(250),
   name: nonEmpty.max(255),
-  stageCode: z.string().regex(/^[a-z0-9][a-z0-9_-]*$/),
+  stageCode: z.enum(["discovery", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"]),
   pipelineOriginalAmount: nonNegativeMoney,
   originalCurrency: currencyCode,
   exchangeRateToUsd: exchangeRate,
-  pipelineAmountUsd: nonNegativeMoney,
-  hubspotCloseDate: isoDate.optional(),
-  renewalDate: isoDate.optional(),
-  ownerName: z.string().trim().min(1).max(200).optional(),
+  closeDate: isoDate.nullable(),
+  renewalDate: isoDate.nullable(),
+  ownerName: z.string().trim().max(200).nullable(),
   manualEntryReason: nonEmpty.max(1000),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.stageCode === "closed_won" && !value.closeDate) {
+    context.addIssue({ code: "custom", path: ["closeDate"], message: "Closed-won deals require a close date so their booking can be recorded separately." });
+  }
+});
 
 export const manualRecognisedSaleSchema = z.object({
   dealId: uuid,

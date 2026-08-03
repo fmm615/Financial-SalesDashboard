@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   manualBankTransferSchema,
+  manualB2bDealSchema,
   manualRecognisedSaleSchema,
   reportRequestSchema,
 } from "@/lib/validation/financial-contracts";
@@ -48,6 +49,24 @@ describe("Phase 2 validation contracts", () => {
     expect(manualBankTransferSchema.safeParse({
       customerEmail: "member@playbook.test", categoryCode: "membership", originalAmount: 100,
     }).success).toBe(false);
+  });
+
+  it("requires complete local Finance deal values and a close date for a manual booking", () => {
+    const manualDeal = {
+      companyName: "Acme Holdings",
+      name: "Annual programme",
+      ownerName: null,
+      stageCode: "closed_won",
+      pipelineOriginalAmount: "1500.25",
+      originalCurrency: "USD",
+      exchangeRateToUsd: "1",
+      closeDate: "2026-08-01",
+      renewalDate: null,
+      manualEntryReason: "Signed Finance-approved agreement",
+    };
+    expect(manualB2bDealSchema.safeParse(manualDeal).success).toBe(true);
+    expect(manualB2bDealSchema.safeParse({ ...manualDeal, closeDate: null }).success).toBe(false);
+    expect(manualB2bDealSchema.safeParse({ ...manualDeal, originalCurrency: "usd" }).success).toBe(false);
   });
 
   it("validates report date ordering before a job can be queued", () => {
@@ -135,5 +154,15 @@ describe("Phase 2 database migration contracts", () => {
     expect(inlineWorkflow).toContain("d.local_record_status = 'active'");
     expect(inlineWorkflow).toContain("old.source_metadata ? 'local_override_at'");
     expect(inlineWorkflow).not.toContain("delete from public.b2b_deals");
+  });
+
+  it("creates manual Finance B2B deals locally with separate bookings and no recognised-sales creation", () => {
+    const manualEntry = migration("20260803140000_manual_b2b_deal_entry.sql");
+    expect(manualEntry).toContain("create or replace function public.create_manual_b2b_deal");
+    expect(manualEntry).toContain("not public.is_admin()");
+    expect(manualEntry).toContain("insert into public.b2b_bookings");
+    expect(manualEntry).toContain("perform public.flag_manual_b2b_possible_duplicates");
+    expect(manualEntry).not.toContain("insert into public.b2b_recognised_sales");
+    expect(manualEntry).not.toContain("delete from public.b2b_deals");
   });
 });

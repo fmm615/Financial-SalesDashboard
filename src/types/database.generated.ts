@@ -194,11 +194,16 @@ export interface Database {
         Args: { p_deal_id: Uuid; p_reason: string };
         Returns: undefined;
       };
+      create_manual_b2b_deal: {
+        Args: { p_company_name: string; p_name: string; p_owner_name: string | null; p_stage_code: string; p_original_amount: Decimal; p_original_currency: string; p_exchange_rate_to_usd: Decimal; p_close_date: string | null; p_renewal_date: string | null; p_reason: string };
+        Returns: Uuid;
+      };
       resolve_hubspot_integration_error: {
         Args: { p_error_id: Uuid; p_resolution_note: string };
         Returns: undefined;
       };
       flag_hubspot_possible_duplicates: { Args: { p_deal_id: Uuid }; Returns: undefined };
+      flag_manual_b2b_possible_duplicates: { Args: { p_deal_id: Uuid }; Returns: undefined };
       resolve_hubspot_duplicate_group: { Args: { p_group_id: Uuid; p_decision: string; p_keep_deal_id: Uuid | null; p_note: string }; Returns: undefined };
     };
     Enums: {

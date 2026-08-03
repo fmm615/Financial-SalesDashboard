@@ -47,10 +47,10 @@ function issueForDeal(deal: { financial_status: string; duplicate_review_status:
   return reviewReason ?? null;
 }
 
-/** Returns all active HubSpot source deals for operations, while KPI totals use only reportable rows. */
+/** Returns all active HubSpot and Finance-entered B2B deals, while KPI totals use only reportable rows. */
 export async function getB2bDashboardSnapshot(client: DatabaseClient, today = new Date()): Promise<B2bDashboardSnapshot> {
   const [allDealsResult, reportableDealsResult] = await Promise.all([
-    client.from("b2b_deals").select("id,name,owner_name,stage_code,financial_status,duplicate_review_status,pipeline_original_amount,original_currency,exchange_rate_to_usd,pipeline_amount_usd,hubspot_close_date,renewal_date").eq("source_system", "hubspot").eq("local_record_status", "active").order("updated_at", { ascending: false }),
+    client.from("b2b_deals").select("id,name,owner_name,stage_code,financial_status,duplicate_review_status,pipeline_original_amount,original_currency,exchange_rate_to_usd,pipeline_amount_usd,hubspot_close_date,renewal_date").in("source_system", ["hubspot", "manual_finance"]).eq("local_record_status", "active").order("updated_at", { ascending: false }),
     client.from("reportable_b2b_deals").select("id,stage_code,pipeline_amount_usd"),
   ]);
   if (allDealsResult.error ?? reportableDealsResult.error) throw new Error("Could not load B2B source deals.");
