@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { normaliseHubSpotDeal } from "@/lib/integrations/hubspot/normalise";
 import { isValidHubSpotSignature } from "@/lib/integrations/hubspot/signature";
+import { hubSpotDealNameForDisplay } from "@/lib/integrations/hubspot/source-reference";
 import { hubSpotCloseDateCorrectionSchema, hubSpotDealCorrectionSchema, hubSpotDuplicateResolutionSchema, hubSpotErrorResolutionSchema } from "@/lib/validation/hubspot-review-contracts";
 import { processHubSpotWebhook, runHubSpotHistoricalBackfillBatch, runHubSpotReconciliation } from "@/server/services/sync-hubspot";
 
@@ -179,6 +180,11 @@ describe("HubSpot ingestion orchestration", () => {
 });
 
 describe("HubSpot Admin review contracts", () => {
+  it("shows an affected deal name before its stored technical source reference", () => {
+    expect(hubSpotDealNameForDisplay("HubSpot deal 8974886125 — Crescent Enterprises")).toBe("Crescent Enterprises");
+    expect(hubSpotDealNameForDisplay(null)).toBe("Legacy issue — no deal reference was captured.");
+  });
+
   it("requires a complete local financial correction and an audit reason", () => {
     expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "usd", exchangeRateToUsd: "1", reason: "Approved Finance correction" }).success).toBe(true);
     expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "USD", exchangeRateToUsd: "0", reason: "Approved Finance correction" }).success).toBe(false);

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ErrorState, LoadingSkeleton, PrimaryButton, SectionCard } from "@/components/ui";
+import { hubSpotDealNameForDisplay } from "@/lib/integrations/hubspot/source-reference";
 
 type IncompleteDeal = {
   id: string;
@@ -117,7 +118,7 @@ function ResolutionForm({ issue, onResolved }: { issue: IntegrationError; onReso
 
   return <article className="border-b border-line py-4 last:border-b-0">
     <p className="font-medium text-ink">{issue.safe_error_summary}</p>
-    <p className="mt-1 text-sm text-slate-700">Affected record: {issue.source_reference ?? "Legacy issue — no deal reference was captured."}</p>
+    <p className="mt-1 text-sm text-slate-700">Affected deal: {hubSpotDealNameForDisplay(issue.source_reference)}</p>
     <p className="mt-1 text-xs text-slate-500">Flagged {formatDate(issue.occurred_at)}</p>
     <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} className="min-w-0 flex-1 rounded-md border border-line bg-white px-3 py-2 text-sm" placeholder="Required resolution note" /><PrimaryButton onClick={resolve} disabled={saving}>{saving ? "Resolving…" : "Mark resolved"}</PrimaryButton></div>
     {message && <p role="alert" className="mt-2 text-sm text-red-700">{message}</p>}

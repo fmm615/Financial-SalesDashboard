@@ -6,6 +6,8 @@ HubSpot is the primary source for B2B companies, deals, pipeline stages, booking
 
 The application rejects an unapproved HubSpot stage, an invalid currency, or a non-USD amount without an explicit FX-rate property. A deal with a missing amount or currency is retained as an incomplete HubSpot source record and flagged for Admin review; it has no financial amount, creates no booking, and is excluded from totals until an audited correction is supplied. A closed-won deal with valid money but no close date is retained only for Admin local correction and is excluded from all B2B dashboards, reports, and bookings until corrected.
 
+The main B2B dashboard displays the HubSpot **deal name**. It intentionally does not display a Company column because a Company association is optional in the source and must not be inferred locally.
+
 ## 1. Apply the database migration
 
 Apply `20260802101100_hubspot_sync_identity_constraints.sql` through `20260803123000_preserve_local_hubspot_close_date_corrections.sql` in order, after the existing migrations. These migrations make HubSpot identity upserts safe, retain `PARKED`, protect incomplete data, enable Admin review, create durable resumable historical-backfill state, add audited duplicate decisions, attach exact source references to new HubSpot issues, allow local audited close-date corrections, create the only permitted source for B2B dashboard/report records, and preserve a local date correction during later read-only HubSpot syncs. Do not create or alter tables manually outside the committed migrations.

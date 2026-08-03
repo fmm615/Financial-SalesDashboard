@@ -42,7 +42,7 @@ describe("UI foundation", () => {
       openPipelineUsd: "$95,000.00",
       bookingsThisQuarterUsd: "$20,000.00",
       recognisedSalesThisMonthUsd: "$2,000.00",
-      deals: [{ id: "deal-1", company: "Acme", name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial" }],
+      deals: [{ id: "deal-1", name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial" }],
     }} />);
     expect(screen.getByText("Eligible open deals only")).toBeInTheDocument();
     expect(screen.getByText("Closed-won bookings only")).toBeInTheDocument();

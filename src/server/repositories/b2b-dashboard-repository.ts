@@ -2,7 +2,6 @@ import type { DatabaseClient } from "@/lib/supabase/server";
 
 export type B2bDashboardDeal = {
   id: string;
-  company: string;
   name: string;
   owner: string | null;
   stage: string;
@@ -60,7 +59,7 @@ function monthBounds(today: Date): { start: string; end: string } {
 export async function getB2bDashboardSnapshot(client: DatabaseClient, today = new Date()): Promise<B2bDashboardSnapshot> {
   const { data: deals, error: dealsError } = await client
     .from("reportable_b2b_deals")
-    .select("id,company_id,name,stage_code,pipeline_amount_usd,hubspot_close_date,renewal_date,owner_name")
+    .select("id,name,stage_code,pipeline_amount_usd,hubspot_close_date,renewal_date,owner_name")
     .order("updated_at", { ascending: false });
   if (dealsError) throw new Error(`Could not load reportable B2B deals: ${dealsError.message}`);
 
@@ -70,17 +69,14 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
   }
 
   const dealIds = dealRows.map((deal) => deal.id);
-  const companyIds = [...new Set(dealRows.map((deal) => deal.company_id))];
-  const [{ data: companies, error: companiesError }, { data: bookings, error: bookingsError }, { data: recognisedSales, error: recognisedSalesError }] = await Promise.all([
-    client.from("b2b_companies").select("id,legal_name").in("id", companyIds),
+  const [{ data: bookings, error: bookingsError }, { data: recognisedSales, error: recognisedSalesError }] = await Promise.all([
     client.from("b2b_bookings").select("deal_id,booking_date,booking_amount_usd").in("deal_id", dealIds),
     client.from("b2b_recognised_sales").select("deal_id,recognition_date,recognised_amount_usd").in("deal_id", dealIds),
   ]);
-  if (companiesError ?? bookingsError ?? recognisedSalesError) {
+  if (bookingsError ?? recognisedSalesError) {
     throw new Error("Could not load the B2B financial records required for the dashboard.");
   }
 
-  const companyNameById = new Map((companies ?? []).map((company) => [company.id, company.legal_name]));
   const bookingByDealId = new Map((bookings ?? []).map((booking) => [booking.deal_id, booking]));
   const recognisedByDealId = new Map<string, bigint>();
   for (const sale of recognisedSales ?? []) {
@@ -111,7 +107,6 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
       const amount = toScaledUsd(amountUsd);
       return {
         id: deal.id,
-        company: companyNameById.get(deal.company_id) ?? "Unknown company",
         name: deal.name,
         owner: deal.owner_name,
         stage: deal.stage_code,
