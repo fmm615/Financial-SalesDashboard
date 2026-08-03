@@ -20,7 +20,7 @@ function stageLabel(stage: string): string {
 
 /** Main B2B operations view. Its input comes only from the reportable-deals database view. */
 export function B2bOperations({ snapshot = null, loadError }: { snapshot?: B2bDashboardSnapshot | null; loadError?: string }) {
-  return <AppShell title="B2B operations" description="Corporate pipeline, closed-won bookings, and recognised sales are tracked as separate financial concepts. Deals waiting for Admin correction are excluded until corrected." controls={<div className="flex flex-wrap gap-2"><DateRangeSelector /><ManualDealEntry /></div>}>
+  return <AppShell title="B2B operations" description="Corporate pipeline, closed-won bookings, and recognised sales are tracked as separate financial concepts. Deals needing Admin review remain visible but are excluded from totals." controls={<div className="flex flex-wrap gap-2"><DateRangeSelector /><ManualDealEntry /></div>}>
     {loadError || !snapshot ? <ErrorState title="B2B data unavailable" description={loadError ?? "The B2B dashboard could not be loaded."} /> : <>
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard label="Open pipeline" value={snapshot.openPipelineUsd} note="Eligible open deals only" />

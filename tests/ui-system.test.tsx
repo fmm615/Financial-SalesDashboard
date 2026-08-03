@@ -50,6 +50,11 @@ describe("UI foundation", () => {
     expect(screen.getByText("Annual programme")).toBeInTheDocument();
     expect(screen.getByText("Possible duplicate")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add manual B2B deal" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add manual B2B deal" }));
+    expect(screen.getByRole("dialog", { name: "Manual B2B deal entry" })).toBeInTheDocument();
+    expect(screen.getByText(/Cash received requires an invoice and receipt/)).toBeInTheDocument();
+    expect(screen.queryByText("Payment received status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Recognised sales status")).not.toBeInTheDocument();
   });
 
   it("renders separate report archive output actions", () => {
