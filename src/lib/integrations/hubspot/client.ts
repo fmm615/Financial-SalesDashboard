@@ -14,6 +14,27 @@ type HubSpotCompany = {
   domain: string | null;
 };
 
+const BACKFILL_PAGE_SIZE = 50;
+const HYDRATION_CONCURRENCY = 8;
+
+async function mapWithConcurrency<TInput, TResult>(
+  inputs: TInput[],
+  concurrency: number,
+  mapper: (input: TInput) => Promise<TResult>,
+): Promise<TResult[]> {
+  const results = new Array<TResult>(inputs.length);
+  let nextIndex = 0;
+  async function worker(): Promise<void> {
+    while (nextIndex < inputs.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(inputs[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, inputs.length) }, () => worker()));
+  return results;
+}
+
 export type HubSpotDealWithCompany = {
   deal: unknown;
   company: HubSpotCompany;
@@ -80,28 +101,47 @@ export class HubSpotClient {
     const deals: HubSpotDealWithCompany[] = [];
     let after: string | undefined;
     do {
-      const response = await this.request("/crm/v3/objects/deals/search", {
-        method: "POST",
-        body: JSON.stringify({
-          filterGroups: [{ filters: [
-            { propertyName: this.config.fieldMapping.lastModifiedAt ?? "hs_lastmodifieddate", operator: "GTE", value: String(since.getTime()) },
-            { propertyName: this.config.fieldMapping.pipeline, operator: "EQ", value: this.config.b2bPipelineId },
-          ] }],
-          properties: this.properties,
-          propertiesWithHistory: [this.config.fieldMapping.stage],
-          limit: 100,
-          ...(after ? { after } : {}),
-        }),
-      });
-      const page = await response.json() as HubSpotSearchResponse;
-      for (const record of page.results) {
-        const dealId = (record as { id?: unknown }).id;
-        if (typeof dealId !== "string" || !dealId) throw new Error("HubSpot search returned a deal without an ID.");
-        deals.push(await this.fetchDealWithCompany(dealId));
-      }
-      after = page.paging?.next?.after;
+      const page = await this.searchB2bDealPage(after, [{ propertyName: this.config.fieldMapping.lastModifiedAt ?? "hs_lastmodifieddate", operator: "GTE", value: String(since.getTime()) }], 100);
+      deals.push(...page.deals);
+      after = page.nextCursor ?? undefined;
     } while (after);
     return deals;
+  }
+
+  /** Reads one bounded page from the approved B2B pipeline for resumable history imports. */
+  async searchAllB2bDealsPage(cursor?: string): Promise<{ deals: HubSpotDealWithCompany[]; nextCursor: string | null }> {
+    return this.searchB2bDealPage(cursor, [], BACKFILL_PAGE_SIZE);
+  }
+
+  private async searchB2bDealPage(
+    after: string | undefined,
+    filters: Array<{ propertyName: string; operator: "EQ" | "GTE"; value: string }>,
+    limit: number,
+  ): Promise<{ deals: HubSpotDealWithCompany[]; nextCursor: string | null }> {
+    const response = await this.request("/crm/v3/objects/deals/search", {
+      method: "POST",
+      body: JSON.stringify({
+        filterGroups: [{ filters: [
+          ...filters,
+          { propertyName: this.config.fieldMapping.pipeline, operator: "EQ", value: this.config.b2bPipelineId },
+        ] }],
+        properties: this.properties,
+        propertiesWithHistory: [this.config.fieldMapping.stage],
+        limit,
+        ...(after ? { after } : {}),
+      }),
+    });
+    const page = await response.json() as HubSpotSearchResponse;
+    const dealIds = page.results.map((record) => {
+      const dealId = (record as { id?: unknown }).id;
+      if (typeof dealId !== "string" || !dealId) throw new Error("HubSpot search returned a deal without an ID.");
+      return dealId;
+    });
+    return {
+      // Bound parallel provider calls to avoid rate-limit bursts during a large history import.
+      deals: await mapWithConcurrency(dealIds, HYDRATION_CONCURRENCY, (dealId) => this.fetchDealWithCompany(dealId)),
+      nextCursor: page.paging?.next?.after ?? null,
+    };
   }
 
   private async fetchCompany(companyId: string): Promise<HubSpotCompany> {

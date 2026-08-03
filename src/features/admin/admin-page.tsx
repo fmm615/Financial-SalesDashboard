@@ -5,6 +5,8 @@ import { ConfirmationDialog, FormField } from "@/components/admin-ui";
 import { PrimaryButton, SectionCard } from "@/components/ui";
 import { HubSpotSyncControl } from "@/features/admin/hubspot-sync-control";
 import { HubSpotReviewWorkflow } from "@/features/admin/hubspot-review-workflow";
+import { HubSpotDuplicateReview } from "@/features/admin/hubspot-duplicate-review";
+import { HubSpotBackfillControl } from "@/features/admin/hubspot-backfill-control";
 import { useState } from "react";
 
 const sections = ["Bank transfer entry", "Correct a record", "Product mapping", "Targets", "Summit tracker", "User access", "Integration status"] as const;
@@ -17,7 +19,7 @@ function AdminForm({ section, onReview }: { section: AdminSection; onReview: () 
   if (section === "Product mapping") return <><p className="mb-5 text-sm text-slate-500">Map Stripe or Tap products to an approved internal reporting category and membership tier.</p><div className="grid gap-4 sm:grid-cols-3"><FormField label="Processor product"><input className={inputClass} placeholder="Product ID" /></FormField><FormField label="Internal category"><select className={inputClass}><option>Membership</option><option>Workshop</option></select></FormField><FormField label="Membership tier"><select className={inputClass}><option>Premium</option><option>Community</option></select></FormField></div><div className="mt-5"><PrimaryButton onClick={onReview}>Review mapping</PrimaryButton></div></>;
   if (section === "Targets") return <><p className="mb-5 text-sm text-slate-500">Annual and quarterly targets are configurable without a code change in the future secure data layer.</p><div className="grid gap-4 sm:grid-cols-3"><FormField label="Target period"><select className={inputClass}><option>Annual 2026</option><option>Q3 2026</option></select></FormField><FormField label="Revenue stream"><select className={inputClass}><option>Total recognised sales</option><option>B2C recognised sales</option><option>B2B recognised sales</option></select></FormField><FormField label="Target (USD)"><input className={inputClass} placeholder="$0" /></FormField></div><div className="mt-5"><PrimaryButton onClick={onReview}>Review target</PrimaryButton></div></>;
   if (section === "Summit tracker") return <><p className="mb-5 text-sm text-slate-500">Capture ticket, sponsor, booth, revenue, and cost progress against approved targets.</p><div className="grid gap-4 sm:grid-cols-3"><FormField label="Tracker area"><select className={inputClass}><option>Tickets</option><option>Sponsors</option><option>Booths</option><option>Costs</option></select></FormField><FormField label="New value (USD)"><input className={inputClass} placeholder="$0" /></FormField><FormField label="Reason / source"><input className={inputClass} placeholder="Approved source note" /></FormField></div><div className="mt-5"><PrimaryButton onClick={onReview}>Review Summit update</PrimaryButton></div></>;
-  if (section === "Integration status") return <><HubSpotSyncControl /><HubSpotReviewWorkflow /></>;
+  if (section === "Integration status") return <><HubSpotSyncControl /><div className="mt-4"><HubSpotBackfillControl /></div><HubSpotReviewWorkflow /><HubSpotDuplicateReview /></>;
   return <div className="border border-line bg-stone p-6"><p className="font-medium text-ink">{section}</p><p className="mt-2 text-sm text-slate-600">This area is intentionally a visible placeholder. Live access control and integration health require their respective secure backend phases.</p></div>;
 }
 

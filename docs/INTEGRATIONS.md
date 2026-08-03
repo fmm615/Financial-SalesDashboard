@@ -65,9 +65,11 @@ The HubSpot boundary lives in `src/lib/integrations/hubspot/`; the trusted persi
 
 A `closed_won` mapped deal creates one separate `b2b_bookings` row using its HubSpot close date. No HubSpot action can create a recognised-sales row.
 
-A HubSpot deal with no amount or currency is retained as an incomplete source record plus an open `needs_follow_up` review flag. Its monetary values remain `NULL`, it is excluded from totals, and it cannot create a booking until an Admin records a correction.
+A HubSpot deal with no amount or currency is retained as an incomplete source record plus an open `needs_follow_up` review flag. Its monetary values remain `NULL`, it is excluded from totals, and it cannot create a booking until an Admin records a correction. A closed-won deal with valid financial values but no close date is also retained; it receives a separate Admin local close-date correction workflow and cannot create a booking until that date is recorded locally with an audit reason.
 
-The Admin Integration Status screen exposes incomplete deal corrections and unresolved HubSpot integration errors. Both actions require Admin access, an explanatory note, and produce audit records. Corrections are local to Supabase and never issue a HubSpot write request.
+The Admin Integration Status screen exposes incomplete deal corrections, unresolved HubSpot integration errors, and possible duplicate candidates. New per-deal errors include a compact deal ID/name reference; legacy errors are labelled as having no captured reference rather than being guessed. An Admin must enter an explanatory note to correct/resolve an item or choose whether an exact duplicate candidate should keep both source deals or only one. Every decision is audited. Corrections and duplicate decisions are local to Supabase and never issue a HubSpot write request.
+
+Historical backfill reads the entire configured B2B pipeline in durable, paginated batches. It is separate from the mandatory 48-hour reconciliation: the former loads history once, while the latter keeps recent changes current.
 
 ## Reconciliation
 

@@ -9,11 +9,12 @@ type IncompleteDeal = {
   stageCode: string;
   originalCurrency: string | null;
   closeDate: string | null;
+  correctionType: "financial" | "close_date";
   reason: string;
   flaggedAt: string;
 };
 
-type IntegrationError = { id: string; safe_error_summary: string; occurred_at: string };
+type IntegrationError = { id: string; safe_error_summary: string; source_reference: string | null; occurred_at: string };
 type ReviewPayload = { incompleteDeals: IncompleteDeal[]; integrationErrors: IntegrationError[] };
 
 const inputClass = "mt-1 w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink";
@@ -58,6 +59,38 @@ function CorrectionForm({ deal, onSaved }: { deal: IncompleteDeal; onSaved: () =
   </div>;
 }
 
+function CloseDateCorrectionForm({ deal, onSaved }: { deal: IncompleteDeal; onSaved: () => Promise<void> }) {
+  const [closeDate, setCloseDate] = useState("");
+  const [reason, setReason] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/admin/hubspot/deals/${deal.id}/close-date`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ closeDate, reason }),
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Close-date correction could not be saved.");
+      await onSaved();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "Close-date correction could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <div className="mt-4 grid gap-3 rounded-md border border-line bg-white p-4 sm:grid-cols-2">
+    <label className="text-sm font-medium text-ink">Correct close date<input value={closeDate} onChange={(event) => setCloseDate(event.target.value)} type="date" className={inputClass} /></label>
+    <label className="text-sm font-medium text-ink">Reason / source<input value={reason} onChange={(event) => setReason(event.target.value)} className={inputClass} placeholder="Finance-approved local close-date source" /></label>
+    <div className="sm:col-span-2 flex flex-wrap items-center gap-3"><PrimaryButton onClick={submit} disabled={saving}>{saving ? "Saving correction…" : "Save audited close date"}</PrimaryButton>{message && <p role="alert" className="text-sm text-red-700">{message}</p>}</div>
+  </div>;
+}
+
 function ResolutionForm({ issue, onResolved }: { issue: IntegrationError; onResolved: () => Promise<void> }) {
   const [resolutionNote, setResolutionNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -84,6 +117,7 @@ function ResolutionForm({ issue, onResolved }: { issue: IntegrationError; onReso
 
   return <article className="border-b border-line py-4 last:border-b-0">
     <p className="font-medium text-ink">{issue.safe_error_summary}</p>
+    <p className="mt-1 text-sm text-slate-700">Affected record: {issue.source_reference ?? "Legacy issue — no deal reference was captured."}</p>
     <p className="mt-1 text-xs text-slate-500">Flagged {formatDate(issue.occurred_at)}</p>
     <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} className="min-w-0 flex-1 rounded-md border border-line bg-white px-3 py-2 text-sm" placeholder="Required resolution note" /><PrimaryButton onClick={resolve} disabled={saving}>{saving ? "Resolving…" : "Mark resolved"}</PrimaryButton></div>
     {message && <p role="alert" className="mt-2 text-sm text-red-700">{message}</p>}
@@ -117,8 +151,8 @@ export function HubSpotReviewWorkflow() {
   if (error && !review) return <ErrorState title="HubSpot review unavailable" description={error} />;
 
   return <div className="mt-6 space-y-4">
-    <SectionCard title="Incomplete HubSpot deals" description="These are stored for traceability but have no financial value until an Admin records a local correction. Saving never changes HubSpot.">
-      {review?.incompleteDeals.length ? <div className="divide-y divide-line">{review.incompleteDeals.map((deal) => <article key={deal.id} className="py-4 first:pt-0 last:pb-0"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-medium text-ink">{deal.name}</p><p className="mt-1 text-sm text-slate-600">Stage: {deal.stageCode}{deal.closeDate ? ` · Close date: ${deal.closeDate}` : ""}</p></div><p className="text-xs text-slate-500">Flagged {formatDate(deal.flaggedAt)}</p></div><p className="mt-2 text-sm text-amber-800">{deal.reason}</p><CorrectionForm deal={deal} onSaved={load} /></article>)}</div> : <p className="text-sm text-slate-600">No incomplete HubSpot deals are waiting for correction.</p>}
+    <SectionCard title="HubSpot deals requiring correction" description="Missing financial values and missing booking dates are retained for traceability. An Admin can record a local, audited correction; saving never changes HubSpot.">
+      {review?.incompleteDeals.length ? <div className="divide-y divide-line">{review.incompleteDeals.map((deal) => <article key={deal.id} className="py-4 first:pt-0 last:pb-0"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-medium text-ink">{deal.name}</p><p className="mt-1 text-sm text-slate-600">Stage: {deal.stageCode}{deal.closeDate ? ` · Close date: ${deal.closeDate}` : deal.correctionType === "close_date" ? " · Close date missing" : ""}</p></div><p className="text-xs text-slate-500">Flagged {formatDate(deal.flaggedAt)}</p></div><p className="mt-2 text-sm text-amber-800">{deal.reason}</p>{deal.correctionType === "financial" ? <CorrectionForm deal={deal} onSaved={load} /> : <CloseDateCorrectionForm deal={deal} onSaved={load} />}</article>)}</div> : <p className="text-sm text-slate-600">No HubSpot deals are waiting for correction.</p>}
     </SectionCard>
     <SectionCard title="HubSpot integration issues" description="Every unresolved provider validation or persistence failure is a review item. Resolve it with a note after correcting the source configuration or HubSpot source data, then run the 48-hour sync again.">
       {review?.integrationErrors.length ? <div>{review.integrationErrors.map((issue) => <ResolutionForm key={issue.id} issue={issue} onResolved={load} />)}</div> : <p className="text-sm text-slate-600">No unresolved HubSpot integration issues.</p>}

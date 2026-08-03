@@ -15,3 +15,18 @@ export const hubSpotDealCorrectionSchema = z.object({
 export const hubSpotErrorResolutionSchema = z.object({
   resolutionNote: z.string().trim().min(3, "Enter a resolution note.").max(500),
 });
+
+export const hubSpotDuplicateResolutionSchema = z.object({
+  decision: z.enum(["keep_both", "keep_one"]),
+  keepDealId: z.string().uuid().nullable().optional(),
+  resolutionNote: z.string().trim().min(3, "Enter a decision note.").max(500),
+}).superRefine((value, context) => {
+  if (value.decision === "keep_one" && !value.keepDealId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["keepDealId"], message: "Select the deal to keep." });
+  }
+});
+
+export const hubSpotCloseDateCorrectionSchema = z.object({
+  closeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid close date."),
+  reason: z.string().trim().min(3, "Enter a correction reason.").max(500),
+});

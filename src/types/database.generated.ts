@@ -68,6 +68,7 @@ type B2bDealRow = {
   name: string;
   stage_code: string;
   financial_status: "complete" | "needs_review";
+  duplicate_review_status: "clear" | "needs_review" | "include" | "exclude";
   pipeline_original_amount: Decimal | null;
   original_currency: string | null;
   exchange_rate_to_usd: Decimal | null;
@@ -139,6 +140,8 @@ export interface Database {
       b2b_deal_stages: Table<{ code: string; label: string; display_order: number; is_closed: boolean; is_won: boolean; created_at: Timestamp; updated_at: Timestamp }>;
       b2b_companies: Table<{ id: Uuid; source_system: "hubspot" | "manual_finance"; external_company_id: string | null; legal_name: string; domain: string | null; created_at: Timestamp; updated_at: Timestamp }>;
       b2b_deals: Table<B2bDealRow>;
+      b2b_duplicate_groups: Table<{ id: Uuid; fingerprint: string; status: "open" | "resolved"; decision: "keep_both" | "keep_one" | null; resolution_note: string | null; resolved_by: Uuid | null; resolved_at: Timestamp | null; created_at: Timestamp }>;
+      b2b_duplicate_group_members: Table<{ group_id: Uuid; deal_id: Uuid; decision: "pending" | "include" | "exclude"; created_at: Timestamp }>;
       b2b_deal_stage_history: Table<{ id: Uuid; deal_id: Uuid; stage_code: string; changed_at: Timestamp; source_system: "hubspot" | "manual_finance"; external_event_id: string | null; created_at: Timestamp }>;
       b2b_bookings: Table<B2bBookingRow>;
       b2b_invoices: Table<{ id: Uuid; deal_id: Uuid; booking_id: Uuid | null; source_system: "hubspot" | "manual_finance" | "accounting_system"; external_invoice_id: string | null; invoice_number: string | null; issued_on: string; due_on: string | null; original_amount: Decimal; original_currency: string; exchange_rate_to_usd: Decimal; invoiced_amount_usd: Decimal; created_at: Timestamp }>;
@@ -156,9 +159,9 @@ export interface Database {
       review_flag_resolutions: Table<{ id: Uuid; flag_id: Uuid; resolution_status: "resolved" | "dismissed"; resolution_note: string; created_by: Uuid; created_at: Timestamp }>;
       review_notes: Table<{ id: Uuid; flag_id: Uuid; note: string; created_by: Uuid; created_at: Timestamp }>;
       audit_events: Table<{ id: Uuid; actor_profile_id: Uuid | null; actor_email: string | null; area: string; record_id: Uuid | null; action: "insert" | "update" | "delete"; before_value: Json | null; after_value: Json | null; reason: string | null; request_context: Json; occurred_at: Timestamp }>;
-      integration_sync_runs: Table<{ id: Uuid; provider: string; status: Database["public"]["Enums"]["integration_status"]; started_at: Timestamp | null; completed_at: Timestamp | null; failed_at: Timestamp | null; retry_count: number; safe_error_summary: string | null; requested_range_start: Timestamp | null; requested_range_end: Timestamp | null; created_at: Timestamp }>;
+      integration_sync_runs: Table<{ id: Uuid; provider: string; status: Database["public"]["Enums"]["integration_status"]; operation_type: "reconciliation" | "historical_backfill"; continuation_cursor: string | null; records_processed: number; records_failed: number; started_at: Timestamp | null; completed_at: Timestamp | null; failed_at: Timestamp | null; retry_count: number; safe_error_summary: string | null; requested_range_start: Timestamp | null; requested_range_end: Timestamp | null; created_at: Timestamp }>;
       integration_events: Table<{ id: Uuid; provider: string; external_event_id: string; event_type: string; status: Database["public"]["Enums"]["integration_status"]; processing_attempts: number; received_at: Timestamp; processed_at: Timestamp | null; safe_metadata: Json; sync_run_id: Uuid | null; created_at: Timestamp }>;
-      integration_errors: Table<{ id: Uuid; provider: string; integration_event_id: Uuid | null; sync_run_id: Uuid | null; safe_error_summary: string; occurred_at: Timestamp; resolved_at: Timestamp | null; resolved_by: Uuid | null; resolution_note: string | null; created_at: Timestamp }>;
+      integration_errors: Table<{ id: Uuid; provider: string; integration_event_id: Uuid | null; sync_run_id: Uuid | null; safe_error_summary: string; source_reference: string | null; occurred_at: Timestamp; resolved_at: Timestamp | null; resolved_by: Uuid | null; resolution_note: string | null; created_at: Timestamp }>;
       reconciliation_runs: Table<{ id: Uuid; provider: string; lookback_start: Timestamp; lookback_end: Timestamp; status: Database["public"]["Enums"]["integration_status"]; records_examined: number; records_inserted: number; duplicates_detected: number; safe_error_summary: string | null; started_at: Timestamp | null; completed_at: Timestamp | null; created_at: Timestamp }>;
       report_jobs: Table<{ id: Uuid; report_type: Database["public"]["Enums"]["report_type"]; period_start: string; period_end: string; status: Database["public"]["Enums"]["report_job_status"]; requested_by: Uuid | null; requested_at: Timestamp; started_at: Timestamp | null; completed_at: Timestamp | null; failed_at: Timestamp | null; retry_count: number; delivery_requested: boolean; safe_error_summary: string | null; created_at: Timestamp; updated_at: Timestamp }>;
       reports: Table<{ id: Uuid; job_id: Uuid; generated_at: Timestamp; summary_snapshot: Json; created_at: Timestamp }>;
@@ -171,10 +174,16 @@ export interface Database {
         Args: { p_deal_id: Uuid; p_amount: Decimal; p_currency: string; p_exchange_rate_to_usd: Decimal; p_reason: string };
         Returns: undefined;
       };
+      apply_hubspot_deal_close_date_correction: {
+        Args: { p_deal_id: Uuid; p_close_date: string; p_reason: string };
+        Returns: undefined;
+      };
       resolve_hubspot_integration_error: {
         Args: { p_error_id: Uuid; p_resolution_note: string };
         Returns: undefined;
       };
+      flag_hubspot_possible_duplicates: { Args: { p_deal_id: Uuid }; Returns: undefined };
+      resolve_hubspot_duplicate_group: { Args: { p_group_id: Uuid; p_decision: string; p_keep_deal_id: Uuid | null; p_note: string }; Returns: undefined };
     };
     Enums: {
       access_role: "admin" | "viewer";

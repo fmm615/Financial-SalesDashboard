@@ -2,8 +2,8 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { normaliseHubSpotDeal } from "@/lib/integrations/hubspot/normalise";
 import { isValidHubSpotSignature } from "@/lib/integrations/hubspot/signature";
-import { hubSpotDealCorrectionSchema, hubSpotErrorResolutionSchema } from "@/lib/validation/hubspot-review-contracts";
-import { processHubSpotWebhook, runHubSpotReconciliation } from "@/server/services/sync-hubspot";
+import { hubSpotCloseDateCorrectionSchema, hubSpotDealCorrectionSchema, hubSpotDuplicateResolutionSchema, hubSpotErrorResolutionSchema } from "@/lib/validation/hubspot-review-contracts";
+import { processHubSpotWebhook, runHubSpotHistoricalBackfillBatch, runHubSpotReconciliation } from "@/server/services/sync-hubspot";
 
 const mapping = {
   pipeline: "pipeline",
@@ -73,6 +73,13 @@ describe("HubSpot normalisation", () => {
     expect(deal.originalCurrency).toBeNull();
     expect(deal.exchangeRateToUsd).toBeNull();
   });
+
+  it("retains known financial values when a closed-won deal only lacks its booking date", () => {
+    const deal = normaliseHubSpotDeal({ ...rawDeal, properties: { ...rawDeal.properties, closedate: null } }, mapping, stageMap, "default", "USD");
+    expect(deal.financialStatus).toBe("complete");
+    expect(deal.pipelineAmountUsd).toBe("1500.25");
+    expect(deal.hubspotCloseDate).toBeNull();
+  });
 });
 
 describe("HubSpot webhook security", () => {
@@ -127,6 +134,48 @@ describe("HubSpot ingestion orchestration", () => {
     expect(result.lookbackStart.toISOString()).toBe("2026-07-31T12:00:00.000Z");
     expect(source.searchDealsModifiedSince).toHaveBeenCalledWith(result.lookbackStart);
   });
+
+  it("records a safe exact HubSpot deal reference when one source deal fails", async () => {
+    const repository = {
+      startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }),
+      completeSyncRun: vi.fn(),
+      failSyncRun: vi.fn(),
+      recordSyncError: vi.fn(),
+      persistDeal: vi.fn(),
+    };
+    const incompleteWonDeal = { ...rawDeal, properties: { ...rawDeal.properties, dealstage: "unreviewed_stage" } };
+    const source = {
+      fetchDealWithCompany: vi.fn(),
+      searchDealsModifiedSince: vi.fn().mockResolvedValue([{ deal: incompleteWonDeal, company: { id: "company-1", legalName: "Acme", domain: null }, ownerName: null }]),
+    };
+    await runHubSpotReconciliation({
+      source,
+      config: { apiBaseUrl: "https://api.hubapi.com", privateAppToken: "test", b2bPipelineId: "default", companyCurrency: "USD", fieldMapping: mapping, stageMap },
+      repository,
+      now: new Date("2026-08-02T12:00:00.000Z"),
+    });
+    expect(repository.recordSyncError).toHaveBeenCalledWith("run-1", expect.any(Error), "HubSpot deal 123 — Acme annual membership");
+  });
+
+  it("processes one persisted page of the approved B2B backfill at a time", async () => {
+    const repository = {
+      getOrStartHistoricalBackfill: vi.fn().mockResolvedValue({ id: "backfill-1", continuationCursor: null, recordsProcessed: 20, recordsFailed: 1, completed: false }),
+      finishHistoricalBackfillBatch: vi.fn().mockResolvedValue({ id: "backfill-1", continuationCursor: "next", recordsProcessed: 21, recordsFailed: 1, completed: false }),
+      recordSyncError: vi.fn(),
+      failSyncRun: vi.fn(),
+      persistDeal: vi.fn(),
+    };
+    const source = { fetchDealWithCompany: vi.fn(), searchAllB2bDealsPage: vi.fn().mockResolvedValue({ deals: [{ deal: rawDeal, company: { id: "company-1", legalName: "Acme", domain: null }, ownerName: null }], nextCursor: "next" }) };
+    const result = await runHubSpotHistoricalBackfillBatch({
+      source,
+      config: { apiBaseUrl: "https://api.hubapi.com", privateAppToken: "test", b2bPipelineId: "default", companyCurrency: "USD", fieldMapping: mapping, stageMap },
+      repository,
+    });
+    expect(source.searchAllB2bDealsPage).toHaveBeenCalledWith(undefined);
+    expect(repository.getOrStartHistoricalBackfill).toHaveBeenCalledWith({ restartCompleted: undefined });
+    expect(repository.persistDeal).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ runId: "backfill-1", processed: 1, totalProcessed: 21, hasMore: true });
+  });
 });
 
 describe("HubSpot Admin review contracts", () => {
@@ -135,5 +184,9 @@ describe("HubSpot Admin review contracts", () => {
     expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "USD", exchangeRateToUsd: "0", reason: "Approved Finance correction" }).success).toBe(false);
     expect(hubSpotDealCorrectionSchema.safeParse({ amount: "1500", currency: "USD", exchangeRateToUsd: "1", reason: "" }).success).toBe(false);
     expect(hubSpotErrorResolutionSchema.safeParse({ resolutionNote: "" }).success).toBe(false);
+    expect(hubSpotDuplicateResolutionSchema.safeParse({ decision: "keep_one", keepDealId: null, resolutionNote: "Approved after checking HubSpot" }).success).toBe(false);
+    expect(hubSpotDuplicateResolutionSchema.safeParse({ decision: "keep_both", keepDealId: null, resolutionNote: "Separate signed agreements" }).success).toBe(true);
+    expect(hubSpotCloseDateCorrectionSchema.safeParse({ closeDate: "2026-08-02", reason: "Signed agreement confirms the date" }).success).toBe(true);
+    expect(hubSpotCloseDateCorrectionSchema.safeParse({ closeDate: "02/08/2026", reason: "Signed agreement confirms the date" }).success).toBe(false);
   });
 });

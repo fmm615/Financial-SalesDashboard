@@ -129,10 +129,6 @@ export function normaliseHubSpotDeal(
   const renewalDateValue = optionalProperty(deal.properties, mapping.renewalDate);
   const renewalDate = renewalDateValue ? parseDate(renewalDateValue, "renewal date") : null;
 
-  if (financialStatus === "complete" && stageCode === "closed_won" && !hubspotCloseDate) {
-    throw new Error("A closed-won HubSpot deal requires a close date before a booking can be recorded.");
-  }
-
   const ownerId = optionalProperty(deal.properties, mapping.ownerId);
   const lastModifiedAt = optionalProperty(deal.properties, mapping.lastModifiedAt);
   return {
