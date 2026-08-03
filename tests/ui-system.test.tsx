@@ -38,10 +38,16 @@ describe("UI foundation", () => {
   });
 
   it("keeps B2B pipeline, bookings, and recognised sales distinct", () => {
-    render(<B2bOperations />);
-    expect(screen.getByText("Upcoming renewals")).toBeInTheDocument();
-    expect(screen.getByText("Top open deals")).toBeInTheDocument();
-    expect(screen.getAllByText("Recognised sales").length).toBeGreaterThan(1);
+    render(<B2bOperations snapshot={{
+      openPipelineUsd: "$95,000.00",
+      bookingsThisQuarterUsd: "$20,000.00",
+      recognisedSalesThisMonthUsd: "$2,000.00",
+      deals: [{ id: "deal-1", company: "Acme", name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial" }],
+    }} />);
+    expect(screen.getByText("Eligible open deals only")).toBeInTheDocument();
+    expect(screen.getByText("Closed-won bookings only")).toBeInTheDocument();
+    expect(screen.getByText("This month; separate from bookings")).toBeInTheDocument();
+    expect(screen.getByText("Annual programme")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add manual B2B deal" })).toBeInTheDocument();
   });
 

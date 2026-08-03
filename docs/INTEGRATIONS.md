@@ -69,6 +69,8 @@ A HubSpot deal with no amount or currency is retained as an incomplete source re
 
 The Admin Integration Status screen exposes incomplete deal corrections, unresolved HubSpot integration errors, and possible duplicate candidates. New per-deal errors include a compact deal ID/name reference; legacy errors are labelled as having no captured reference rather than being guessed. An Admin must enter an explanatory note to correct/resolve an item or choose whether an exact duplicate candidate should keep both source deals or only one. Every decision is audited. Corrections and duplicate decisions are local to Supabase and never issue a HubSpot write request.
 
+All B2B dashboard and report reads must use `public.reportable_b2b_deals`. It exposes only complete deals that have cleared duplicate review (or were explicitly included) and, for closed-won deals, a known close date. Records awaiting a financial, duplicate, or close-date correction remain traceable in the Admin workflow but are excluded from every operational and financial total.
+
 Historical backfill reads the entire configured B2B pipeline in durable, paginated batches. It is separate from the mandatory 48-hour reconciliation: the former loads history once, while the latter keeps recent changes current.
 
 ## Reconciliation

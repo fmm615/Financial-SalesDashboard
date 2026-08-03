@@ -112,4 +112,16 @@ describe("Phase 2 database migration contracts", () => {
     expect(reports).toContain("status <> 'failed'");
     expect(reports).toContain("safe_error_summary is not null");
   });
+
+  it("keeps uncorrected B2B source records out of reportable views and preserves local date corrections", () => {
+    const reportableDeals = migration("20260803120000_reportable_b2b_deals.sql");
+    const preserveLocalDate = migration("20260803123000_preserve_local_hubspot_close_date_corrections.sql");
+
+    expect(reportableDeals).toContain("create or replace view public.reportable_b2b_deals");
+    expect(reportableDeals).toContain("d.financial_status = 'complete'");
+    expect(reportableDeals).toContain("d.duplicate_review_status in ('clear', 'include')");
+    expect(reportableDeals).toContain("d.hubspot_close_date is not null");
+    expect(preserveLocalDate).toContain("old.source_metadata ? 'local_close_date_correction_at'");
+    expect(preserveLocalDate).toContain("new.hubspot_close_date := old.hubspot_close_date");
+  });
 });

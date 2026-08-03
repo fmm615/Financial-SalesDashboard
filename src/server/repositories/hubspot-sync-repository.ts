@@ -140,7 +140,8 @@ export class SupabaseHubSpotSyncRepository {
 
   async persistDeal(input: HubSpotPersistedDeal): Promise<void> {
     const companyId = await this.upsertCompany(input.company);
-    const dealId = await this.upsertDeal(companyId, input);
+    const persistedDeal = await this.upsertDeal(companyId, input);
+    const dealId = persistedDeal.id;
     if (input.financialStatus === "complete") {
       const { error } = await this.client.rpc("flag_hubspot_possible_duplicates", { p_deal_id: dealId });
       if (error) throw new Error(`Could not assess HubSpot duplicate candidates: ${error.message}`);
@@ -169,10 +170,15 @@ export class SupabaseHubSpotSyncRepository {
 
     // A closed-won HubSpot deal is a booking. This never creates recognised sales.
     if (input.stageCode === "closed_won") {
-      if (!input.hubspotCloseDate) {
+      if (!persistedDeal.hubspotCloseDate) {
         await this.createMissingCloseDateReviewFlag(dealId);
         return;
       }
+
+      // The local date-correction workflow already created an audited manual
+      // booking. Do not rewrite it during a read-only HubSpot sync.
+      if (!input.hubspotCloseDate) return;
+
       const { error } = await this.client.from("b2b_bookings")
         .upsert({
           deal_id: dealId,
@@ -197,7 +203,7 @@ export class SupabaseHubSpotSyncRepository {
     return data.id;
   }
 
-  private async upsertDeal(companyId: string, input: HubSpotPersistedDeal): Promise<string> {
+  private async upsertDeal(companyId: string, input: HubSpotPersistedDeal): Promise<{ id: string; hubspotCloseDate: string | null }> {
     const changes = {
       company_id: companyId,
       name: input.name,
@@ -215,10 +221,10 @@ export class SupabaseHubSpotSyncRepository {
     };
     const { data, error } = await this.client.from("b2b_deals")
       .upsert({ source_system: "hubspot", external_deal_id: input.externalDealId, ...changes }, { onConflict: "source_system,external_deal_id" })
-      .select("id")
+      .select("id,hubspot_close_date")
       .single();
     if (error) throw new Error(`Could not upsert HubSpot deal: ${error.message}`);
-    return data.id;
+    return { id: data.id, hubspotCloseDate: data.hubspot_close_date };
   }
 
   private async createIncompleteDealReviewFlag(dealId: string): Promise<void> {

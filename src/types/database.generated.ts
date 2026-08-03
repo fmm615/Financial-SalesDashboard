@@ -168,7 +168,14 @@ export interface Database {
       report_files: Table<{ id: Uuid; report_id: Uuid; file_kind: "pdf" | "csv_bundle"; storage_bucket: string; storage_path: string; created_at: Timestamp }>;
       report_delivery_attempts: Table<{ id: Uuid; report_id: Uuid; recipient_email: string; status: Database["public"]["Enums"]["integration_status"]; requested_at: Timestamp; sent_at: Timestamp | null; failed_at: Timestamp | null; safe_error_summary: string | null; created_at: Timestamp }>;
     };
-    Views: Record<string, never>;
+    Views: {
+      reportable_b2b_deals: {
+        Row: B2bDealRow;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+    };
     Functions: {
       apply_hubspot_deal_financial_correction: {
         Args: { p_deal_id: Uuid; p_amount: Decimal; p_currency: string; p_exchange_rate_to_usd: Decimal; p_reason: string };

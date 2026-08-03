@@ -4,11 +4,11 @@
 
 HubSpot is the primary source for B2B companies, deals, pipeline stages, bookings, and renewals. The integration never creates `b2b_recognised_sales`: recognised sales remain a separate, manual Admin/Finance entry.
 
-The application rejects an unapproved HubSpot stage, an invalid currency, a non-USD amount without an explicit FX-rate property, or a closed-won deal without a close date. A deal with a missing amount or currency is retained as an incomplete HubSpot source record and flagged for Admin review; it has no financial amount, creates no booking, and is excluded from totals until an audited correction is supplied.
+The application rejects an unapproved HubSpot stage, an invalid currency, or a non-USD amount without an explicit FX-rate property. A deal with a missing amount or currency is retained as an incomplete HubSpot source record and flagged for Admin review; it has no financial amount, creates no booking, and is excluded from totals until an audited correction is supplied. A closed-won deal with valid money but no close date is retained only for Admin local correction and is excluded from all B2B dashboards, reports, and bookings until corrected.
 
 ## 1. Apply the database migration
 
-Apply `20260802101100_hubspot_sync_identity_constraints.sql` through `20260802101900_hubspot_close_date_corrections.sql` in order, after the existing migrations. These migrations make HubSpot identity upserts safe, retain `PARKED`, protect incomplete data, enable Admin review, create durable resumable historical-backfill state, add audited duplicate decisions, attach exact source references to new HubSpot issues, and allow local audited close-date corrections. Do not create or alter tables manually outside the committed migrations.
+Apply `20260802101100_hubspot_sync_identity_constraints.sql` through `20260803123000_preserve_local_hubspot_close_date_corrections.sql` in order, after the existing migrations. These migrations make HubSpot identity upserts safe, retain `PARKED`, protect incomplete data, enable Admin review, create durable resumable historical-backfill state, add audited duplicate decisions, attach exact source references to new HubSpot issues, allow local audited close-date corrections, create the only permitted source for B2B dashboard/report records, and preserve a local date correction during later read-only HubSpot syncs. Do not create or alter tables manually outside the committed migrations.
 
 ## 2. Create a HubSpot private app
 
@@ -65,3 +65,5 @@ When two complete HubSpot deals have the same normalized name, mapped stage, USD
 9. Each newly-created per-deal integration issue identifies its HubSpot deal ID/name in Admin review.
 10. A possible duplicate displays both source deal IDs and requires an audited keep-both or keep-one decision before it is counted.
 11. A closed-won deal missing only a close date can receive an Admin local date correction and a separately auditable local booking, without a HubSpot write.
+12. B2B dashboards and reports read only `reportable_b2b_deals`; an incomplete, unresolved duplicate, or missing-close-date deal cannot appear in their rows or totals.
+13. A later HubSpot sync with a blank close date cannot remove a locally corrected close date or replace its local audited booking.
