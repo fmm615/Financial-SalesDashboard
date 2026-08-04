@@ -130,6 +130,15 @@ describe("Phase 2 database migration contracts", () => {
     expect(b2b).toContain("validate_recognised_sale");
   });
 
+  it("prevents recognised-sales entries from exceeding the linked deal total", () => {
+    const overageGuard = migration("20260804100000_prevent_b2b_recognised_sales_overage.sql");
+
+    expect(overageGuard).toContain("for update");
+    expect(overageGuard).toContain("sum(recognised_amount_usd)");
+    expect(overageGuard).toContain("recognised_total_usd + new.recognised_amount_usd > deal_amount_usd");
+    expect(overageGuard).toContain("Recognised sales cannot exceed the linked deal USD amount");
+  });
+
   it("enables RLS without a permissive public read policy", () => {
     const rls = migration("20260802100900_indexes_and_rls.sql");
     expect(rls).toContain("enable row level security");

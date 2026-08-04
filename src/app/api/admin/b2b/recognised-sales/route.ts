@@ -22,7 +22,10 @@ export async function POST(request: NextRequest) {
   try {
     const sale = await recordManualRecognisedSale(parsed.data, new SupabaseB2bRecognisedSalesRepository(client));
     return NextResponse.json({ saleId: sale.id }, { status: 201 });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Recognised sales cannot exceed the linked deal USD amount")) {
+      return NextResponse.json({ error: "The recognised-sales total cannot exceed this deal's USD amount. Correct the deal locally first if its approved value changed." }, { status: 422 });
+    }
     return NextResponse.json({ error: "The recognised-sales entry could not be saved." }, { status: 422 });
   }
 }
