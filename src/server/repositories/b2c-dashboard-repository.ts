@@ -6,7 +6,7 @@ export type B2cReportingPeriod = { month: string; monthLabel: string; monthStart
 export type B2cLedgerRow = {
   id: string;
   recordType: "Payment" | "Refund";
-  customerEmail: string;
+  customerEmail: string | null;
   customerPhone: string | null;
   date: string;
   amountUsd: string;
@@ -15,7 +15,7 @@ export type B2cLedgerRow = {
   source: string;
   paymentStatus: "Completed" | "Failed" | "Pending" | "Refunded";
   providerReference: string | null;
-  issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Needs follow-up" | "Refunded" | null;
+  issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Refunded" | null;
 };
 export type B2cDashboardSnapshot = {
   period: B2cReportingPeriod;
@@ -48,6 +48,7 @@ function formatDate(value: string): string {
 
 function flagLabel(flags: Flag[]): B2cLedgerRow["issue"] {
   const types = new Set(flags.map((flag) => flag.flag_type));
+  if (types.has("needs_follow_up") && flags.some((flag) => /missing a valid customer email/i.test(flag.reason))) return "Missing customer email";
   if (types.has("possible_duplicate")) return "Possible duplicate";
   if (types.has("unmapped_product")) return "Unmapped product";
   if (types.has("failed")) return "Failed";
@@ -102,7 +103,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   const paymentById = new Map(payments.map((payment) => [payment.id, payment]));
   const isReportablePayment = (payment: typeof payments[number]) => {
     const flagTypes = new Set((flagsByRecord.get(payment.id) ?? []).map((flag) => flag.flag_type));
-    return payment.payment_status === "succeeded" && !flagTypes.has("possible_duplicate") && !flagTypes.has("unmapped_product");
+    return payment.payment_status === "succeeded" && !flagTypes.has("possible_duplicate") && !flagTypes.has("unmapped_product") && !flagTypes.has("needs_follow_up");
   };
 
   let eligiblePayments = BigInt(0);
@@ -143,7 +144,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       return {
         id: refund.id,
         recordType: "Refund" as const,
-        customerEmail: payment?.customer_email ?? "Unknown source payment",
+        customerEmail: payment?.customer_email ?? null,
         customerPhone: payment?.customer_phone ?? null,
         date: formatDate(refund.occurred_at.slice(0, 10)),
         amountUsd: formatUsd(-toScaledUsd(refund.amount_usd)),

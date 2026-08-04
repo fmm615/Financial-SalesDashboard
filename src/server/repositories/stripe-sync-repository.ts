@@ -62,10 +62,10 @@ export class SupabaseStripeSyncRepository {
       .select("id,provider_event_id").eq("source_system", "stripe").eq("provider_transaction_id", input.chargeId).maybeSingle();
     if (existingError) throw new Error(`Could not check existing Stripe charge: ${existingError.message}`);
 
-    const customerId = await this.upsertCustomer(input.customerEmail, input.customerName);
+    const customerId = input.customerEmail ? await this.upsertCustomer(input.customerEmail, input.customerName) : null;
     const mapping = await this.findProductMapping(input.productReference);
     const categoryCode = mapping?.categoryCode ?? "unmapped";
-    const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: input.customerEmail, amountUsd: input.amountUsd, categoryCode, occurredOn: input.occurredOn });
+    const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: input.customerEmail, amountUsd: input.amountUsd, categoryCode, occurredOn: input.occurredOn, providerTransactionId: input.chargeId });
     const values = {
       source_system: "stripe" as const, provider_transaction_id: input.chargeId, provider_event_id: input.providerEventId ?? existing?.provider_event_id ?? null,
       customer_id: customerId, customer_email: input.customerEmail, customer_phone: input.customerPhone, product_mapping_id: mapping?.id ?? null, category_code: categoryCode,
@@ -79,12 +79,13 @@ export class SupabaseStripeSyncRepository {
       : await this.client.from("b2c_payments").insert(values).select("id").single();
     if (error) throw new Error(`Could not save Stripe charge: ${error.message}`);
 
+    if (!input.customerEmail) await this.openFlag(payment.id, "needs_follow_up", "Stripe payment is missing a valid customer email. It is retained for traceability and excluded from financial totals until an Admin records a verified local correction.");
     if (!mapping) await this.openFlag(payment.id, "unmapped_product", "Stripe payment has no approved product mapping. It is retained for traceability and excluded from financial totals until an Admin maps the product.");
     if (input.paymentStatus === "failed") await this.openFlag(payment.id, "failed", "Stripe payment failed. It is retained for follow-up and excluded from financial totals.");
     // A failed card attempt followed by a successful retry commonly has the same
     // email, amount, and day. Only two completed payments can be financial
     // duplicate candidates; failed or pending attempts never taint a success.
-    if (input.paymentStatus === "succeeded") {
+    if (input.paymentStatus === "succeeded" && input.customerEmail) {
       const duplicatePaymentIds = await this.findRecentContentDuplicates(payment.id, duplicateFingerprint, input.occurredAt);
       if (duplicatePaymentIds.length) {
         const reason = "Another completed B2C payment has the same customer, amount, category, and Bahrain business date within 48 hours. It is excluded from financial totals pending Admin review.";
@@ -141,7 +142,7 @@ export class SupabaseStripeSyncRepository {
     return (data ?? []).map((payment) => payment.id);
   }
 
-  private async openFlag(recordId: string, flagType: "unmapped_product" | "failed" | "possible_duplicate" | "refunded", reason: string, sourceArea: "b2c_payment" | "b2c_refund" = "b2c_payment"): Promise<void> {
+  private async openFlag(recordId: string, flagType: "unmapped_product" | "failed" | "possible_duplicate" | "refunded" | "needs_follow_up", reason: string, sourceArea: "b2c_payment" | "b2c_refund" = "b2c_payment"): Promise<void> {
     const { error } = await this.client.from("review_flags").upsert({ source_area: sourceArea, source_record_id: recordId, flag_type: flagType, status: "open", priority: 2, reason }, { onConflict: "source_area,source_record_id,flag_type,status", ignoreDuplicates: true });
     if (error) throw new Error(`Could not open Stripe review flag: ${error.message}`);
   }

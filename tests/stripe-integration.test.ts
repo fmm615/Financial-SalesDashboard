@@ -30,8 +30,10 @@ describe("Stripe normalisation and webhook security", () => {
     expect(() => normaliseStripeRefund({ ...succeededRefund, status: "pending" })).toThrow(StripeRefundNotSucceededError);
   });
 
-  it("does not substitute a Stripe Customer email for an email missing from the Charge", () => {
-    expect(() => normaliseStripeCharge({ ...charge, receipt_email: null, billing_details: {}, customer: "cus_123" }, "product_id")).toThrow("missing a valid customer email");
+  it("retains a missing source email without substituting a Stripe Customer email", () => {
+    const payment = normaliseStripeCharge({ ...charge, receipt_email: null, billing_details: {}, customer: "cus_123" }, "product_id");
+    expect(payment.customerEmail).toBeNull();
+    expect(payment.sourceMetadata.stripe_customer_id).toBe("cus_123");
   });
 
   it("accepts only a current Stripe signature over the raw body", () => {
@@ -65,6 +67,15 @@ describe("Stripe ingestion orchestration", () => {
     expect(result).toEqual({ processed: 0, duplicates: 1, ignored: 0 });
     expect(source.fetchCharge).not.toHaveBeenCalled();
     expect(repository.persistCharge).not.toHaveBeenCalled();
+  });
+
+  it("persists a no-email charge for review instead of losing the source record", async () => {
+    const repository = { recordWebhookEvent: vi.fn().mockResolvedValue({ id: "event-row", isNew: true }), markEventCompleted: vi.fn(), failEvent: vi.fn(), persistCharge: vi.fn().mockResolvedValue({ inserted: true }), persistRefund: vi.fn() };
+    const source = { fetchCharge: vi.fn(), listChargesCreatedSince: vi.fn(), listRefundsCreatedSince: vi.fn() };
+    const result = await processStripeWebhook({ event: { id: "evt_no_email", type: "charge.succeeded", data: { object: { ...charge, receipt_email: null, billing_details: {} } } }, source, productReferenceMetadataKey: "product_id", repository });
+    expect(result).toEqual({ processed: 1, duplicates: 0, ignored: 0 });
+    expect(repository.persistCharge).toHaveBeenCalledWith(expect.objectContaining({ customerEmail: null }));
+    expect(repository.failEvent).not.toHaveBeenCalled();
   });
 
   it("waits for a succeeded refund update instead of creating a false financial failure", async () => {

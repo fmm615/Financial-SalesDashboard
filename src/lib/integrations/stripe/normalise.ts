@@ -23,7 +23,7 @@ const refundSchema = z.object({
 
 export type StripePaymentStatus = "succeeded" | "failed" | "pending";
 export type NormalisedStripeCharge = {
-  chargeId: string; customerEmail: string; customerName: string | null; customerPhone: string | null; productReference: string | null; paymentStatus: StripePaymentStatus;
+  chargeId: string; customerEmail: string | null; customerName: string | null; customerPhone: string | null; productReference: string | null; paymentStatus: StripePaymentStatus;
   originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; occurredOn: string;
   sourceMetadata: Record<string, string>;
 };
@@ -80,7 +80,6 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
   const occurredAt = new Date(charge.created * 1000);
   if (Number.isNaN(occurredAt.getTime())) throw new StripeNormalisationError("Stripe charge has an invalid created timestamp.");
   const customerEmail = validatedEmail(charge.receipt_email ?? charge.billing_details?.email);
-  if (!customerEmail) throw new StripeNormalisationError("Stripe charge is missing a valid customer email.");
   const amount = stripeMinorAmountToDecimal(charge.amount, originalCurrency);
   const metadata = charge.metadata ?? {};
   const productReference = cleanText(metadata[productReferenceMetadataKey], 255);
