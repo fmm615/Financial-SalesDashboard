@@ -25,6 +25,10 @@ describe("Stripe normalisation and webhook security", () => {
     expect(() => normaliseStripeRefund({ ...succeededRefund, status: "pending" })).toThrow(StripeRefundNotSucceededError);
   });
 
+  it("does not substitute a Stripe Customer email for an email missing from the Charge", () => {
+    expect(() => normaliseStripeCharge({ ...charge, receipt_email: null, billing_details: {}, customer: "cus_123" }, "product_id")).toThrow("missing a valid customer email");
+  });
+
   it("accepts only a current Stripe signature over the raw body", () => {
     const now = 1_754_000_000_000;
     const body = '{"id":"evt_123"}';

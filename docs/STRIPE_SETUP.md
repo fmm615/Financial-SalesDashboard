@@ -40,7 +40,7 @@ For a safe test event:
 stripe trigger charge.succeeded
 ```
 
-The event will be stored only if it contains a valid customer email. If the charge has no configured product reference or mapping, it will deliberately appear as **Unmapped product** and will not count in financial totals.
+The event will be stored only if the **Charge itself** contains a valid receipt or billing email. PLAYBOOK does not substitute the attached Stripe Customer email because it can belong to a different or outdated account. If the charge has no configured product reference or mapping, it will deliberately appear as **Unmapped product** and will not count in financial totals.
 
 ## 4. Configure the production endpoint later
 

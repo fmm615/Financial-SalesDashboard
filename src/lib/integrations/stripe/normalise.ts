@@ -7,6 +7,7 @@ const chargeSchema = z.object({
   id: z.string().min(1), amount: z.number().int().positive(), currency: z.string().length(3), created: z.number().int().nonnegative(),
   status: z.string(), paid: z.boolean(), captured: z.boolean(), receipt_email: z.string().nullable().optional(),
   billing_details: z.object({ email: z.string().nullable().optional(), name: z.string().nullable().optional() }).optional(),
+  customer: z.union([z.string().min(1), z.object({ id: z.string().min(1) }).passthrough()]).nullable().optional(),
   metadata: metadataSchema.optional(), payment_intent: z.string().nullable().optional(), invoice: z.string().nullable().optional(), description: z.string().nullable().optional(),
 }).passthrough();
 const refundSchema = z.object({
@@ -32,6 +33,17 @@ function cleanText(value: string | null | undefined, maxLength: number): string 
   return cleaned ? cleaned.slice(0, maxLength) : null;
 }
 
+function validatedEmail(value: string | null | undefined): string | null {
+  const email = cleanText(value, 320)?.toLowerCase();
+  return email && z.string().email().safeParse(email).success ? email : null;
+}
+
+/** Returns the provider Customer ID when the Charge contains one; no data is persisted from this helper. */
+export function stripeChargeCustomerId(payload: unknown): string | null {
+  const customer = chargeSchema.parse(payload).customer;
+  return typeof customer === "string" ? customer : customer?.id ?? null;
+}
+
 function stripeMinorAmountToDecimal(amount: number, currency: string): string {
   if (!Number.isSafeInteger(amount) || amount <= 0) throw new StripeNormalisationError("Stripe returned an invalid payment amount.");
   if (ZERO_DECIMAL_CURRENCIES.has(currency)) return String(amount);
@@ -55,8 +67,8 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
   const originalCurrency = requireUsd(charge.currency.toUpperCase());
   const occurredAt = new Date(charge.created * 1000);
   if (Number.isNaN(occurredAt.getTime())) throw new StripeNormalisationError("Stripe charge has an invalid created timestamp.");
-  const customerEmail = cleanText(charge.receipt_email ?? charge.billing_details?.email, 320)?.toLowerCase();
-  if (!customerEmail || !z.string().email().safeParse(customerEmail).success) throw new StripeNormalisationError("Stripe charge is missing a valid customer email.");
+  const customerEmail = validatedEmail(charge.receipt_email ?? charge.billing_details?.email);
+  if (!customerEmail) throw new StripeNormalisationError("Stripe charge is missing a valid customer email.");
   const amount = stripeMinorAmountToDecimal(charge.amount, originalCurrency);
   const metadata = charge.metadata ?? {};
   const productReference = cleanText(metadata[productReferenceMetadataKey], 255);
@@ -67,6 +79,7 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
     sourceMetadata: {
       ...(cleanText(charge.payment_intent, 255) ? { payment_intent_id: cleanText(charge.payment_intent, 255)! } : {}),
       ...(cleanText(charge.invoice, 255) ? { invoice_id: cleanText(charge.invoice, 255)! } : {}),
+      ...(stripeChargeCustomerId(charge) ? { stripe_customer_id: stripeChargeCustomerId(charge)! } : {}),
       ...(productReference ? { product_reference: productReference } : {}),
       ...(cleanText(charge.description, 300) ? { description: cleanText(charge.description, 300)! } : {}),
     },

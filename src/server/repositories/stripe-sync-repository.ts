@@ -66,15 +66,17 @@ export class SupabaseStripeSyncRepository {
     const mapping = await this.findProductMapping(input.productReference);
     const categoryCode = mapping?.categoryCode ?? "unmapped";
     const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: input.customerEmail, amountUsd: input.amountUsd, categoryCode, occurredOn: input.occurredOn });
-    const { data: payment, error } = await this.client.from("b2c_payments")
-      .upsert({
-        source_system: "stripe", provider_transaction_id: input.chargeId, provider_event_id: input.providerEventId ?? existing?.provider_event_id ?? null,
-        customer_id: customerId, customer_email: input.customerEmail, product_mapping_id: mapping?.id ?? null, category_code: categoryCode,
-        membership_tier: mapping?.membershipTier ?? null, payment_status: input.paymentStatus, original_amount: input.originalAmount,
-        original_currency: input.originalCurrency, exchange_rate_to_usd: input.exchangeRateToUsd, amount_usd: input.amountUsd, gross_amount_usd: input.amountUsd,
-        tax_amount_usd: null, net_amount_usd: null, occurred_at: input.occurredAt, occurred_on: input.occurredOn, duplicate_fingerprint: duplicateFingerprint,
-        reconciliation_source: input.reconciliationSource ?? null, source_metadata: input.sourceMetadata,
-      }, { onConflict: "source_system,provider_transaction_id" }).select("id").single();
+    const values = {
+      source_system: "stripe" as const, provider_transaction_id: input.chargeId, provider_event_id: input.providerEventId ?? existing?.provider_event_id ?? null,
+      customer_id: customerId, customer_email: input.customerEmail, product_mapping_id: mapping?.id ?? null, category_code: categoryCode,
+      membership_tier: mapping?.membershipTier ?? null, payment_status: input.paymentStatus, original_amount: input.originalAmount,
+      original_currency: input.originalCurrency, exchange_rate_to_usd: input.exchangeRateToUsd, amount_usd: input.amountUsd, gross_amount_usd: input.amountUsd,
+      tax_amount_usd: null, net_amount_usd: null, occurred_at: input.occurredAt, occurred_on: input.occurredOn, duplicate_fingerprint: duplicateFingerprint,
+      reconciliation_source: input.reconciliationSource ?? null, source_metadata: input.sourceMetadata,
+    };
+    const { data: payment, error } = existing
+      ? await this.client.from("b2c_payments").update(values).eq("id", existing.id).select("id").single()
+      : await this.client.from("b2c_payments").insert(values).select("id").single();
     if (error) throw new Error(`Could not save Stripe charge: ${error.message}`);
 
     if (!mapping) await this.openFlag(payment.id, "unmapped_product", "Stripe payment has no approved product mapping. It is retained for traceability and excluded from financial totals until an Admin maps the product.");
