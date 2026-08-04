@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  firstValidationMessage,
   manualBankTransferSchema,
   manualB2bDealSchema,
   manualRecognisedSaleSchema,
@@ -28,6 +29,22 @@ describe("Phase 2 validation contracts", () => {
 
     expect(parsed.recognisedAmountUsd).toBe("10000.000000");
     expect(() => manualRecognisedSaleSchema.parse({ ...parsed, reportingPeriod: "2026-08-02" })).toThrow();
+  });
+
+  it("turns generic recognised-sales validation failures into field-specific feedback", () => {
+    const result = manualRecognisedSaleSchema.safeParse({
+      dealId: "not-a-uuid",
+      recognisedAmount: "10000",
+      originalCurrency: "USD",
+      exchangeRateToUsd: "1",
+      recognisedAmountUsd: "10000",
+      recognitionDate: "2026-08-01",
+      reportingPeriod: "2026-08-01",
+      reasonOrReference: "Finance approval",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(firstValidationMessage(result.error)).toMatch(/^Selected deal:/);
   });
 
   it("keeps money as decimal strings at the write boundary", () => {

@@ -41,22 +41,31 @@ describe("UI foundation", () => {
     render(<B2bOperations snapshot={{
       openPipelineUsd: "$95,000.00",
       bookingsThisQuarterUsd: "$20,000.00",
-      recognisedSalesThisMonthUsd: "$2,000.00",
+      recognisedSalesThisMonthUsd: null,
       period: { month: "2026-08", monthLabel: "August 2026", quarterLabel: "Q3 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31", quarterStart: "2026-07-01", quarterEnd: "2026-09-30" },
       deals: [
-        { id: "deal-1", name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", originalAmount: "95000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial", issue: "Possible duplicate" },
-        { id: "deal-2", name: "Signed programme", owner: "Tom", stage: "closed_won", amountUsd: "20000", originalAmount: "20000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: "2026-08-01", renewalDate: null, bookingStatus: "Booked", recognisedStatus: "Not recognised", issue: null },
+        { id: "11111111-1111-4111-8111-111111111111", bookingId: null, name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", originalAmount: "95000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial", issue: "Possible duplicate" },
+        { id: "22222222-2222-4222-8222-222222222222", bookingId: "33333333-3333-4333-8333-333333333333", name: "Signed programme", owner: "Tom", stage: "closed_won", amountUsd: "20000", originalAmount: "20000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: "2026-08-01", renewalDate: null, bookingStatus: "Booked", recognisedStatus: "Not recognised", issue: null },
       ],
     }} />);
     expect(screen.getByText("Current eligible open deals")).toBeInTheDocument();
     expect(screen.getByText("Closed-won bookings only")).toBeInTheDocument();
-    expect(screen.getByText("Separate from bookings")).toBeInTheDocument();
+    expect(screen.getByText("Manual Finance entry required; separate from bookings")).toBeInTheDocument();
     expect(screen.getByText("Bookings · Q3 2026")).toBeInTheDocument();
     expect(screen.getByText("Recognised sales · August 2026")).toBeInTheDocument();
+    expect(screen.getByText("Not yet recorded")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "B2B financial reporting month" })).toHaveValue("2026-08");
     expect(screen.getByRole("combobox", { name: "Filter B2B deals by stage" })).toHaveValue("all");
     expect(screen.getByText("Annual programme")).toBeInTheDocument();
     expect(screen.getByText("Signed programme")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Record recognised sale" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Record recognised sale" }));
+    expect(screen.getByRole("dialog", { name: "Record B2B recognised sale" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Reporting month")).toHaveValue("2026-08");
+    expect(screen.getByText(/linked to its booking/)).toBeInTheDocument();
+    expect(screen.queryByText(/This is a separate, local Finance entry/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close recognised-sales entry" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Filter B2B deals by stage" }), { target: { value: "all" } });
     expect(screen.getByText("Possible duplicate")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Filter B2B deals by stage" }), { target: { value: "closed_won" } });
     expect(screen.queryByText("Annual programme")).not.toBeInTheDocument();

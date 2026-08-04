@@ -1,0 +1,118 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+import { X } from "lucide-react";
+import { PrimaryButton } from "@/components/ui";
+import { useCanManage } from "@/lib/auth/role-context";
+import { firstValidationMessage, manualRecognisedSaleSchema } from "@/lib/validation/financial-contracts";
+import type { B2bDashboardDeal } from "@/server/repositories/b2b-dashboard-repository";
+import { useRouter } from "next/navigation";
+
+const inputClass = "mt-1 block w-full min-w-0 rounded-md border border-line bg-white px-3 py-2 text-sm text-ink";
+const fieldClass = "block min-w-0 text-sm font-medium text-text-secondary";
+
+type RecognisedSaleForm = {
+  recognisedAmount: string;
+  originalCurrency: string;
+  exchangeRateToUsd: string;
+  recognisedAmountUsd: string;
+  recognitionDate: string;
+  reportingMonth: string;
+  reasonOrReference: string;
+};
+
+function formFor(deal: B2bDashboardDeal, reportingPeriod: string): RecognisedSaleForm {
+  return {
+    recognisedAmount: "",
+    originalCurrency: deal.originalCurrency ?? "USD",
+    exchangeRateToUsd: deal.exchangeRateToUsd ?? "1",
+    recognisedAmountUsd: "",
+    recognitionDate: reportingPeriod,
+    reportingMonth: reportingPeriod.slice(0, 7),
+    reasonOrReference: "",
+  };
+}
+
+/** Admin-only recognised-sales entry. It records a local Finance decision, never a HubSpot write. */
+export function ManualRecognisedSaleEntry({ deal, reportingPeriod }: { deal: B2bDashboardDeal; reportingPeriod: string }) {
+  const canManage = useCanManage();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<RecognisedSaleForm>(() => formFor(deal, reportingPeriod));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  if (!canManage) return null;
+
+  function update(field: keyof RecognisedSaleForm, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function close() {
+    if (!saving) {
+      setOpen(false);
+      setMessage(null);
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsed = manualRecognisedSaleSchema.safeParse({
+      dealId: deal.id,
+      bookingId: deal.bookingId ?? undefined,
+      recognisedAmount: form.recognisedAmount.trim(),
+      originalCurrency: form.originalCurrency.trim().toUpperCase(),
+      exchangeRateToUsd: form.exchangeRateToUsd.trim(),
+      recognisedAmountUsd: form.recognisedAmountUsd.trim(),
+      recognitionDate: form.recognitionDate,
+      reportingPeriod: `${form.reportingMonth}-01`,
+      reasonOrReference: form.reasonOrReference.trim(),
+    });
+
+    if (!parsed.success) {
+      setMessage(firstValidationMessage(parsed.error));
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/admin/b2b/recognised-sales", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed.data),
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "The recognised-sales entry could not be saved.");
+      setForm(formFor(deal, reportingPeriod));
+      setOpen(false);
+      router.refresh();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The recognised-sales entry could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <>
+    <button type="button" onClick={() => { setForm(formFor(deal, reportingPeriod)); setMessage(null); setOpen(true); }} className="text-left text-sm font-medium text-brand-accent hover:underline">Record recognised sale</button>
+    {open && <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby={`recognised-sale-${deal.id}`} className="mx-auto my-8 w-full max-w-2xl rounded-card bg-white p-6 shadow-elevated sm:p-8">
+        <div className="flex items-start justify-between gap-4"><div className="min-w-0"><h2 id={`recognised-sale-${deal.id}`} className="text-xl font-semibold text-ink">Record B2B recognised sale</h2><p className="mt-1 text-sm leading-6 text-text-secondary">{deal.name} · {deal.bookingId ? "linked to its booking" : "linked directly to this deal"}</p></div><button type="button" aria-label="Close recognised-sales entry" onClick={close} disabled={saving} className="shrink-0 rounded-pill p-2 text-text-secondary hover:bg-surface-muted disabled:cursor-not-allowed"><X size={19} /></button></div>
+        <form className="mt-5" onSubmit={save}>
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+            <label className={fieldClass}>Recognised amount<input required value={form.recognisedAmount} onChange={(event) => update("recognisedAmount", event.target.value)} className={inputClass} inputMode="decimal" placeholder="0.00" /></label>
+            <label className={fieldClass}>Original currency<input required value={form.originalCurrency} onChange={(event) => update("originalCurrency", event.target.value)} className={inputClass} maxLength={3} placeholder="USD" /></label>
+            <label className={fieldClass}>Exchange rate to USD<input required value={form.exchangeRateToUsd} onChange={(event) => update("exchangeRateToUsd", event.target.value)} className={inputClass} inputMode="decimal" placeholder="1.0000000000" /></label>
+            <label className={fieldClass}>USD amount<input required value={form.recognisedAmountUsd} onChange={(event) => update("recognisedAmountUsd", event.target.value)} className={inputClass} inputMode="decimal" placeholder="0.00" /></label>
+            <label className={fieldClass}>Recognition date<input required type="date" value={form.recognitionDate} onChange={(event) => update("recognitionDate", event.target.value)} className={inputClass} /></label>
+            <label className={fieldClass}>Reporting month<input required type="month" value={form.reportingMonth} onChange={(event) => update("reportingMonth", event.target.value)} className={inputClass} /></label>
+            <label className={`${fieldClass} md:col-span-2`}>Reason or reference<input required value={form.reasonOrReference} onChange={(event) => update("reasonOrReference", event.target.value)} className={inputClass} maxLength={1000} placeholder="Finance approval, accounting reference, or recognition rationale" /></label>
+          </div>
+          {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
+          <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={close} disabled={saving} className="rounded-pill px-4 py-2 text-sm font-medium text-text-secondary hover:bg-surface-muted disabled:cursor-not-allowed">Cancel</button><PrimaryButton type="submit" disabled={saving}>{saving ? "Saving recognised sale…" : "Save recognised sale"}</PrimaryButton></div>
+        </form>
+      </section>
+    </div>}
+  </>;
+}

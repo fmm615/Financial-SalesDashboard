@@ -75,6 +75,8 @@ The B2B Operations month control changes the reporting period for recognised sal
 
 When HubSpot is unavailable, an Admin may create a **manual Finance B2B deal** directly in B2B Operations. The server validates the original amount, ISO currency, FX rate, stage, and required reason; it records the authenticated Admin through existing source and audit triggers. A closed-won entry with a close date creates a separate manual booking. Manual entry never creates a receipt or recognised-sales record, and exact duplicate candidates are paused for an audited Admin decision. This local workflow never sends a request to HubSpot.
 
+An Admin records a **B2B recognised-sale** entry separately from the eligible deal’s B2B Operations row. The entry is linked to that deal and, where present, its booking; it requires original amount/currency, FX rate, USD amount, recognition date, monthly reporting period, and Finance reason or reference. It uses the authenticated request client and database audit trigger, never writes to HubSpot, and does not alter the booking, invoice, or receipt. If the selected reporting month contains no recognised-sale row, the dashboard shows **Not yet recorded**, rather than treating the absence as `$0`.
+
 Historical backfill reads the entire configured B2B pipeline in durable, paginated batches. It is separate from the mandatory 48-hour reconciliation: the former loads history once, while the latter keeps recent changes current.
 
 ## Reconciliation

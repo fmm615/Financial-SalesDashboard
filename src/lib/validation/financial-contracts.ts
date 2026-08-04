@@ -131,6 +131,28 @@ export const manualRecognisedSaleSchema = z.object({
   path: ["reportingPeriod"],
 });
 
+const validationFieldLabels: Record<string, string> = {
+  dealId: "Selected deal",
+  bookingId: "Selected booking",
+  recognisedAmount: "Recognised amount",
+  originalCurrency: "Original currency",
+  exchangeRateToUsd: "Exchange rate to USD",
+  recognisedAmountUsd: "USD amount",
+  recognitionDate: "Recognition date",
+  reportingPeriod: "Reporting month",
+  reasonOrReference: "Reason or reference",
+};
+
+/** Keeps form feedback specific without returning a vague Zod "Invalid input" message. */
+export function firstValidationMessage(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "Check the form and try again.";
+
+  const field = validationFieldLabels[String(issue.path[0])] ?? "Form";
+  const message = issue.message === "Invalid input" ? "Enter a valid value." : issue.message;
+  return `${field}: ${message}`;
+}
+
 export type ManualBankTransferInput = z.infer<typeof manualBankTransferSchema>;
 export type FinancialCorrectionInput = z.infer<typeof financialCorrectionSchema>;
 export type ProductMappingInput = z.infer<typeof productMappingSchema>;

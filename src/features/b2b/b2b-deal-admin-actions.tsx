@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PrimaryButton } from "@/components/ui";
+import { ManualRecognisedSaleEntry } from "@/features/b2b/manual-recognised-sale-entry";
 import { useCanManage } from "@/lib/auth/role-context";
 import type { B2bDashboardDeal } from "@/server/repositories/b2b-dashboard-repository";
 
@@ -12,7 +13,7 @@ const fieldClass = "block min-w-0 text-sm font-medium text-text-secondary";
 function nullable(value: string): string | null { return value.trim() || null; }
 
 /** Admin-only local override/exclusion controls. These never call HubSpot. */
-export function B2bDealAdminActions({ deal }: { deal: B2bDashboardDeal }) {
+export function B2bDealAdminActions({ deal, reportingPeriod }: { deal: B2bDashboardDeal; reportingPeriod: string }) {
   const canManage = useCanManage();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -41,8 +42,9 @@ export function B2bDealAdminActions({ deal }: { deal: B2bDashboardDeal }) {
     } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The local change could not be saved."); } finally { setSaving(false); }
   }
 
-  return <>
+  return <div className="flex flex-col items-start gap-2">
     <button type="button" onClick={() => setOpen(true)} className="font-medium text-brand-accent hover:underline">Review / edit</button>
+    {!deal.issue && <ManualRecognisedSaleEntry deal={deal} reportingPeriod={reportingPeriod} />}
     {open && <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4">
       <section role="dialog" aria-modal="true" aria-labelledby={`deal-${deal.id}`} className="mx-auto my-8 w-full max-w-3xl rounded-card bg-white p-6 shadow-elevated sm:p-8">
         <div className="flex items-start justify-between gap-4">
@@ -65,5 +67,5 @@ export function B2bDealAdminActions({ deal }: { deal: B2bDashboardDeal }) {
         <p className="mt-3 text-xs text-slate-500">Excluding removes this deal from PLAYBOOK operational views and totals but retains the source record and audit history.</p>
       </section>
     </div>}
-  </>;
+  </div>;
 }

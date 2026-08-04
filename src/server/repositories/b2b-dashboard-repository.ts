@@ -2,6 +2,7 @@ import type { DatabaseClient } from "@/lib/supabase/server";
 
 export type B2bDashboardDeal = {
   id: string;
+  bookingId: string | null;
   name: string;
   owner: string | null;
   stage: string;
@@ -26,7 +27,7 @@ export type B2bReportingPeriod = {
   quarterEnd: string;
 };
 
-export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string; period: B2bReportingPeriod };
+export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string | null; period: B2bReportingPeriod };
 
 const USD_SCALE = BigInt(1_000_000);
 
@@ -79,12 +80,12 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
   if (allDealsResult.error ?? reportableDealsResult.error) throw new Error("Could not load B2B source deals.");
   const allDeals = allDealsResult.data ?? [];
   const reportableDeals = reportableDealsResult.data ?? [];
-  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: "$0.00", period };
+  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: null, period };
 
   const ids = allDeals.map((deal) => deal.id);
   const reportableDealIds = new Set(reportableDeals.map((deal) => deal.id));
   const [{ data: bookings, error: bookingsError }, { data: sales, error: salesError }, { data: flags, error: flagsError }] = await Promise.all([
-    client.from("b2b_bookings").select("deal_id,booking_date,booking_amount_usd").in("deal_id", ids),
+    client.from("b2b_bookings").select("id,deal_id,booking_date,booking_amount_usd").in("deal_id", ids),
     client.from("b2b_recognised_sales").select("deal_id,recognition_date,recognised_amount_usd").in("deal_id", ids),
     client.from("review_flags").select("source_record_id,reason").eq("source_area", "b2b_deal").eq("status", "open").in("source_record_id", ids),
   ]);
@@ -106,9 +107,11 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
     }
   }
   let recognisedSalesThisMonth = BigInt(0);
+  let hasRecognisedSalesThisMonth = false;
   for (const sale of sales ?? []) {
     if (reportableDealIds.has(sale.deal_id) && sale.recognition_date >= period.monthStart && sale.recognition_date <= period.monthEnd) {
       recognisedSalesThisMonth += toScaledUsd(sale.recognised_amount_usd);
+      hasRecognisedSalesThisMonth = true;
     }
   }
 
@@ -117,7 +120,7 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
       const recognised = recognisedByDeal.get(deal.id) ?? BigInt(0);
       const amount = deal.pipeline_amount_usd ? toScaledUsd(deal.pipeline_amount_usd) : null;
       return {
-        id: deal.id, name: deal.name, owner: deal.owner_name, stage: deal.stage_code,
+        id: deal.id, bookingId: bookingByDeal.get(deal.id)?.id ?? null, name: deal.name, owner: deal.owner_name, stage: deal.stage_code,
         amountUsd: deal.pipeline_amount_usd, originalAmount: deal.pipeline_original_amount, originalCurrency: deal.original_currency, exchangeRateToUsd: deal.exchange_rate_to_usd,
         closeDate: deal.hubspot_close_date, renewalDate: deal.renewal_date,
         bookingStatus: bookingByDeal.has(deal.id) ? "Booked" : "Not booked",
@@ -125,6 +128,6 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
         issue: issueForDeal(deal, reviewReasonByDeal.get(deal.id)),
       };
     }),
-    openPipelineUsd: formatUsd(openPipeline), bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: formatUsd(recognisedSalesThisMonth), period,
+    openPipelineUsd: formatUsd(openPipeline), bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: hasRecognisedSalesThisMonth ? formatUsd(recognisedSalesThisMonth) : null, period,
   };
 }
