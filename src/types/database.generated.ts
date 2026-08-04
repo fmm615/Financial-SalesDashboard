@@ -135,6 +135,11 @@ export interface Database {
         membership_tier: string | null; created_by: Uuid; updated_by: Uuid; created_at: Timestamp; updated_at: Timestamp;
       }>;
       b2c_payments: Table<B2cPaymentRow>;
+      b2c_payment_local_overrides: Table<{
+        payment_id: Uuid; customer_name: string | null; customer_email: string | null; customer_phone: string | null;
+        category_code: string | null; membership_tier: string | null; created_by: Uuid; updated_by: Uuid;
+        created_at: Timestamp; updated_at: Timestamp;
+      }>;
       b2c_refunds: Table<{
         id: Uuid; payment_id: Uuid; source_system: B2cPaymentRow["source_system"]; provider_refund_id: string | null;
         original_amount: Decimal; original_currency: string; exchange_rate_to_usd: Decimal; amount_usd: Decimal;
@@ -212,6 +217,10 @@ export interface Database {
         Returns: Uuid;
       };
       resolve_b2c_review_flag: { Args: { p_flag_id: Uuid; p_resolution_status: "resolved" | "dismissed"; p_resolution_note: string }; Returns: undefined };
+      apply_b2c_payment_local_correction: {
+        Args: { p_payment_id: Uuid; p_customer_name: string | null; p_customer_email: string | null; p_customer_phone: string | null; p_category_code: string | null; p_membership_tier: string | null; p_reason: string };
+        Returns: undefined;
+      };
     };
     Enums: {
       access_role: "admin" | "viewer";

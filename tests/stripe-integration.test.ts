@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { normaliseStripeCharge, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
 import { stripeProductMappingSchema } from "@/lib/validation/financial-contracts";
+import { b2cPaymentLocalCorrectionSchema } from "@/lib/validation/b2c-review-contracts";
 import { isValidStripeSignature } from "@/lib/integrations/stripe/signature";
 import { resolveB2cReportingPeriod } from "@/server/repositories/b2c-dashboard-repository";
 import { processStripeWebhook, runStripeHistoricalBackfillBatch, runStripeReconciliation } from "@/server/services/sync-stripe";
@@ -24,6 +25,21 @@ describe("Stripe normalisation and webhook security", () => {
   it("requires auditable, local-only product-mapping values", () => {
     expect(stripeProductMappingSchema.safeParse({ productReference: "price_membership", internalProductCode: "membership_annual", internalProductName: "Annual membership", categoryCode: "membership", membershipTier: "annual", reason: "Finance approved the Stripe product classification." }).success).toBe(true);
     expect(stripeProductMappingSchema.safeParse({ productReference: "price_membership", internalProductCode: "Annual Membership", internalProductName: "Annual membership", categoryCode: "membership", reason: "ok" }).success).toBe(false);
+  });
+
+  it("requires an audited, verified local B2C correction", () => {
+    expect(b2cPaymentLocalCorrectionSchema.safeParse({
+      customerEmail: "verified.member@example.com",
+      categoryCode: "membership",
+      reason: "Verified against the approved payment evidence.",
+    }).success).toBe(true);
+    expect(b2cPaymentLocalCorrectionSchema.safeParse({
+      reason: "Verified against the approved payment evidence.",
+    }).success).toBe(false);
+    expect(b2cPaymentLocalCorrectionSchema.safeParse({
+      customerEmail: "not-an-email",
+      reason: "Verified against the approved payment evidence.",
+    }).success).toBe(false);
   });
 
   it("keeps Stripe in B2C, formats minor USD units exactly, and uses the Bahrain business date", () => {

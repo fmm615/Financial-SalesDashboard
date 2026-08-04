@@ -42,7 +42,7 @@ erDiagram
 | Area | Tables | Purpose |
 | --- | --- | --- |
 | Access | `profiles`, `roles`, `approved_users`, `profile_roles` | Google Auth profile, email allowlist, and the two-role model. |
-| B2C | `customers`, `products`, `product_mappings`, `b2c_payments`, `b2c_refunds` | B2C records only. Stripe and Tap source checks prevent a Stripe record becoming B2B. |
+| B2C | `customers`, `products`, `product_mappings`, `b2c_payments`, `b2c_payment_local_overrides`, `b2c_refunds` | B2C records only. Stripe and Tap source checks prevent a Stripe record becoming B2B. |
 | B2B | `b2b_companies`, `b2b_deals`, `b2b_deal_stages`, `b2b_deal_stage_history`, `b2b_bookings`, `b2b_invoices`, `b2b_receipts`, `b2b_recognised_sales` | Pipeline, booking, invoice, receipt, and recognised-sales concepts stay in separate tables. |
 | Finance | `financial_corrections`, `expenses`, `cash_position_snapshots`, `financial_targets`, `exchange_rates` | Explicit finance records and append-only correction entries. |
 | Summit | `summit_targets`, `summit_updates` | Tickets, sponsors, booths, revenue, costs, and progress. |
@@ -56,7 +56,7 @@ erDiagram
 
 Payments, refunds, bookings, invoices, receipts, recognised sales, expenses, corrections, and cash snapshots have no Admin delete policy. Refunds are separate rows linked to the original B2C payment, permit partial/multiple refunds, and a trigger rejects totals above the original USD amount.
 
-`financial_corrections` captures target record, before value, after value, reason, Admin actor, and time. It does not overwrite the original record. The audit trigger independently captures the individual `auth.uid()` with a before/after snapshot for every allowed Admin write. Stripe product mappings are local configuration: an Admin mapping stores a `product_mapping` correction and individual B2C classification corrections for every affected source payment, while preserving all provider IDs and source metadata.
+`financial_corrections` captures target record, before value, after value, reason, Admin actor, and time. It does not overwrite the original record. The audit trigger independently captures the individual `auth.uid()` with a before/after snapshot for every allowed Admin write. `b2c_payment_local_overrides` stores verified Admin-only local values for one source payment (name, email, phone, category, or tier), leaving the provider row untouched. Stripe product mappings are local configuration: an Admin mapping stores a `product_mapping` correction and individual B2C classification corrections for every affected source payment, while preserving all provider IDs and source metadata.
 
 ## B2B recognised sales
 
@@ -64,7 +64,7 @@ Payments, refunds, bookings, invoices, receipts, recognised sales, expenses, cor
 
 ## Duplicate and backfill strategy
 
-`b2c_payments` has a partial unique provider-ID index on `(source_system, provider_transaction_id)` and a 64-character deterministic content fingerprint index. Its direct source name, email, and phone fields are nullable so incomplete provider records remain traceable rather than disappearing. `customer_name` and `customer_phone` are stored only when the financial provider supplied them directly; absent values remain absent rather than being inferred. A missing source email creates an isolated provider-ID fingerprint and an open review flag; it cannot be counted because the approved email-based content duplicate check cannot be completed. Later ingestion normalizes `lower(trim(email))`, a canonical six-decimal amount, category identifier, and Bahrain business date before comparing matching fingerprints across the preceding 48 hours. An Admin resolution note closes the task but cannot make a payment reportable while its actual email or product mapping remains absent.
+`b2c_payments` has a partial unique provider-ID index on `(source_system, provider_transaction_id)` and a 64-character deterministic content fingerprint index. Its direct source name, email, and phone fields are nullable so incomplete provider records remain traceable rather than disappearing. `customer_name` and `customer_phone` are stored only when the financial provider supplied them directly; absent values remain absent rather than being inferred. A missing source email creates an isolated provider-ID fingerprint and an open review flag. A verified Admin local email/category correction is a separate overlay, closes only the corresponding missing-data flag, and performs the same 48-hour duplicate check before it can be counted. Later ingestion normalizes `lower(trim(email))`, a canonical six-decimal amount, category identifier, and Bahrain business date before comparing matching fingerprints across the preceding 48 hours. A resolution note alone cannot make a payment reportable.
 
 `data_coverage` stores source/domain date ranges with `not_started`, `partial`, `complete`, or `unavailable`. A complete range with `source_record_count = 0` means a known zero; an unavailable range does not.
 
