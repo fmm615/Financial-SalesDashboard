@@ -44,6 +44,15 @@ function formatUsd(value: bigint): string {
   return `$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
 }
 
+/** Table values follow the deal-amount convention: whole USD values do not show redundant cents. */
+function formatDealAmountUsd(value: bigint): string {
+  const whole = value / USD_SCALE;
+  const cents = (value % USD_SCALE) / BigInt(10_000);
+  return cents === BigInt(0)
+    ? `$${whole.toLocaleString("en-US")}`
+    : `$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
+}
+
 export function resolveB2bReportingPeriod(selectedMonth: string | undefined, today = new Date()): B2bReportingPeriod {
   const fallback = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth ?? "") ? selectedMonth! : fallback;
@@ -126,7 +135,7 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
         closeDate: deal.hubspot_close_date, renewalDate: deal.renewal_date,
         bookingStatus: bookingByDeal.has(deal.id) ? "Booked" : "Not booked",
         recognisedStatus: amount === null ? "Unavailable" : recognised === BigInt(0) ? "Not recognised" : recognised >= amount ? "Recognised" : "Partial",
-        recognisedTotalUsd: recognised === BigInt(0) ? null : formatUsd(recognised),
+        recognisedTotalUsd: recognised === BigInt(0) ? null : formatDealAmountUsd(recognised),
         issue: issueForDeal(deal, reviewReasonByDeal.get(deal.id)),
       };
     }),

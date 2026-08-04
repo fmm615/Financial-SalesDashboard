@@ -44,7 +44,7 @@ describe("UI foundation", () => {
       recognisedSalesThisMonthUsd: null,
       period: { month: "2026-08", monthLabel: "August 2026", quarterLabel: "Q3 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31", quarterStart: "2026-07-01", quarterEnd: "2026-09-30" },
       deals: [
-        { id: "11111111-1111-4111-8111-111111111111", bookingId: null, name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", originalAmount: "95000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial", recognisedTotalUsd: "$12,000.00", issue: "Possible duplicate" },
+        { id: "11111111-1111-4111-8111-111111111111", bookingId: null, name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", originalAmount: "95000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial", recognisedTotalUsd: "$12,000", issue: "Possible duplicate" },
         { id: "22222222-2222-4222-8222-222222222222", bookingId: "33333333-3333-4333-8333-333333333333", name: "Signed programme", owner: "Tom", stage: "closed_won", amountUsd: "20000", originalAmount: "20000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: "2026-08-01", renewalDate: null, bookingStatus: "Booked", recognisedStatus: "Not recognised", recognisedTotalUsd: null, issue: null },
       ],
     }} />);
@@ -54,7 +54,7 @@ describe("UI foundation", () => {
     expect(screen.getByText("Bookings · Q3 2026")).toBeInTheDocument();
     expect(screen.getByText("Recognised sales · August 2026")).toBeInTheDocument();
     expect(screen.getByText("Not yet recorded")).toBeInTheDocument();
-    expect(screen.getByText("Total: $12,000.00")).toBeInTheDocument();
+    expect(screen.getByText("Total: $12,000")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "B2B financial reporting month" })).toHaveValue("2026-08");
     expect(screen.getByRole("combobox", { name: "Filter B2B deals by stage" })).toHaveValue("all");
     expect(screen.getByText("Annual programme")).toBeInTheDocument();
