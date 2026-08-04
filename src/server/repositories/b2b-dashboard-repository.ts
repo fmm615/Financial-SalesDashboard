@@ -26,6 +26,7 @@ export type B2bReportingPeriod = {
   monthEnd: string;
   quarterStart: string;
   quarterEnd: string;
+  isAllTime?: boolean;
 };
 
 export type B2bPipelineStage = { stage: string; dealCount: number; amountUsd: string };
@@ -74,11 +75,11 @@ export function buildB2bPipelineByStage(deals: Array<{ stageCode: string; amount
 }
 
 /** Uses only closed decisions with a known close date in the requested month. */
-export function calculateB2bWinRate(deals: Array<{ stageCode: string; closeDate: string | null }>, period: Pick<B2bReportingPeriod, "monthStart" | "monthEnd">): B2bWinRate | null {
+export function calculateB2bWinRate(deals: Array<{ stageCode: string; closeDate: string | null }>, period: Pick<B2bReportingPeriod, "monthStart" | "monthEnd" | "isAllTime">): B2bWinRate | null {
   let wonCount = 0;
   let lostCount = 0;
   for (const deal of deals) {
-    if (!deal.closeDate || deal.closeDate < period.monthStart || deal.closeDate > period.monthEnd) continue;
+    if (!deal.closeDate || (!period.isAllTime && (deal.closeDate < period.monthStart || deal.closeDate > period.monthEnd))) continue;
     if (deal.stageCode === "closed_won") wonCount += 1;
     if (deal.stageCode === "closed_lost") lostCount += 1;
   }
@@ -89,8 +90,12 @@ export function calculateB2bWinRate(deals: Array<{ stageCode: string; closeDate:
 
 export function resolveB2bReportingPeriod(selectedMonth: string | undefined, today = new Date()): B2bReportingPeriod {
   const fallback = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
-  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth ?? "") ? selectedMonth! : fallback;
-  const [year, monthIndex] = month.split("-").map(Number);
+  const isAllTime = selectedMonth === "all";
+  const month = isAllTime ? "all" : /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth ?? "") ? selectedMonth! : fallback;
+  // Date fields retain a valid current-month default for forms opened from an
+  // all-time dashboard. KPI calculations use isAllTime and do not use these bounds.
+  const calculationMonth = isAllTime ? fallback : month;
+  const [year, monthIndex] = calculationMonth.split("-").map(Number);
   const date = new Date(Date.UTC(year, monthIndex - 1, 1));
   const monthEnd = new Date(Date.UTC(year, monthIndex, 0));
   const quarterStartMonth = Math.floor((monthIndex - 1) / 3) * 3;
@@ -98,12 +103,13 @@ export function resolveB2bReportingPeriod(selectedMonth: string | undefined, tod
   const quarterEnd = new Date(Date.UTC(year, quarterStartMonth + 3, 0));
   return {
     month,
-    monthLabel: new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(date),
-    quarterLabel: `Q${Math.floor((monthIndex - 1) / 3) + 1} ${year}`,
+    monthLabel: isAllTime ? "All time" : new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(date),
+    quarterLabel: isAllTime ? "All time" : `Q${Math.floor((monthIndex - 1) / 3) + 1} ${year}`,
     monthStart: date.toISOString().slice(0, 10),
     monthEnd: monthEnd.toISOString().slice(0, 10),
     quarterStart: quarterStart.toISOString().slice(0, 10),
     quarterEnd: quarterEnd.toISOString().slice(0, 10),
+    isAllTime,
   };
 }
 
@@ -148,14 +154,14 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
   // A booking belonging to a locally excluded or unresolved deal is retained for
   // traceability but must never make its way into an operational financial total.
   for (const booking of bookings ?? []) {
-    if (reportableDealIds.has(booking.deal_id) && booking.booking_date >= period.quarterStart && booking.booking_date <= period.quarterEnd) {
+    if (reportableDealIds.has(booking.deal_id) && (period.isAllTime || (booking.booking_date >= period.quarterStart && booking.booking_date <= period.quarterEnd))) {
       bookingsThisQuarter += toScaledUsd(booking.booking_amount_usd);
     }
   }
   let recognisedSalesThisMonth = BigInt(0);
   let hasRecognisedSalesThisMonth = false;
   for (const sale of sales ?? []) {
-    if (reportableDealIds.has(sale.deal_id) && sale.recognition_date >= period.monthStart && sale.recognition_date <= period.monthEnd) {
+    if (reportableDealIds.has(sale.deal_id) && (period.isAllTime || (sale.recognition_date >= period.monthStart && sale.recognition_date <= period.monthEnd))) {
       recognisedSalesThisMonth += toScaledUsd(sale.recognised_amount_usd);
       hasRecognisedSalesThisMonth = true;
     }

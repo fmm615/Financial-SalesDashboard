@@ -134,5 +134,6 @@ describe("B2C period handling", () => {
   it("uses the requested month and a live current-month fallback rather than a fixed end date", () => {
     expect(resolveB2cReportingPeriod("2027-01", new Date("2026-08-02T12:00:00.000Z"))).toMatchObject({ month: "2027-01", monthStart: "2027-01-01", monthEnd: "2027-01-31" });
     expect(resolveB2cReportingPeriod(undefined, new Date("2027-04-02T12:00:00.000Z")).month).toBe("2027-04");
+    expect(resolveB2cReportingPeriod("all", new Date("2027-04-02T12:00:00.000Z"))).toMatchObject({ month: "all", monthLabel: "All time", isAllTime: true });
   });
 });

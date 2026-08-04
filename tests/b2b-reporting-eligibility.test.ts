@@ -22,6 +22,7 @@ describe("B2B reporting eligibility", () => {
       month: "2024-08", monthLabel: "August 2024", quarterLabel: "Q3 2024",
       monthStart: "2024-08-01", monthEnd: "2024-08-31", quarterStart: "2024-07-01", quarterEnd: "2024-09-30",
     });
+    expect(resolveB2bReportingPeriod("all", new Date("2026-08-03T00:00:00.000Z"))).toMatchObject({ month: "all", monthLabel: "All time", quarterLabel: "All time", isAllTime: true });
   });
 
   it("groups only reportable open pipeline value by stage", () => {

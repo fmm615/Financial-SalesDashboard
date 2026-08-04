@@ -2,7 +2,7 @@ import type { DatabaseClient } from "@/lib/supabase/server";
 
 const USD_SCALE = BigInt(1_000_000);
 
-export type B2cReportingPeriod = { month: string; monthLabel: string; monthStart: string; monthEnd: string };
+export type B2cReportingPeriod = { month: string; monthLabel: string; monthStart: string; monthEnd: string; isAllTime?: boolean };
 export type B2cLedgerRow = {
   id: string;
   recordType: "Payment" | "Refund";
@@ -65,16 +65,23 @@ function displayPaymentStatus(status: "succeeded" | "failed" | "pending"): B2cLe
 
 export function resolveB2cReportingPeriod(selectedMonth: string | undefined, today = new Date()): B2cReportingPeriod {
   const fallback = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
-  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth ?? "") ? selectedMonth! : fallback;
-  const [year, monthIndex] = month.split("-").map(Number);
+  const isAllTime = selectedMonth === "all";
+  const month = isAllTime ? "all" : /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth ?? "") ? selectedMonth! : fallback;
+  const calculationMonth = isAllTime ? fallback : month;
+  const [year, monthIndex] = calculationMonth.split("-").map(Number);
   const date = new Date(Date.UTC(year, monthIndex - 1, 1));
   const monthEnd = new Date(Date.UTC(year, monthIndex, 0));
   return {
     month,
-    monthLabel: new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(date),
+    monthLabel: isAllTime ? "All time" : new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(date),
     monthStart: date.toISOString().slice(0, 10),
     monthEnd: monthEnd.toISOString().slice(0, 10),
+    isAllTime,
   };
+}
+
+function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
+  return period.isAllTime || (date >= period.monthStart && date <= period.monthEnd);
 }
 
 /**
@@ -109,20 +116,20 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   let eligiblePayments = BigInt(0);
   let refundsTotal = BigInt(0);
   for (const payment of payments) {
-    if (payment.occurred_on >= period.monthStart && payment.occurred_on <= period.monthEnd && isReportablePayment(payment)) {
+    if (isInB2cPeriod(payment.occurred_on, period) && isReportablePayment(payment)) {
       eligiblePayments += toScaledUsd(payment.amount_usd);
     }
   }
   for (const refund of refunds) {
     const occurredOn = refund.occurred_at.slice(0, 10);
     const payment = paymentById.get(refund.payment_id);
-    if (occurredOn >= period.monthStart && occurredOn <= period.monthEnd && payment && isReportablePayment(payment)) {
+    if (isInB2cPeriod(occurredOn, period) && payment && isReportablePayment(payment)) {
       refundsTotal += toScaledUsd(refund.amount_usd);
     }
   }
 
   const rows: B2cLedgerRow[] = [
-    ...payments.filter((payment) => payment.occurred_on >= period.monthStart && payment.occurred_on <= period.monthEnd).map((payment) => ({
+    ...payments.filter((payment) => isInB2cPeriod(payment.occurred_on, period)).map((payment) => ({
       id: payment.id,
       recordType: "Payment" as const,
       customerEmail: payment.customer_email,
@@ -138,7 +145,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     })),
     ...refunds.filter((refund) => {
       const occurredOn = refund.occurred_at.slice(0, 10);
-      return occurredOn >= period.monthStart && occurredOn <= period.monthEnd;
+      return isInB2cPeriod(occurredOn, period);
     }).map((refund) => {
       const payment = paymentById.get(refund.payment_id);
       return {
