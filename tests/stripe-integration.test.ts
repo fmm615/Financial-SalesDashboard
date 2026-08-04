@@ -16,7 +16,7 @@ const succeededRefund = { id: "re_123", charge: "ch_123", amount: 1200, currency
 describe("Stripe normalisation and webhook security", () => {
   it("keeps Stripe in B2C, formats minor USD units exactly, and uses the Bahrain business date", () => {
     const payment = normaliseStripeCharge({ ...charge, billing_details: { ...charge.billing_details, phone: "+973 1700 0000" } }, "product_id");
-    expect(payment).toMatchObject({ chargeId: "ch_123", customerEmail: "member@example.com", customerPhone: "+973 1700 0000", originalAmount: "123.45", amountUsd: "123.45", originalCurrency: "USD", productReference: "price_membership" });
+    expect(payment).toMatchObject({ chargeId: "ch_123", customerName: "Member Name", customerEmail: "member@example.com", customerPhone: "+973 1700 0000", originalAmount: "123.45", amountUsd: "123.45", originalCurrency: "USD", productReference: "price_membership" });
     expect(payment.occurredOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 

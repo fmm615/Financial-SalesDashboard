@@ -6,10 +6,13 @@ export type B2cReportingPeriod = { month: string; monthLabel: string; monthStart
 export type B2cLedgerRow = {
   id: string;
   recordType: "Payment" | "Refund";
+  customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
   date: string;
+  dateValue: string;
   amountUsd: string;
+  amountValueUsd: string;
   category: string;
   membershipTier: string | null;
   source: string;
@@ -92,7 +95,7 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
   const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult] = await Promise.all([
-    client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_email,customer_phone,category_code,membership_tier,payment_status,amount_usd,occurred_on").order("occurred_at", { ascending: false }),
+    client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,amount_usd,occurred_on").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
     client.from("review_flags").select("source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
@@ -132,10 +135,13 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     ...payments.filter((payment) => isInB2cPeriod(payment.occurred_on, period)).map((payment) => ({
       id: payment.id,
       recordType: "Payment" as const,
+      customerName: payment.customer_name,
       customerEmail: payment.customer_email,
       customerPhone: payment.customer_phone,
       date: formatDate(payment.occurred_on),
+      dateValue: payment.occurred_on,
       amountUsd: formatUsd(toScaledUsd(payment.amount_usd)),
+      amountValueUsd: payment.amount_usd,
       category: payment.category_code === "unmapped" ? "Unmapped" : payment.category_code,
       membershipTier: payment.membership_tier,
       source: payment.source_system === "manual_bank_transfer" ? "Manual bank transfer" : payment.source_system === "stripe" ? "Stripe" : "Tap",
@@ -151,10 +157,13 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       return {
         id: refund.id,
         recordType: "Refund" as const,
+        customerName: payment?.customer_name ?? null,
         customerEmail: payment?.customer_email ?? null,
         customerPhone: payment?.customer_phone ?? null,
         date: formatDate(refund.occurred_at.slice(0, 10)),
+        dateValue: refund.occurred_at.slice(0, 10),
         amountUsd: formatUsd(-toScaledUsd(refund.amount_usd)),
+        amountValueUsd: `-${refund.amount_usd}`,
         category: payment?.category_code === "unmapped" ? "Unmapped" : payment?.category_code ?? "Unavailable",
         membershipTier: payment?.membership_tier ?? null,
         source: refund.source_system === "stripe" ? "Stripe" : refund.source_system === "tap" ? "Tap" : "Manual bank transfer",

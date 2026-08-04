@@ -37,6 +37,7 @@ type B2cPaymentRow = {
   provider_event_id: string | null;
   customer_id: Uuid | null;
   customer_email: string | null;
+  customer_name: string | null;
   customer_phone: string | null;
   product_mapping_id: Uuid | null;
   category_code: string;
