@@ -76,7 +76,7 @@ Trusted server jobs may use the service-role client only after they are implemen
 
 ## Local seed and type generation
 
-`supabase/seed.sql` is development-only and uses fake `.test` users and records. It demonstrates a partial refund, failed payment, possible duplicate, unmapped product, unavailable history, known zero coverage, a closed-won booking, a smaller separate recognised-sale amount, an audit event, and a failed report job.
+`supabase/seed.sql` is development-only and uses fake `.test` users and records. It demonstrates a partial refund, failed payment, possible duplicate, unmapped product, unavailable history, known zero coverage, an audit event, and a failed report job. It deliberately contains no B2B deal, booking, or recognised-sale fixtures, so development seed data cannot affect B2B operations totals.
 
 After Docker Desktop is running, reset locally then regenerate the raw types with `npm run supabase:types`. The generated file belongs at `src/types/database.generated.ts`; repositories map it to domain contracts rather than exposing it to UI components.
 

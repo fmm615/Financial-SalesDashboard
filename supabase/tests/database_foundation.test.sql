@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(10);
 
 select has_table('public', 'b2c_payments', 'B2C payments table exists');
 select has_table('public', 'b2b_recognised_sales', 'recognised sales table exists separately');
@@ -41,21 +41,6 @@ select is(
   (select sum(amount_usd) from public.b2c_refunds where payment_id = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1'),
   25.000000::numeric,
   'partial refunds are separate linked rows'
-);
-
-select isnt(
-  (select booking_amount_usd from public.b2b_bookings where id = '13131313-1313-4313-8313-131313131313'),
-  (select recognised_amount_usd from public.b2b_recognised_sales where id = '14141414-1414-4414-8414-141414141414'),
-  'booking and recognised sales are not the same stored amount'
-);
-
-select ok(
-  (select exists (
-    select 1 from public.audit_events
-    where actor_profile_id = '11111111-1111-4111-8111-111111111111'
-      and area = 'b2b_recognised_sales'
-  )),
-  'manual recognised-sales entry has an individual audit actor'
 );
 
 select ok(

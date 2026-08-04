@@ -61,32 +61,6 @@ insert into public.b2c_refunds (
   ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'stripe', 're_test_001', 25.000000, 'USD', 1.0000000000, 25.000000, 'Partial member refund (fake)', '2026-08-02 09:00:00+00')
 on conflict do nothing;
 
-insert into public.b2b_companies (id, source_system, external_company_id, legal_name) values
-  ('ffffffff-ffff-4fff-8fff-fffffffffff1', 'hubspot', 'hs_company_001', 'AI Noor Group (fake)')
-on conflict do nothing;
-
-insert into public.b2b_deals (
-  id, company_id, source_system, external_deal_id, name, stage_code, pipeline_original_amount,
-  original_currency, exchange_rate_to_usd, pipeline_amount_usd, hubspot_close_date, renewal_date, owner_name
-) values
-  ('12121212-1212-4212-8212-121212121212', 'ffffffff-ffff-4fff-8fff-fffffffffff1', 'hubspot', 'hs_deal_001', 'AI Noor Group Annual Agreement (fake)', 'closed_won', 120000.000000, 'USD', 1.0000000000, 120000.000000, '2026-08-01', '2027-08-01', 'Shreya')
-on conflict do nothing;
-
-insert into public.b2b_bookings (
-  id, deal_id, source_system, booking_date, original_amount, original_currency,
-  exchange_rate_to_usd, booking_amount_usd, source_reference
-) values
-  ('13131313-1313-4313-8313-131313131313', '12121212-1212-4212-8212-121212121212', 'hubspot', '2026-08-01', 120000.000000, 'USD', 1.0000000000, 120000.000000, 'HubSpot close date')
-on conflict do nothing;
-
--- This is a manual entry. It is intentionally separate from the $120,000 booking.
-insert into public.b2b_recognised_sales (
-  id, deal_id, booking_id, recognised_amount, original_currency, exchange_rate_to_usd,
-  recognised_amount_usd, recognition_date, reporting_period, reason_or_reference, entered_by
-) values
-  ('14141414-1414-4414-8414-141414141414', '12121212-1212-4212-8212-121212121212', '13131313-1313-4313-8313-131313131313', 10000.000000, 'USD', 1.0000000000, 10000.000000, '2026-08-31', '2026-08-01', 'August recognition approved for fake seed deal', '11111111-1111-4111-8111-111111111111')
-on conflict do nothing;
-
 insert into public.financial_targets (id, metric_code, period_start, period_end, target_amount_usd, notes, created_by, updated_by)
 values ('15151515-1515-4515-8515-151515151515', 'sales', '2026-08-01', '2026-08-31', 200000.000000, 'Fake development target', '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111')
 on conflict do nothing;

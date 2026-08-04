@@ -10,7 +10,7 @@ The main B2B dashboard displays the HubSpot **deal name**. It intentionally does
 
 ## 1. Apply the database migration
 
-Apply `20260802101100_hubspot_sync_identity_constraints.sql` through `20260803140000_manual_b2b_deal_entry.sql` in order, after the existing migrations. These migrations make HubSpot identity upserts safe, retain `PARKED`, protect incomplete data, enable Admin review, create durable resumable historical-backfill state, add audited duplicate decisions, attach exact source references to new HubSpot issues, allow local audited corrections and exclusions from B2B Operations, create the only permitted source for B2B dashboard/report totals, preserve a local date correction during later read-only HubSpot syncs, and add Admin-only local manual-Finance B2B entry. Do not create or alter tables manually outside the committed migrations.
+Apply `20260802101100_hubspot_sync_identity_constraints.sql` through `20260803150000_remove_development_b2b_seed_data.sql` in order, after the existing migrations. These migrations make HubSpot identity upserts safe, retain `PARKED`, protect incomplete data, enable Admin review, create durable resumable historical-backfill state, add audited duplicate decisions, attach exact source references to new HubSpot issues, allow local audited corrections and exclusions from B2B Operations, create the only permitted source for B2B dashboard/report totals, preserve a local date correction during later read-only HubSpot syncs, add Admin-only local manual-Finance B2B entry, and remove the verified development-only B2B fixture. Do not create or alter tables manually outside the committed migrations.
 
 ## 2. Create a HubSpot private app
 
