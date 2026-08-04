@@ -41,6 +41,19 @@ Requirements:
 - support refunds without deleting original payments
 - support reconciliation
 
+### Current clean-rebuild boundary
+
+The Stripe boundary lives in `src/lib/integrations/stripe/`; trusted persistence and orchestration live in `src/server/`. It is read-only against Stripe: PLAYBOOK only makes `GET` requests and never creates, edits, or deletes anything in Stripe.
+
+- The webhook endpoint is `/api/webhooks/stripe`. It verifies Stripe's signature against the untouched raw request body before parsing it.
+- It accepts `charge.succeeded`, `charge.failed`, `refund.created`, and `refund.updated`. Webhook event IDs and provider transaction IDs make delivery idempotent.
+- The Admin Integration Status screen can run the required 48-hour read-only reconciliation. The authenticated Admin is recorded in the audit log. Scheduled reconciliation uses `/api/internal/reconcile/stripe` and `INTEGRATION_CRON_SECRET`.
+- A refund is always a separate `b2c_refunds` row linked to the original `b2c_payments` row. It never deletes or overwrites the payment.
+- PLAYBOOK currently accepts only USD Stripe charges and refunds. A non-USD Stripe record is retained as a safe follow-up error because no Finance-approved FX source exists; it is never silently converted.
+- A Stripe charge must contain a valid customer email and a configured product-reference metadata value. Without an approved `product_mappings` record it is retained with an `unmapped_product` flag and excluded from B2C financial totals. Possible content duplicates are also retained, flagged, and excluded pending Admin review.
+
+Read [STRIPE_SETUP.md](STRIPE_SETUP.md) before adding live credentials or an endpoint.
+
 ## Tap
 
 Purpose: regional B2C payments.
