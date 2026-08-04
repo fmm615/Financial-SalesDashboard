@@ -14,6 +14,7 @@ export type B2bDashboardDeal = {
   renewalDate: string | null;
   bookingStatus: "Booked" | "Not booked";
   recognisedStatus: "Recognised" | "Not recognised" | "Partial" | "Unavailable";
+  recognisedTotalUsd: string | null;
   issue: string | null;
 };
 
@@ -125,6 +126,7 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
         closeDate: deal.hubspot_close_date, renewalDate: deal.renewal_date,
         bookingStatus: bookingByDeal.has(deal.id) ? "Booked" : "Not booked",
         recognisedStatus: amount === null ? "Unavailable" : recognised === BigInt(0) ? "Not recognised" : recognised >= amount ? "Recognised" : "Partial",
+        recognisedTotalUsd: recognised === BigInt(0) ? null : formatUsd(recognised),
         issue: issueForDeal(deal, reviewReasonByDeal.get(deal.id)),
       };
     }),
