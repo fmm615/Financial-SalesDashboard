@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isB2bDealReportable } from "@/lib/b2b/reporting-eligibility";
-import { resolveB2bReportingPeriod } from "@/server/repositories/b2b-dashboard-repository";
+import { buildB2bPipelineByStage, resolveB2bReportingPeriod } from "@/server/repositories/b2b-dashboard-repository";
 
 describe("B2B reporting eligibility", () => {
   it("excludes incomplete and unresolved-duplicate deals from all reportable views", () => {
@@ -22,5 +22,19 @@ describe("B2B reporting eligibility", () => {
       month: "2024-08", monthLabel: "August 2024", quarterLabel: "Q3 2024",
       monthStart: "2024-08-01", monthEnd: "2024-08-31", quarterStart: "2024-07-01", quarterEnd: "2024-09-30",
     });
+  });
+
+  it("groups only reportable open pipeline value by stage", () => {
+    expect(buildB2bPipelineByStage([
+      { stageCode: "proposal", amountUsd: "50000" },
+      { stageCode: "proposal", amountUsd: "12000.50" },
+      { stageCode: "qualified", amountUsd: "7500" },
+      { stageCode: "closed_won", amountUsd: "90000" },
+      { stageCode: "closed_lost", amountUsd: "40000" },
+      { stageCode: "discovery", amountUsd: null },
+    ])).toEqual([
+      { stage: "proposal", dealCount: 2, amountUsd: "$62,000.50" },
+      { stage: "qualified", dealCount: 1, amountUsd: "$7,500.00" },
+    ]);
   });
 });

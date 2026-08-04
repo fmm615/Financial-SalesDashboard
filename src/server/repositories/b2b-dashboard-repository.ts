@@ -28,7 +28,9 @@ export type B2bReportingPeriod = {
   quarterEnd: string;
 };
 
-export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string | null; period: B2bReportingPeriod };
+export type B2bPipelineStage = { stage: string; dealCount: number; amountUsd: string };
+
+export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; pipelineByStage: B2bPipelineStage[]; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string | null; period: B2bReportingPeriod };
 
 const USD_SCALE = BigInt(1_000_000);
 
@@ -51,6 +53,22 @@ function formatDealAmountUsd(value: bigint): string {
   return cents === BigInt(0)
     ? `$${whole.toLocaleString("en-US")}`
     : `$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
+}
+
+/** Builds the current, eligible open-pipeline breakdown from already reportable deals. */
+export function buildB2bPipelineByStage(deals: Array<{ stageCode: string; amountUsd: string | null }>): B2bPipelineStage[] {
+  const totals = new Map<string, { dealCount: number; amount: bigint }>();
+  for (const deal of deals) {
+    if (deal.stageCode === "closed_won" || deal.stageCode === "closed_lost" || !deal.amountUsd) continue;
+    const current = totals.get(deal.stageCode) ?? { dealCount: 0, amount: BigInt(0) };
+    current.dealCount += 1;
+    current.amount += toScaledUsd(deal.amountUsd);
+    totals.set(deal.stageCode, current);
+  }
+  return [...totals.entries()]
+    .map(([stage, total]) => ({ stage, dealCount: total.dealCount, amount: total.amount }))
+    .sort((first, second) => first.amount === second.amount ? first.stage.localeCompare(second.stage) : first.amount > second.amount ? -1 : 1)
+    .map(({ stage, dealCount, amount }) => ({ stage, dealCount, amountUsd: formatUsd(amount) }));
 }
 
 export function resolveB2bReportingPeriod(selectedMonth: string | undefined, today = new Date()): B2bReportingPeriod {
@@ -90,7 +108,7 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
   if (allDealsResult.error ?? reportableDealsResult.error) throw new Error("Could not load B2B source deals.");
   const allDeals = allDealsResult.data ?? [];
   const reportableDeals = reportableDealsResult.data ?? [];
-  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: null, period };
+  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", pipelineByStage: [], bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: null, period };
 
   const ids = allDeals.map((deal) => deal.id);
   const reportableDealIds = new Set(reportableDeals.map((deal) => deal.id));
@@ -106,6 +124,7 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
   const recognisedByDeal = new Map<string, bigint>();
   for (const sale of sales ?? []) recognisedByDeal.set(sale.deal_id, (recognisedByDeal.get(sale.deal_id) ?? BigInt(0)) + toScaledUsd(sale.recognised_amount_usd));
 
+  const pipelineByStage = buildB2bPipelineByStage(reportableDeals.map((deal) => ({ stageCode: deal.stage_code, amountUsd: deal.pipeline_amount_usd })));
   let openPipeline = BigInt(0);
   for (const deal of reportableDeals) if (deal.stage_code !== "closed_won" && deal.stage_code !== "closed_lost" && deal.pipeline_amount_usd) openPipeline += toScaledUsd(deal.pipeline_amount_usd);
   let bookingsThisQuarter = BigInt(0);
@@ -139,6 +158,6 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
         issue: issueForDeal(deal, reviewReasonByDeal.get(deal.id)),
       };
     }),
-    openPipelineUsd: formatUsd(openPipeline), bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: hasRecognisedSalesThisMonth ? formatUsd(recognisedSalesThisMonth) : null, period,
+    openPipelineUsd: formatUsd(openPipeline), pipelineByStage, bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: hasRecognisedSalesThisMonth ? formatUsd(recognisedSalesThisMonth) : null, period,
   };
 }
