@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { ExecutiveDashboard } from "@/features/executive/executive-dashboard";
@@ -75,8 +75,9 @@ describe("UI foundation", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Filter B2B deals by stage" }), { target: { value: "all" } });
     expect(screen.getByText("Possible duplicate")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Filter B2B deals by stage" }), { target: { value: "closed_won" } });
-    expect(screen.queryByText("Annual programme")).not.toBeInTheDocument();
-    expect(screen.getByText("Signed programme")).toBeInTheDocument();
+    const b2bDealsTable = screen.getByRole("table", { name: "HubSpot B2B deals" });
+    expect(within(b2bDealsTable).queryByText("Annual programme")).not.toBeInTheDocument();
+    expect(within(b2bDealsTable).getByText("Signed programme")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add manual B2B deal" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add manual B2B deal" }));
     expect(screen.getByRole("dialog", { name: "Manual B2B deal entry" })).toBeInTheDocument();

@@ -49,7 +49,7 @@ Apply the same reliability principles as Stripe.
 
 ## HubSpot
 
-Purpose: B2B deals, stages, bookings and renewals.
+Purpose: B2B deals, stages, and bookings.
 
 Requirements:
 
@@ -64,6 +64,8 @@ Requirements:
 The HubSpot boundary lives in `src/lib/integrations/hubspot/`; the trusted persistence and orchestration layers live in `src/server/`. It accepts only verified v3 webhook requests, stores provider event IDs, and performs a 48-hour reconciliation pull. A required B2B pipeline ID prevents HubSpot B2C and archive pipelines from being imported as B2B. Actual property names and stage IDs are mandatory environment configuration, not assumptions copied from the old project. Read [HUBSPOT_SETUP.md](HUBSPOT_SETUP.md) before enabling it.
 
 A `closed_won` mapped deal creates one separate `b2b_bookings` row using its HubSpot close date. No HubSpot action can create a recognised-sales row.
+
+Renewal tracking is currently disabled. HubSpot has no verified renewal-date property, so PLAYBOOK does not infer a renewal from a close date or booking. The retained `b2b_deals.renewal_date` database field is dormant for historical compatibility and a future Finance-approved source mapping; it is not collected or shown in B2B Operations.
 
 A HubSpot deal with no amount or currency is retained as an incomplete source record plus an open `needs_follow_up` review flag. Its monetary values remain `NULL`, it is excluded from totals, and it cannot create a booking until an Admin records a correction. A closed-won deal with valid financial values but no close date is also retained; it receives a separate Admin local close-date correction workflow and cannot create a booking until that date is recorded locally with an audit reason.
 

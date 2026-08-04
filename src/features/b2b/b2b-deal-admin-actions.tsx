@@ -24,7 +24,9 @@ export function B2bDealAdminActions({ deal, reportingPeriod }: { deal: B2bDashbo
   const [currency, setCurrency] = useState(deal.originalCurrency ?? "");
   const [exchangeRateToUsd, setExchangeRateToUsd] = useState(deal.exchangeRateToUsd ?? "");
   const [closeDate, setCloseDate] = useState(deal.closeDate ?? "");
-  const [renewalDate, setRenewalDate] = useState(deal.renewalDate ?? "");
+  // Renewal tracking is dormant. Keep the existing value in the compatibility
+  // payload so an unrelated local correction cannot erase historical data.
+  const [preservedRenewalDate] = useState(deal.renewalDate ?? "");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -34,7 +36,7 @@ export function B2bDealAdminActions({ deal, reportingPeriod }: { deal: B2bDashbo
   async function submit(path: "override" | "exclude") {
     setSaving(true); setMessage(null);
     try {
-      const body = path === "exclude" ? { reason } : { name, ownerName: nullable(ownerName), stageCode, amount: nullable(amount), currency: nullable(currency)?.toUpperCase() ?? null, exchangeRateToUsd: nullable(exchangeRateToUsd), closeDate: nullable(closeDate), renewalDate: nullable(renewalDate), reason };
+      const body = path === "exclude" ? { reason } : { name, ownerName: nullable(ownerName), stageCode, amount: nullable(amount), currency: nullable(currency)?.toUpperCase() ?? null, exchangeRateToUsd: nullable(exchangeRateToUsd), closeDate: nullable(closeDate), renewalDate: nullable(preservedRenewalDate), reason };
       const response = await fetch(`/api/admin/hubspot/deals/${deal.id}/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? "The local change could not be saved.");
@@ -59,7 +61,6 @@ export function B2bDealAdminActions({ deal, reportingPeriod }: { deal: B2bDashbo
           <label className={fieldClass}>Original currency<input className={inputClass} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} maxLength={3} placeholder="USD" /></label>
           <label className={fieldClass}>Exchange rate to USD<input className={inputClass} value={exchangeRateToUsd} onChange={(event) => setExchangeRateToUsd(event.target.value)} inputMode="decimal" placeholder="1" /></label>
           <label className={fieldClass}>Close date<input className={inputClass} type="date" value={closeDate} onChange={(event) => setCloseDate(event.target.value)} /></label>
-          <label className={fieldClass}>Renewal date<input className={inputClass} type="date" value={renewalDate} onChange={(event) => setRenewalDate(event.target.value)} /></label>
           <label className={`${fieldClass} md:col-span-2`}>Reason / evidence<input className={inputClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required audit reason" /></label>
         </div>
         <div className="mt-6 flex flex-wrap gap-3"><PrimaryButton onClick={() => void submit("override")} disabled={saving}>{saving ? "Saving…" : "Save audited local update"}</PrimaryButton><button type="button" onClick={() => void submit("exclude")} disabled={saving} className="rounded-pill border border-danger px-4 py-2 text-sm font-semibold text-danger hover:bg-danger/5 disabled:opacity-60">Exclude locally</button></div>

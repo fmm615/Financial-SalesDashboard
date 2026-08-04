@@ -18,14 +18,13 @@ type ManualDealForm = {
   originalCurrency: string;
   exchangeRateToUsd: string;
   closeDate: string;
-  renewalDate: string;
   manualEntryReason: string;
 };
 
 const emptyForm: ManualDealForm = {
   companyName: "", name: "", ownerName: "", stageCode: "discovery",
   pipelineOriginalAmount: "", originalCurrency: "USD", exchangeRateToUsd: "1",
-  closeDate: "", renewalDate: "", manualEntryReason: "",
+  closeDate: "", manualEntryReason: "",
 };
 
 /** Admin-only local Finance entry. It deliberately has no payment or revenue fields. */
@@ -62,7 +61,8 @@ export function ManualDealEntry() {
           originalCurrency: form.originalCurrency.trim().toUpperCase(),
           ownerName: form.ownerName.trim() || null,
           closeDate: form.closeDate || null,
-          renewalDate: form.renewalDate || null,
+          // The persistence contract retains this dormant field for historical compatibility.
+          renewalDate: null,
         }),
       });
       const body = await response.json() as { error?: string };
@@ -93,7 +93,6 @@ export function ManualDealEntry() {
             <FormField label="Original currency"><input required value={form.originalCurrency} onChange={(event) => update("originalCurrency", event.target.value)} className={inputClass} maxLength={3} placeholder="USD" /></FormField>
             <FormField label="Exchange rate to USD"><input required value={form.exchangeRateToUsd} onChange={(event) => update("exchangeRateToUsd", event.target.value)} className={inputClass} inputMode="decimal" placeholder="1.0000000000" /></FormField>
             <FormField label="Close date"><input required={form.stageCode === "closed_won"} value={form.closeDate} onChange={(event) => update("closeDate", event.target.value)} className={inputClass} type="date" /></FormField>
-            <FormField label="Renewal date"><input value={form.renewalDate} onChange={(event) => update("renewalDate", event.target.value)} className={inputClass} type="date" /></FormField>
             <FormField label="Entry reason"><input required value={form.manualEntryReason} onChange={(event) => update("manualEntryReason", event.target.value)} className={inputClass} maxLength={1000} placeholder="Required Finance-approved source or reason" /></FormField>
           </div>
           <p className="mt-4 text-xs leading-5 text-text-muted">A closed-won deal with a close date creates a separate booking. Cash received requires an invoice and receipt, and recognised sales is recorded separately with its own amount, reporting period, and reason.</p>

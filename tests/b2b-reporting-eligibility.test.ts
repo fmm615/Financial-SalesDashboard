@@ -48,4 +48,5 @@ describe("B2B reporting eligibility", () => {
       { stageCode: "proposal", closeDate: "2024-08-14" },
     ], { monthStart: "2024-08-01", monthEnd: "2024-08-31" })).toEqual({ percentage: "66.7%", wonCount: 2, lostCount: 1 });
   });
+
 });
