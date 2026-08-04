@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { normaliseStripeCharge, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
 import { isValidStripeSignature } from "@/lib/integrations/stripe/signature";
 import { resolveB2cReportingPeriod } from "@/server/repositories/b2c-dashboard-repository";
-import { processStripeWebhook, runStripeReconciliation } from "@/server/services/sync-stripe";
+import { processStripeWebhook, runStripeHistoricalBackfillBatch, runStripeReconciliation } from "@/server/services/sync-stripe";
 
 const charge = {
   id: "ch_123", amount: 12345, currency: "usd", created: 1_754_000_000,
@@ -99,6 +99,34 @@ describe("Stripe ingestion orchestration", () => {
     expect(source.listChargesCreatedSince).toHaveBeenCalledWith(result.lookbackStart);
     expect(result).toMatchObject({ processed: 2, failed: 1, inserted: 2 });
     expect(repository.recordSyncError).toHaveBeenCalledWith("run-1", expect.any(Error), "Stripe charge ch_bad");
+  });
+
+  it("imports all Stripe history in resumable charge then refund phases", async () => {
+    const repository = {
+      persistCharge: vi.fn().mockResolvedValue({ inserted: true }),
+      persistRefund: vi.fn().mockResolvedValue({ inserted: true }),
+      getOrStartHistoricalBackfill: vi.fn()
+        .mockResolvedValueOnce({ id: "history-1", continuationCursor: null, recordsProcessed: 0, recordsFailed: 0, completed: false })
+        .mockResolvedValueOnce({ id: "history-1", continuationCursor: "refunds:", recordsProcessed: 1, recordsFailed: 0, completed: false }),
+      finishHistoricalBackfillBatch: vi.fn()
+        .mockResolvedValueOnce({ id: "history-1", continuationCursor: "refunds:", recordsProcessed: 1, recordsFailed: 0, completed: false })
+        .mockResolvedValueOnce({ id: "history-1", continuationCursor: null, recordsProcessed: 2, recordsFailed: 0, completed: true }),
+      failSyncRun: vi.fn(),
+      recordSyncError: vi.fn(),
+    };
+    const source = {
+      fetchCharge: vi.fn().mockResolvedValue(charge),
+      listChargesPage: vi.fn().mockResolvedValue({ records: [charge], nextCursor: null }),
+      listRefundsPage: vi.fn().mockResolvedValue({ records: [succeededRefund], nextCursor: null }),
+    };
+
+    const chargeBatch = await runStripeHistoricalBackfillBatch({ source, productReferenceMetadataKey: "product_id", repository, restartCompleted: true });
+    expect(chargeBatch).toMatchObject({ processed: 1, failed: 0, totalProcessed: 1, hasMore: true });
+    expect(repository.finishHistoricalBackfillBatch).toHaveBeenCalledWith(expect.objectContaining({ nextCursor: "refunds:" }));
+
+    const refundBatch = await runStripeHistoricalBackfillBatch({ source, productReferenceMetadataKey: "product_id", repository, restartCompleted: true });
+    expect(refundBatch).toMatchObject({ processed: 1, failed: 0, totalProcessed: 2, hasMore: false });
+    expect(repository.persistRefund).toHaveBeenCalledTimes(1);
   });
 });
 

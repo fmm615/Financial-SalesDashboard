@@ -30,6 +30,9 @@ Convert them into internal domain structures first.
 
 ## Stripe
 
+- Admins can run a historical B2C backfill from **Admin → Integration status**. It reads all charges and refunds through the Stripe API in resumable pages of up to 100 records. The progress is retained in `integration_sync_runs`; restarting or retrying does not duplicate records because the Stripe provider IDs are unique locally.
+- The existing 48-hour reconciliation remains the routine operational sync after the historical import.
+
 Purpose: B2C payments, renewals and refunds.
 
 Requirements:

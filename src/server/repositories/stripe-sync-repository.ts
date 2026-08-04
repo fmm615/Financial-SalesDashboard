@@ -3,6 +3,7 @@ import type { NormalisedStripeCharge, NormalisedStripeRefund } from "@/lib/integ
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 type StripeSyncRun = { id: string };
+export type StripeBackfillRun = { id: string; continuationCursor: string | null; recordsProcessed: number; recordsFailed: number; completed: boolean };
 
 function safeMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : "Unknown Stripe integration failure.";
@@ -26,6 +27,49 @@ export class SupabaseStripeSyncRepository {
   async completeSyncRun(syncRunId: string): Promise<void> {
     const { error } = await this.client.from("integration_sync_runs").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", syncRunId);
     if (error) throw new Error(`Could not complete Stripe sync run: ${error.message}`);
+  }
+
+  /** Returns persisted all-history Stripe progress, or starts a new bounded run. */
+  async getOrStartHistoricalBackfill(input: { restartCompleted?: boolean } = {}): Promise<StripeBackfillRun> {
+    const { data: latest, error: latestError } = await this.client.from("integration_sync_runs")
+      .select("id,continuation_cursor,records_processed,records_failed,status")
+      .eq("provider", "stripe")
+      .eq("operation_type", "historical_backfill")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestError) throw new Error(`Could not load Stripe backfill state: ${latestError.message}`);
+    if (latest?.status === "processing" || (latest?.status === "completed" && !input.restartCompleted)) {
+      return { id: latest.id, continuationCursor: latest.continuation_cursor, recordsProcessed: latest.records_processed, recordsFailed: latest.records_failed, completed: latest.status === "completed" };
+    }
+    const { data, error } = await this.client.from("integration_sync_runs")
+      .insert({ provider: "stripe", status: "processing", operation_type: "historical_backfill", started_at: new Date().toISOString() })
+      .select("id,continuation_cursor,records_processed,records_failed")
+      .single();
+    if (error) throw new Error(`Could not start Stripe backfill: ${error.message}`);
+    return { id: data.id, continuationCursor: data.continuation_cursor, recordsProcessed: data.records_processed, recordsFailed: data.records_failed, completed: false };
+  }
+
+  async finishHistoricalBackfillBatch(input: { runId: string; processed: number; failed: number; nextCursor: string | null }): Promise<StripeBackfillRun> {
+    const { data: current, error: currentError } = await this.client.from("integration_sync_runs")
+      .select("records_processed,records_failed")
+      .eq("id", input.runId)
+      .single();
+    if (currentError) throw new Error(`Could not load Stripe backfill totals: ${currentError.message}`);
+    const completed = input.nextCursor === null;
+    const { data, error } = await this.client.from("integration_sync_runs")
+      .update({
+        continuation_cursor: input.nextCursor,
+        records_processed: current.records_processed + input.processed,
+        records_failed: current.records_failed + input.failed,
+        status: completed ? "completed" : "processing",
+        completed_at: completed ? new Date().toISOString() : null,
+      })
+      .eq("id", input.runId)
+      .select("id,continuation_cursor,records_processed,records_failed")
+      .single();
+    if (error) throw new Error(`Could not save Stripe backfill progress: ${error.message}`);
+    return { id: data.id, continuationCursor: data.continuation_cursor, recordsProcessed: data.records_processed, recordsFailed: data.records_failed, completed };
   }
 
   async failSyncRun(syncRunId: string, error: unknown): Promise<void> {

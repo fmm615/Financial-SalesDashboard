@@ -1,5 +1,5 @@
 import { normaliseStripeCharge, normaliseStripeRefund, parseStripeWebhookEvent, StripeRefundNotSucceededError, type StripeWebhookEvent } from "@/lib/integrations/stripe/normalise";
-import type { SupabaseStripeSyncRepository } from "@/server/repositories/stripe-sync-repository";
+import type { StripeBackfillRun, SupabaseStripeSyncRepository } from "@/server/repositories/stripe-sync-repository";
 
 export type StripeSource = {
   fetchCharge(chargeId: string): Promise<unknown>;
@@ -7,9 +7,15 @@ export type StripeSource = {
   listRefundsCreatedSince(since: Date): Promise<unknown[]>;
 };
 
+export type StripeHistoricalSource = Pick<StripeSource, "fetchCharge"> & {
+  listChargesPage(cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
+  listRefundsPage(cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
+};
+
 type StripeRepository = Pick<SupabaseStripeSyncRepository, "persistCharge" | "persistRefund">;
 type StripeWebhookRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "recordWebhookEvent" | "markEventCompleted" | "failEvent">;
 type StripeReconciliationRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "startSyncRun" | "completeSyncRun" | "failSyncRun" | "recordSyncError">;
+type StripeBackfillRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "getOrStartHistoricalBackfill" | "finishHistoricalBackfillBatch" | "failSyncRun" | "recordSyncError">;
 
 function chargeReference(chargeId: string): string { return `Stripe charge ${chargeId}`; }
 function refundReference(refundId: string): string { return `Stripe refund ${refundId}`; }
@@ -100,6 +106,70 @@ export async function runStripeReconciliation(input: { source: StripeSource; pro
     }
     await input.repository.completeSyncRun(run.id);
     return { processed, failed, inserted, lookbackStart, lookbackEnd };
+  } catch (error) {
+    await input.repository.failSyncRun(run.id, error);
+    throw error;
+  }
+}
+
+function parseHistoricalCursor(cursor: string | null): { phase: "charges" | "refunds"; providerCursor?: string } {
+  if (cursor?.startsWith("refunds:")) return { phase: "refunds", providerCursor: cursor.slice("refunds:".length) || undefined };
+  if (cursor?.startsWith("charges:")) return { phase: "charges", providerCursor: cursor.slice("charges:".length) || undefined };
+  return { phase: "charges" };
+}
+
+/**
+ * Imports the entire Stripe B2C history in persisted provider pages. This is
+ * read-only against Stripe and safe to resume: exact provider IDs make every
+ * charge/refund persistence operation idempotent.
+ */
+export async function runStripeHistoricalBackfillBatch(input: {
+  source: StripeHistoricalSource;
+  productReferenceMetadataKey: string;
+  repository: StripeBackfillRepository;
+  restartCompleted?: boolean;
+}): Promise<{ runId: string; processed: number; failed: number; totalProcessed: number; totalFailed: number; hasMore: boolean }> {
+  const run: StripeBackfillRun = await input.repository.getOrStartHistoricalBackfill({ restartCompleted: input.restartCompleted });
+  if (run.completed) return { runId: run.id, processed: 0, failed: 0, totalProcessed: run.recordsProcessed, totalFailed: run.recordsFailed, hasMore: false };
+
+  let processed = 0;
+  let failed = 0;
+  try {
+    const cursor = parseHistoricalCursor(run.continuationCursor);
+    if (cursor.phase === "charges") {
+      const page = await input.source.listChargesPage(cursor.providerCursor);
+      for (const charge of page.records) {
+        try {
+          await persistCharge({ charge, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_historical_backfill" });
+          processed += 1;
+        } catch (error) {
+          const id = (charge as { id?: unknown }).id;
+          await input.repository.recordSyncError(run.id, error, typeof id === "string" ? chargeReference(id) : "Stripe charge");
+          failed += 1;
+        }
+      }
+      const nextCursor = page.nextCursor ? `charges:${page.nextCursor}` : "refunds:";
+      const saved = await input.repository.finishHistoricalBackfillBatch({ runId: run.id, processed, failed, nextCursor });
+      return { runId: saved.id, processed, failed, totalProcessed: saved.recordsProcessed, totalFailed: saved.recordsFailed, hasMore: true };
+    }
+
+    const page = await input.source.listRefundsPage(cursor.providerCursor);
+    for (const refund of page.records) {
+      try {
+        await persistRefund({ refund, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository });
+        processed += 1;
+      } catch (error) {
+        if (error instanceof StripeRefundNotSucceededError) {
+          processed += 1;
+          continue;
+        }
+        const id = (refund as { id?: unknown }).id;
+        await input.repository.recordSyncError(run.id, error, typeof id === "string" ? refundReference(id) : "Stripe refund");
+        failed += 1;
+      }
+    }
+    const saved = await input.repository.finishHistoricalBackfillBatch({ runId: run.id, processed, failed, nextCursor: page.nextCursor ? `refunds:${page.nextCursor}` : null });
+    return { runId: saved.id, processed, failed, totalProcessed: saved.recordsProcessed, totalFailed: saved.recordsFailed, hasMore: !saved.completed };
   } catch (error) {
     await input.repository.failSyncRun(run.id, error);
     throw error;

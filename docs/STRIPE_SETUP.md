@@ -22,7 +22,7 @@ Do not add `NEXT_PUBLIC_` to any of these names and never commit `.env.local`.
 npm run dev
 ```
 
-The B2C source-ledger page is at `http://localhost:3000/operations/b2c`. The Admin-only manual reconciliation control is under `http://localhost:3000/admin` → **Integration status**.
+The B2C source-ledger page is at `http://localhost:3000/operations/b2c`. The Admin-only 48-hour reconciliation and historical backfill controls are under `http://localhost:3000/admin` → **Integration status**. Run the historical backfill once to import existing Stripe history; then use reconciliation to keep the most recent 48 hours current.
 
 ## 3. Forward Stripe test events locally
 
@@ -40,7 +40,7 @@ For a safe test event:
 stripe trigger charge.succeeded
 ```
 
-The event will be stored only if the **Charge itself** contains a valid receipt or billing email. PLAYBOOK does not substitute the attached Stripe Customer email because it can belong to a different or outdated account. If the charge has no configured product reference or mapping, it will deliberately appear as **Unmapped product** and will not count in financial totals.
+PLAYBOOK uses only an email provided directly on the **Charge** (receipt or billing details); it never substitutes an attached Stripe Customer email because that profile can belong to a different or outdated account. A charge without a valid direct email is still retained in the B2C source ledger as `—` and flagged **Missing customer email** for Admin review. If the charge has no configured product reference or mapping, it is likewise retained as **Unmapped product**. These records remain excluded from financial totals until an Admin completes the required review.
 
 ## 4. Configure the production endpoint later
 
