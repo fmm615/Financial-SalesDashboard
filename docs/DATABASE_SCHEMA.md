@@ -64,7 +64,7 @@ Payments, refunds, bookings, invoices, receipts, recognised sales, expenses, cor
 
 ## Duplicate and backfill strategy
 
-`b2c_payments` has a partial unique provider-ID index on `(source_system, provider_transaction_id)` and a 64-character deterministic content fingerprint index. Later ingestion normalizes `lower(trim(email))`, the exact decimal amount, category identifier, and Bahrain business date before comparing matching fingerprints across the preceding 48 hours. Provider ingestion and reconciliation are out of scope here.
+`b2c_payments` has a partial unique provider-ID index on `(source_system, provider_transaction_id)` and a 64-character deterministic content fingerprint index. It keeps a nullable `customer_phone` only when the provider supplied it directly on the financial source record; an absent source phone remains absent rather than being inferred. Later ingestion normalizes `lower(trim(email))`, the exact decimal amount, category identifier, and Bahrain business date before comparing matching fingerprints across the preceding 48 hours. Provider ingestion and reconciliation are out of scope here.
 
 `data_coverage` stores source/domain date ranges with `not_started`, `partial`, `complete`, or `unavailable`. A complete range with `source_record_count = 0` means a known zero; an unavailable range does not.
 

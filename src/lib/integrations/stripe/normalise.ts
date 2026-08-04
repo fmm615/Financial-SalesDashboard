@@ -3,10 +3,16 @@ import { z } from "zod";
 const ZERO_DECIMAL_CURRENCIES = new Set(["BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF"]);
 
 const metadataSchema = z.record(z.string(), z.string()).default({});
+const chargeContactSchema = z.object({
+  email: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+});
 const chargeSchema = z.object({
   id: z.string().min(1), amount: z.number().int().positive(), currency: z.string().length(3), created: z.number().int().nonnegative(),
   status: z.string(), paid: z.boolean(), captured: z.boolean(), receipt_email: z.string().nullable().optional(),
-  billing_details: z.object({ email: z.string().nullable().optional(), name: z.string().nullable().optional() }).optional(),
+  billing_details: chargeContactSchema.optional(),
+  shipping: chargeContactSchema.nullable().optional(),
   customer: z.union([z.string().min(1), z.object({ id: z.string().min(1) }).passthrough()]).nullable().optional(),
   metadata: metadataSchema.optional(), payment_intent: z.string().nullable().optional(), invoice: z.string().nullable().optional(), description: z.string().nullable().optional(),
 }).passthrough();
@@ -17,7 +23,7 @@ const refundSchema = z.object({
 
 export type StripePaymentStatus = "succeeded" | "failed" | "pending";
 export type NormalisedStripeCharge = {
-  chargeId: string; customerEmail: string; customerName: string | null; productReference: string | null; paymentStatus: StripePaymentStatus;
+  chargeId: string; customerEmail: string; customerName: string | null; customerPhone: string | null; productReference: string | null; paymentStatus: StripePaymentStatus;
   originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; occurredOn: string;
   sourceMetadata: Record<string, string>;
 };
@@ -36,6 +42,12 @@ function cleanText(value: string | null | undefined, maxLength: number): string 
 function validatedEmail(value: string | null | undefined): string | null {
   const email = cleanText(value, 320)?.toLowerCase();
   return email && z.string().email().safeParse(email).success ? email : null;
+}
+
+/** Keep only a phone Stripe put directly on this Charge; never infer one from another system or profile. */
+function validatedPhone(value: string | null | undefined): string | null {
+  const phone = cleanText(value, 40);
+  return phone && /^[+\d][\d\s().-]{4,39}$/.test(phone) ? phone : null;
 }
 
 /** Returns the provider Customer ID when the Charge contains one; no data is persisted from this helper. */
@@ -74,7 +86,12 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
   const productReference = cleanText(metadata[productReferenceMetadataKey], 255);
   const paymentStatus: StripePaymentStatus = charge.status === "succeeded" && charge.paid && charge.captured ? "succeeded" : charge.status === "failed" ? "failed" : "pending";
   return {
-    chargeId: charge.id, customerEmail, customerName: cleanText(charge.billing_details?.name, 200), productReference, paymentStatus,
+    chargeId: charge.id,
+    customerEmail,
+    customerName: cleanText(charge.billing_details?.name ?? charge.shipping?.name, 200),
+    customerPhone: validatedPhone(charge.billing_details?.phone ?? charge.shipping?.phone),
+    productReference,
+    paymentStatus,
     originalAmount: amount, originalCurrency, exchangeRateToUsd: "1", amountUsd: amount, occurredAt: occurredAt.toISOString(), occurredOn: bahrainBusinessDate(occurredAt),
     sourceMetadata: {
       ...(cleanText(charge.payment_intent, 255) ? { payment_intent_id: cleanText(charge.payment_intent, 255)! } : {}),

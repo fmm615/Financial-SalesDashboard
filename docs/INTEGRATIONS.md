@@ -51,6 +51,7 @@ The Stripe boundary lives in `src/lib/integrations/stripe/`; trusted persistence
 - A refund is always a separate `b2c_refunds` row linked to the original `b2c_payments` row. It never deletes or overwrites the payment.
 - PLAYBOOK currently accepts only USD Stripe charges and refunds. A non-USD Stripe record is retained as a safe follow-up error because no Finance-approved FX source exists; it is never silently converted.
 - A Stripe charge must contain a valid customer email and a configured product-reference metadata value. Without an approved `product_mappings` record it is retained with an `unmapped_product` flag and excluded from B2C financial totals. Possible content duplicates are also retained, flagged, and excluded pending Admin review.
+- When Stripe provides a phone directly on a charge's billing or shipping details, PLAYBOOK stores and displays it for traceability. A missing or invalid source phone is displayed as `—`; PLAYBOOK never obtains phone details from Slack or another customer profile.
 
 Read [STRIPE_SETUP.md](STRIPE_SETUP.md) before adding live credentials or an endpoint.
 
