@@ -78,7 +78,7 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
             <label className={fieldClass}>Internal product name<input className={inputClass} value={internalProductName} onChange={(event) => setInternalProductName(event.target.value)} placeholder="Annual membership" /></label>
             <label className={fieldClass}>Reporting category<input className={inputClass} value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} placeholder="membership" /></label>
             <label className={fieldClass}>Membership tier <span className="font-normal text-text-muted">(optional)</span><input className={inputClass} value={membershipTier} onChange={(event) => setMembershipTier(event.target.value)} placeholder="annual" /></label>
-          </div> : <p className="mt-3 break-words text-sm leading-6 text-warning">Stripe did not provide the configured product reference for this payment, so it cannot be mapped. You may resolve the review item with a note, but it remains excluded from financial totals.</p>}
+          </div> : <p className="mt-3 max-w-full whitespace-normal text-sm leading-6 text-warning" style={{ overflowWrap: "anywhere" }}>Stripe did not provide the configured product reference for this payment, so it cannot be mapped. You may resolve the review item with a note, but it remains excluded from financial totals.</p>}
         </div>}
 
         <label className={`${fieldClass} mt-5`}>Reason / evidence<textarea className={textareaClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence or resolution. This is saved in the audit history." /></label>
@@ -86,10 +86,11 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
           <div><h3 className="font-semibold text-text-primary">Open review items</h3><p className="mt-1 text-sm leading-6 text-text-muted">Use the same audit note above when resolving an item. Resolving does not change Stripe.</p></div>
           <div className="mt-4 space-y-3">
           {row.openReviewFlags.map((flag) => <div key={flag.id} className="overflow-hidden rounded-input border border-border bg-surface p-4">
-            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-              <div className="min-w-0"><StatusBadge status={flag.type} /><p className="mt-3 break-words text-sm leading-6 text-text-secondary">{flag.reason}</p></div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <StatusBadge status={flag.type} />
               <button type="button" onClick={() => void resolveFlag(flag.id)} disabled={saving || reason.trim().length < 3} className="w-full shrink-0 rounded-pill border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-brand-accent hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Mark resolved</button>
             </div>
+            <p className="mt-3 max-w-full whitespace-normal text-sm leading-6 text-text-secondary" style={{ overflowWrap: "anywhere" }}>{flag.reason}</p>
           </div>)}
           </div>
         </div>}
