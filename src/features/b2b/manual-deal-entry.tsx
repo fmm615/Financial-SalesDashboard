@@ -80,7 +80,7 @@ export function ManualDealEntry() {
   return <>
     <PrimaryButton onClick={() => setOpen(true)}><Plus size={16} />Add manual B2B deal</PrimaryButton>
     {open && <div className="fixed inset-0 z-40 overflow-y-auto bg-brand-primary/30 p-4">
-      <section role="dialog" aria-modal="true" aria-labelledby="manual-deal-title" className="mx-auto my-8 w-full max-w-3xl rounded-panel bg-surface p-6 shadow-elevated sm:p-8">
+      <section role="dialog" aria-modal="true" aria-labelledby="manual-deal-title" className="mx-auto my-8 w-full max-w-3xl whitespace-normal rounded-panel bg-surface p-6 shadow-elevated sm:p-8">
         <div className="flex items-start justify-between gap-4"><div className="min-w-0"><h2 id="manual-deal-title" className="text-xl font-semibold tracking-[-0.03em] text-text-primary">Manual B2B deal entry</h2><p className="mt-1 text-sm leading-6 text-text-muted">For a Finance-approved B2B deal entered locally when HubSpot cannot be used.</p></div><button type="button" aria-label="Close manual B2B deal entry" onClick={close} disabled={saving} className="shrink-0 rounded-pill p-2 text-text-secondary hover:bg-surface-muted disabled:cursor-not-allowed"><X size={19} /></button></div>
         <p className="mt-4 rounded-card border border-warning/20 bg-warning/5 p-3 text-sm text-warning">This creates a local Finance record only. Saving is Admin-only, server-validated, duplicate-checked, and audited. HubSpot is never changed.</p>
         <form className="mt-5" onSubmit={save}>

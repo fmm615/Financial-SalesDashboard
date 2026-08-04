@@ -45,7 +45,7 @@ export function B2bDealAdminActions({ deal, reportingPeriod }: { deal: B2bDashbo
   return <div className="flex flex-col items-start gap-2">
     <button type="button" onClick={() => setOpen(true)} className="font-medium text-brand-accent hover:underline">Review / edit</button>
     {!deal.issue && <ManualRecognisedSaleEntry deal={deal} reportingPeriod={reportingPeriod} />}
-    {open && <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4">
+    {open && <div className="fixed inset-0 z-50 overflow-y-auto whitespace-normal bg-brand-primary/30 p-4">
       <section role="dialog" aria-modal="true" aria-labelledby={`deal-${deal.id}`} className="mx-auto my-8 w-full max-w-3xl rounded-card bg-white p-6 shadow-elevated sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0"><h2 id={`deal-${deal.id}`} className="text-xl font-semibold text-ink">Review HubSpot deal</h2><p className="mt-1 text-sm text-slate-600">Changes are local to PLAYBOOK, require a reason, and are fully audited. HubSpot is never changed.</p></div>

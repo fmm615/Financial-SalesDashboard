@@ -117,8 +117,8 @@ export function ManualRecognisedSaleEntry({ deal, reportingPeriod }: { deal: B2b
 function RecognisedSaleDialog({ deal, form, saving, message, onClose, onSave, onUpdate, onUpdateCurrency }: { deal: B2bDashboardDeal; form: RecognisedSaleForm; saving: boolean; message: string | null; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void; onUpdate: (field: keyof RecognisedSaleForm, value: string) => void; onUpdateCurrency: (value: string) => void }) {
   const recognisedAmountUsd = calculateUsdAmount(form.recognisedAmount, form.exchangeRateToUsd);
 
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4">
-      <section role="dialog" aria-modal="true" aria-labelledby={`recognised-sale-${deal.id}`} className="mx-auto my-8 w-full max-w-2xl rounded-card bg-white p-6 shadow-elevated sm:p-8">
+  return <div className="fixed inset-0 z-50 overflow-y-auto whitespace-normal bg-brand-primary/30 p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby={`recognised-sale-${deal.id}`} className="mx-auto my-8 w-full max-w-2xl overflow-hidden rounded-card bg-white p-6 shadow-elevated sm:p-8">
         <div className="flex items-start justify-between gap-4"><div className="min-w-0"><h2 id={`recognised-sale-${deal.id}`} className="text-xl font-semibold text-ink">Record B2B recognised sale</h2><p className="mt-1 text-sm leading-6 text-text-secondary">{deal.name} · {deal.bookingId ? "linked to its booking" : "linked directly to this deal"}</p></div><button type="button" aria-label="Close recognised-sales entry" onClick={onClose} disabled={saving} className="shrink-0 rounded-pill p-2 text-text-secondary hover:bg-surface-muted disabled:cursor-not-allowed"><X size={19} /></button></div>
         <form className="mt-5 min-w-0" onSubmit={onSave}>
           <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
@@ -131,7 +131,7 @@ function RecognisedSaleDialog({ deal, form, saving, message, onClose, onSave, on
             <label className={`${fieldClass} md:col-span-2`}>Reason or reference<input required value={form.reasonOrReference} onChange={(event) => onUpdate("reasonOrReference", event.target.value)} className={inputClass} maxLength={1000} placeholder="Finance approval, accounting reference, or recognition rationale" /></label>
           </div>
           <p id="usd-amount-help" className="mt-2 text-xs text-text-secondary">Calculated from recognised amount × exchange rate and stored in USD.</p>
-          {message && <p role="alert" className="mt-3 max-w-full break-words text-sm leading-6 text-danger">{message}</p>}
+          {message && <div role="alert" className="mt-3 w-full max-w-full overflow-hidden rounded-md bg-danger/5 px-3 py-2 text-sm leading-6 text-danger"><p className="m-0" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{message}</p></div>}
           <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={onClose} disabled={saving} className="rounded-pill px-4 py-2 text-sm font-medium text-text-secondary hover:bg-surface-muted disabled:cursor-not-allowed">Cancel</button><PrimaryButton type="submit" disabled={saving}>{saving ? "Saving recognised sale…" : "Save recognised sale"}</PrimaryButton></div>
         </form>
       </section>
