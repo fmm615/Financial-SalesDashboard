@@ -40,6 +40,19 @@ describe("Stripe normalisation and webhook security", () => {
 });
 
 describe("Stripe ingestion orchestration", () => {
+  it("does not treat a failed retry as a possible financial duplicate", async () => {
+    const repository = { persistCharge: vi.fn().mockResolvedValue({ inserted: true }), persistRefund: vi.fn() };
+    const source = { fetchCharge: vi.fn(), listChargesCreatedSince: vi.fn(), listRefundsCreatedSince: vi.fn() };
+    const result = await runStripeReconciliation({
+      source: { ...source, listChargesCreatedSince: vi.fn().mockResolvedValue([{ ...charge, status: "failed", paid: false, captured: false }]), listRefundsCreatedSince: vi.fn().mockResolvedValue([]) },
+      productReferenceMetadataKey: "product_id",
+      repository: { ...repository, startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }), completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn() },
+      now: new Date("2026-08-02T12:00:00.000Z"),
+    });
+    expect(result).toMatchObject({ processed: 1, failed: 0, inserted: 1 });
+    expect(repository.persistCharge).toHaveBeenCalledWith(expect.objectContaining({ paymentStatus: "failed" }));
+  });
+
   it("ignores a duplicate webhook event without calling Stripe or writing a payment", async () => {
     const repository = { recordWebhookEvent: vi.fn().mockResolvedValue({ id: "event-row", isNew: false }), markEventCompleted: vi.fn(), failEvent: vi.fn(), persistCharge: vi.fn(), persistRefund: vi.fn() };
     const source = { fetchCharge: vi.fn(), listChargesCreatedSince: vi.fn(), listRefundsCreatedSince: vi.fn() };

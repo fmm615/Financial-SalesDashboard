@@ -81,10 +81,15 @@ export class SupabaseStripeSyncRepository {
 
     if (!mapping) await this.openFlag(payment.id, "unmapped_product", "Stripe payment has no approved product mapping. It is retained for traceability and excluded from financial totals until an Admin maps the product.");
     if (input.paymentStatus === "failed") await this.openFlag(payment.id, "failed", "Stripe payment failed. It is retained for follow-up and excluded from financial totals.");
-    const duplicatePaymentIds = await this.findRecentContentDuplicates(payment.id, duplicateFingerprint, input.occurredAt);
-    if (duplicatePaymentIds.length) {
-      const reason = "Another B2C record has the same customer, amount, category, and Bahrain business date within 48 hours. It is excluded from financial totals pending Admin review.";
-      await Promise.all([payment.id, ...duplicatePaymentIds].map((paymentId) => this.openFlag(paymentId, "possible_duplicate", reason)));
+    // A failed card attempt followed by a successful retry commonly has the same
+    // email, amount, and day. Only two completed payments can be financial
+    // duplicate candidates; failed or pending attempts never taint a success.
+    if (input.paymentStatus === "succeeded") {
+      const duplicatePaymentIds = await this.findRecentContentDuplicates(payment.id, duplicateFingerprint, input.occurredAt);
+      if (duplicatePaymentIds.length) {
+        const reason = "Another completed B2C payment has the same customer, amount, category, and Bahrain business date within 48 hours. It is excluded from financial totals pending Admin review.";
+        await Promise.all([payment.id, ...duplicatePaymentIds].map((paymentId) => this.openFlag(paymentId, "possible_duplicate", reason)));
+      }
     }
     return { inserted: existing === null };
   }
@@ -131,7 +136,7 @@ export class SupabaseStripeSyncRepository {
   private async findRecentContentDuplicates(paymentId: string, fingerprint: string, occurredAt: string): Promise<string[]> {
     const start = new Date(new Date(occurredAt).getTime() - 48 * 60 * 60 * 1000).toISOString();
     const end = new Date(new Date(occurredAt).getTime() + 48 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await this.client.from("b2c_payments").select("id").eq("duplicate_fingerprint", fingerprint).gte("occurred_at", start).lte("occurred_at", end).neq("id", paymentId);
+    const { data, error } = await this.client.from("b2c_payments").select("id").eq("payment_status", "succeeded").eq("duplicate_fingerprint", fingerprint).gte("occurred_at", start).lte("occurred_at", end).neq("id", paymentId);
     if (error) throw new Error(`Could not check Stripe content duplicates: ${error.message}`);
     return (data ?? []).map((payment) => payment.id);
   }
