@@ -1,7 +1,7 @@
 import {
   manualRecognisedSaleSchema,
-  type ManualRecognisedSaleInput,
 } from "@/lib/validation/financial-contracts";
+import { calculateUsdAmount } from "@/lib/financial/usd-calculation";
 import type {
   B2bRecognisedSalesRepository,
   RecognisedSale,
@@ -15,6 +15,8 @@ export async function recordManualRecognisedSale(
   input: unknown,
   repository: B2bRecognisedSalesRepository,
 ): Promise<RecognisedSale> {
-  const validatedInput: ManualRecognisedSaleInput = manualRecognisedSaleSchema.parse(input);
-  return repository.createManual(validatedInput);
+  const validatedInput = manualRecognisedSaleSchema.parse(input);
+  const recognisedAmountUsd = calculateUsdAmount(validatedInput.recognisedAmount, validatedInput.exchangeRateToUsd);
+  if (recognisedAmountUsd === null) throw new Error("The recognised amount or USD exchange rate is invalid.");
+  return repository.createManual({ ...validatedInput, recognisedAmountUsd });
 }

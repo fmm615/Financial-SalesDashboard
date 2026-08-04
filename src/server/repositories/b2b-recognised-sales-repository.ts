@@ -3,16 +3,17 @@ import type { ManualRecognisedSaleInput } from "@/lib/validation/financial-contr
 import type { Database } from "@/types/database.generated";
 
 export type RecognisedSale = Database["public"]["Tables"]["b2b_recognised_sales"]["Row"];
+export type PreparedManualRecognisedSaleInput = ManualRecognisedSaleInput & { recognisedAmountUsd: string };
 
 export interface B2bRecognisedSalesRepository {
-  createManual(input: ManualRecognisedSaleInput): Promise<RecognisedSale>;
+  createManual(input: PreparedManualRecognisedSaleInput): Promise<RecognisedSale>;
 }
 
 /** Data access only. The database trigger assigns the logged-in Admin as entered_by. */
 export class SupabaseB2bRecognisedSalesRepository implements B2bRecognisedSalesRepository {
   constructor(private readonly client: DatabaseClient) {}
 
-  async createManual(input: ManualRecognisedSaleInput): Promise<RecognisedSale> {
+  async createManual(input: PreparedManualRecognisedSaleInput): Promise<RecognisedSale> {
     const { data, error } = await this.client
       .from("b2b_recognised_sales")
       .insert({

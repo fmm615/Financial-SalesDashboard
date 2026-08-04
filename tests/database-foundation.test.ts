@@ -8,6 +8,7 @@ import {
   manualRecognisedSaleSchema,
   reportRequestSchema,
 } from "@/lib/validation/financial-contracts";
+import { calculateUsdAmount } from "@/lib/financial/usd-calculation";
 import { recordManualRecognisedSale } from "@/server/services/record-manual-recognised-sale";
 import type { B2bRecognisedSalesRepository } from "@/server/repositories/b2b-recognised-sales-repository";
 
@@ -21,13 +22,12 @@ describe("Phase 2 validation contracts", () => {
       recognisedAmount: "10000.000000",
       originalCurrency: "USD",
       exchangeRateToUsd: "1.0000000000",
-      recognisedAmountUsd: "10000.000000",
       recognitionDate: "2026-08-31",
       reportingPeriod: "2026-08-01",
       reasonOrReference: "Finance recognition approval",
     });
 
-    expect(parsed.recognisedAmountUsd).toBe("10000.000000");
+    expect(calculateUsdAmount(parsed.recognisedAmount, parsed.exchangeRateToUsd)).toBe("10000");
     expect(() => manualRecognisedSaleSchema.parse({ ...parsed, reportingPeriod: "2026-08-02" })).toThrow();
   });
 
@@ -37,7 +37,6 @@ describe("Phase 2 validation contracts", () => {
       recognisedAmount: "10000",
       originalCurrency: "USD",
       exchangeRateToUsd: "1",
-      recognisedAmountUsd: "10000",
       recognitionDate: "2026-08-01",
       reportingPeriod: "2026-08-01",
       reasonOrReference: "Finance approval",
@@ -45,6 +44,12 @@ describe("Phase 2 validation contracts", () => {
 
     expect(result.success).toBe(false);
     if (!result.success) expect(firstValidationMessage(result.error)).toMatch(/^Selected deal:/);
+  });
+
+  it("calculates USD recognised sales without floating point rounding", () => {
+    expect(calculateUsdAmount("5000", "1")).toBe("5000");
+    expect(calculateUsdAmount("5000", "2.65")).toBe("13250");
+    expect(calculateUsdAmount("1", "0.0000005")).toBe("0.000001");
   });
 
   it("keeps money as decimal strings at the write boundary", () => {
@@ -100,14 +105,13 @@ describe("Phase 2 validation contracts", () => {
       recognisedAmount: "5000.000000",
       originalCurrency: "USD",
       exchangeRateToUsd: "1.0000000000",
-      recognisedAmountUsd: "5000.000000",
       recognitionDate: "2026-08-15",
       reportingPeriod: "2026-08-01",
       reasonOrReference: "Approved manual recognition",
     };
 
     await expect(recordManualRecognisedSale(input, repository)).resolves.toEqual({ id: "sale-1" });
-    expect(createManual).toHaveBeenCalledWith(input);
+    expect(createManual).toHaveBeenCalledWith({ ...input, recognisedAmountUsd: "5000" });
   });
 });
 
@@ -137,6 +141,13 @@ describe("Phase 2 database migration contracts", () => {
     expect(overageGuard).toContain("sum(recognised_amount_usd)");
     expect(overageGuard).toContain("recognised_total_usd + new.recognised_amount_usd > deal_amount_usd");
     expect(overageGuard).toContain("Recognised sales cannot exceed the linked deal USD amount");
+  });
+
+  it("derives recognised USD amounts from the retained amount and exchange rate", () => {
+    const usdCalculation = migration("20260804110000_calculate_b2b_recognised_sales_usd.sql");
+
+    expect(usdCalculation).toContain("new.recognised_amount_usd := round(new.recognised_amount * new.exchange_rate_to_usd, 6)");
+    expect(usdCalculation).toContain("USD recognised sales require an exchange rate of 1");
   });
 
   it("enables RLS without a permissive public read policy", () => {
