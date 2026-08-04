@@ -30,7 +30,9 @@ export type B2bReportingPeriod = {
 
 export type B2bPipelineStage = { stage: string; dealCount: number; amountUsd: string };
 
-export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; pipelineByStage: B2bPipelineStage[]; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string | null; period: B2bReportingPeriod };
+export type B2bWinRate = { percentage: string; wonCount: number; lostCount: number };
+
+export type B2bDashboardSnapshot = { deals: B2bDashboardDeal[]; openPipelineUsd: string; pipelineByStage: B2bPipelineStage[]; winRate: B2bWinRate | null; bookingsThisQuarterUsd: string; recognisedSalesThisMonthUsd: string | null; period: B2bReportingPeriod };
 
 const USD_SCALE = BigInt(1_000_000);
 
@@ -71,6 +73,20 @@ export function buildB2bPipelineByStage(deals: Array<{ stageCode: string; amount
     .map(({ stage, dealCount, amount }) => ({ stage, dealCount, amountUsd: formatUsd(amount) }));
 }
 
+/** Uses only closed decisions with a known close date in the requested month. */
+export function calculateB2bWinRate(deals: Array<{ stageCode: string; closeDate: string | null }>, period: Pick<B2bReportingPeriod, "monthStart" | "monthEnd">): B2bWinRate | null {
+  let wonCount = 0;
+  let lostCount = 0;
+  for (const deal of deals) {
+    if (!deal.closeDate || deal.closeDate < period.monthStart || deal.closeDate > period.monthEnd) continue;
+    if (deal.stageCode === "closed_won") wonCount += 1;
+    if (deal.stageCode === "closed_lost") lostCount += 1;
+  }
+  const decisions = wonCount + lostCount;
+  if (decisions === 0) return null;
+  return { percentage: `${((wonCount / decisions) * 100).toFixed(1)}%`, wonCount, lostCount };
+}
+
 export function resolveB2bReportingPeriod(selectedMonth: string | undefined, today = new Date()): B2bReportingPeriod {
   const fallback = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth ?? "") ? selectedMonth! : fallback;
@@ -103,12 +119,12 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
   const period = resolveB2bReportingPeriod(selectedMonth, today);
   const [allDealsResult, reportableDealsResult] = await Promise.all([
     client.from("b2b_deals").select("id,name,owner_name,stage_code,financial_status,duplicate_review_status,pipeline_original_amount,original_currency,exchange_rate_to_usd,pipeline_amount_usd,hubspot_close_date,renewal_date").in("source_system", ["hubspot", "manual_finance"]).eq("local_record_status", "active").order("updated_at", { ascending: false }),
-    client.from("reportable_b2b_deals").select("id,stage_code,pipeline_amount_usd"),
+    client.from("reportable_b2b_deals").select("id,stage_code,pipeline_amount_usd,hubspot_close_date"),
   ]);
   if (allDealsResult.error ?? reportableDealsResult.error) throw new Error("Could not load B2B source deals.");
   const allDeals = allDealsResult.data ?? [];
   const reportableDeals = reportableDealsResult.data ?? [];
-  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", pipelineByStage: [], bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: null, period };
+  if (!allDeals.length) return { deals: [], openPipelineUsd: "$0.00", pipelineByStage: [], winRate: null, bookingsThisQuarterUsd: "$0.00", recognisedSalesThisMonthUsd: null, period };
 
   const ids = allDeals.map((deal) => deal.id);
   const reportableDealIds = new Set(reportableDeals.map((deal) => deal.id));
@@ -125,6 +141,7 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
   for (const sale of sales ?? []) recognisedByDeal.set(sale.deal_id, (recognisedByDeal.get(sale.deal_id) ?? BigInt(0)) + toScaledUsd(sale.recognised_amount_usd));
 
   const pipelineByStage = buildB2bPipelineByStage(reportableDeals.map((deal) => ({ stageCode: deal.stage_code, amountUsd: deal.pipeline_amount_usd })));
+  const winRate = calculateB2bWinRate(reportableDeals.map((deal) => ({ stageCode: deal.stage_code, closeDate: deal.hubspot_close_date })), period);
   let openPipeline = BigInt(0);
   for (const deal of reportableDeals) if (deal.stage_code !== "closed_won" && deal.stage_code !== "closed_lost" && deal.pipeline_amount_usd) openPipeline += toScaledUsd(deal.pipeline_amount_usd);
   let bookingsThisQuarter = BigInt(0);
@@ -158,6 +175,6 @@ export async function getB2bDashboardSnapshot(client: DatabaseClient, today = ne
         issue: issueForDeal(deal, reviewReasonByDeal.get(deal.id)),
       };
     }),
-    openPipelineUsd: formatUsd(openPipeline), pipelineByStage, bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: hasRecognisedSalesThisMonth ? formatUsd(recognisedSalesThisMonth) : null, period,
+    openPipelineUsd: formatUsd(openPipeline), pipelineByStage, winRate, bookingsThisQuarterUsd: formatUsd(bookingsThisQuarter), recognisedSalesThisMonthUsd: hasRecognisedSalesThisMonth ? formatUsd(recognisedSalesThisMonth) : null, period,
   };
 }

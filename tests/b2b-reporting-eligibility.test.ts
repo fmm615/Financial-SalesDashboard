@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isB2bDealReportable } from "@/lib/b2b/reporting-eligibility";
-import { buildB2bPipelineByStage, resolveB2bReportingPeriod } from "@/server/repositories/b2b-dashboard-repository";
+import { buildB2bPipelineByStage, calculateB2bWinRate, resolveB2bReportingPeriod } from "@/server/repositories/b2b-dashboard-repository";
 
 describe("B2B reporting eligibility", () => {
   it("excludes incomplete and unresolved-duplicate deals from all reportable views", () => {
@@ -36,5 +36,16 @@ describe("B2B reporting eligibility", () => {
       { stage: "proposal", dealCount: 2, amountUsd: "$62,000.50" },
       { stage: "qualified", dealCount: 1, amountUsd: "$7,500.00" },
     ]);
+  });
+
+  it("calculates win rate only from closed decisions with a close date in the selected month", () => {
+    expect(calculateB2bWinRate([
+      { stageCode: "closed_won", closeDate: "2024-08-03" },
+      { stageCode: "closed_won", closeDate: "2024-08-20" },
+      { stageCode: "closed_lost", closeDate: "2024-08-29" },
+      { stageCode: "closed_lost", closeDate: null },
+      { stageCode: "closed_won", closeDate: "2024-07-31" },
+      { stageCode: "proposal", closeDate: "2024-08-14" },
+    ], { monthStart: "2024-08-01", monthEnd: "2024-08-31" })).toEqual({ percentage: "66.7%", wonCount: 2, lostCount: 1 });
   });
 });

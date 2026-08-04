@@ -48,8 +48,9 @@ export function B2bOperations({ snapshot = null, loadError }: { snapshot?: B2bDa
 
   return <AppShell title="B2B operations" description="Corporate pipeline, closed-won bookings, and recognised sales are tracked as separate financial concepts. Deals needing Admin review remain visible but are excluded from totals." controls={<div className="flex flex-wrap gap-2">{snapshot && <B2bPeriodSelector month={snapshot.period.month} />}<ManualDealEntry /></div>}>
     {loadError || !snapshot ? <ErrorState title="B2B data unavailable" description={loadError ?? "The B2B dashboard could not be loaded."} /> : <>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Open pipeline" value={snapshot.openPipelineUsd} note="Current eligible open deals" />
+        <MetricCard label={`Win rate · ${snapshot.period.monthLabel}`} value={snapshot.winRate?.percentage ?? "Not available"} note={snapshot.winRate ? `${snapshot.winRate.wonCount} won · ${snapshot.winRate.lostCount} lost, by close date` : "No eligible closed decisions with a close date"} />
         <MetricCard label={`Bookings · ${snapshot.period.quarterLabel}`} value={snapshot.bookingsThisQuarterUsd} note="Closed-won bookings only" />
         <MetricCard label={`Recognised sales · ${snapshot.period.monthLabel}`} value={snapshot.recognisedSalesThisMonthUsd ?? "Not yet recorded"} note={snapshot.recognisedSalesThisMonthUsd === null ? "Manual Finance entry required; separate from bookings" : "Separate from bookings"} />
       </div>

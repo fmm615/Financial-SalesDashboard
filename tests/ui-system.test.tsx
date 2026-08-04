@@ -41,6 +41,7 @@ describe("UI foundation", () => {
     render(<B2bOperations snapshot={{
       openPipelineUsd: "$95,000.00",
       pipelineByStage: [{ stage: "proposal", dealCount: 1, amountUsd: "$95,000.00" }],
+      winRate: { percentage: "66.7%", wonCount: 2, lostCount: 1 },
       bookingsThisQuarterUsd: "$20,000.00",
       recognisedSalesThisMonthUsd: null,
       period: { month: "2026-08", monthLabel: "August 2026", quarterLabel: "Q3 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31", quarterStart: "2026-07-01", quarterEnd: "2026-09-30" },
@@ -56,6 +57,8 @@ describe("UI foundation", () => {
     expect(screen.getByText("Recognised sales · August 2026")).toBeInTheDocument();
     expect(screen.getByText("Open pipeline by stage")).toBeInTheDocument();
     expect(screen.getByText("1 eligible deal")).toBeInTheDocument();
+    expect(screen.getByText("Win rate · August 2026")).toBeInTheDocument();
+    expect(screen.getByText("2 won · 1 lost, by close date")).toBeInTheDocument();
     expect(screen.getByText("Not yet recorded")).toBeInTheDocument();
     expect(screen.getByText("Total: $12,000")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "B2B financial reporting month" })).toHaveValue("2026-08");
