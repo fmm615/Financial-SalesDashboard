@@ -43,7 +43,10 @@ describe("UI foundation", () => {
       bookingsThisQuarterUsd: "$20,000.00",
       recognisedSalesThisMonthUsd: "$2,000.00",
       period: { month: "2026-08", monthLabel: "August 2026", quarterLabel: "Q3 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31", quarterStart: "2026-07-01", quarterEnd: "2026-09-30" },
-      deals: [{ id: "deal-1", name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", originalAmount: "95000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial", issue: "Possible duplicate" }],
+      deals: [
+        { id: "deal-1", name: "Annual programme", owner: "Layla", stage: "proposal", amountUsd: "95000", originalAmount: "95000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: null, renewalDate: null, bookingStatus: "Not booked", recognisedStatus: "Partial", issue: "Possible duplicate" },
+        { id: "deal-2", name: "Signed programme", owner: "Tom", stage: "closed_won", amountUsd: "20000", originalAmount: "20000", originalCurrency: "USD", exchangeRateToUsd: "1", closeDate: "2026-08-01", renewalDate: null, bookingStatus: "Booked", recognisedStatus: "Not recognised", issue: null },
+      ],
     }} />);
     expect(screen.getByText("Current eligible open deals")).toBeInTheDocument();
     expect(screen.getByText("Closed-won bookings only")).toBeInTheDocument();
@@ -51,8 +54,13 @@ describe("UI foundation", () => {
     expect(screen.getByText("Bookings · Q3 2026")).toBeInTheDocument();
     expect(screen.getByText("Recognised sales · August 2026")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "B2B financial reporting month" })).toHaveValue("2026-08");
+    expect(screen.getByRole("combobox", { name: "Filter B2B deals by stage" })).toHaveValue("all");
     expect(screen.getByText("Annual programme")).toBeInTheDocument();
+    expect(screen.getByText("Signed programme")).toBeInTheDocument();
     expect(screen.getByText("Possible duplicate")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Filter B2B deals by stage" }), { target: { value: "closed_won" } });
+    expect(screen.queryByText("Annual programme")).not.toBeInTheDocument();
+    expect(screen.getByText("Signed programme")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add manual B2B deal" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add manual B2B deal" }));
     expect(screen.getByRole("dialog", { name: "Manual B2B deal entry" })).toBeInTheDocument();
