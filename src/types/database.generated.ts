@@ -207,6 +207,11 @@ export interface Database {
       flag_hubspot_possible_duplicates: { Args: { p_deal_id: Uuid }; Returns: undefined };
       flag_manual_b2b_possible_duplicates: { Args: { p_deal_id: Uuid }; Returns: undefined };
       resolve_hubspot_duplicate_group: { Args: { p_group_id: Uuid; p_decision: string; p_keep_deal_id: Uuid | null; p_note: string }; Returns: undefined };
+      apply_stripe_product_mapping: {
+        Args: { p_external_product_id: string; p_internal_product_code: string; p_internal_product_name: string; p_category_code: string; p_membership_tier: string | null; p_reason: string };
+        Returns: Uuid;
+      };
+      resolve_b2c_review_flag: { Args: { p_flag_id: Uuid; p_resolution_status: "resolved" | "dismissed"; p_resolution_note: string }; Returns: undefined };
     };
     Enums: {
       access_role: "admin" | "viewer";

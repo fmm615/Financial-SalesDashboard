@@ -1,6 +1,8 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { normaliseStripeCharge, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
+import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
+import { stripeProductMappingSchema } from "@/lib/validation/financial-contracts";
 import { isValidStripeSignature } from "@/lib/integrations/stripe/signature";
 import { resolveB2cReportingPeriod } from "@/server/repositories/b2c-dashboard-repository";
 import { processStripeWebhook, runStripeHistoricalBackfillBatch, runStripeReconciliation } from "@/server/services/sync-stripe";
@@ -14,6 +16,16 @@ const charge = {
 const succeededRefund = { id: "re_123", charge: "ch_123", amount: 1200, currency: "usd", created: 1_754_000_100, status: "succeeded" };
 
 describe("Stripe normalisation and webhook security", () => {
+  it("uses a canonical six-decimal amount in content fingerprints", () => {
+    const baseline = { customerEmail: "member@example.com", categoryCode: "membership", occurredOn: "2026-08-04", providerTransactionId: "ch_123" };
+    expect(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.9" })).toBe(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.900000" }));
+  });
+
+  it("requires auditable, local-only product-mapping values", () => {
+    expect(stripeProductMappingSchema.safeParse({ productReference: "price_membership", internalProductCode: "membership_annual", internalProductName: "Annual membership", categoryCode: "membership", membershipTier: "annual", reason: "Finance approved the Stripe product classification." }).success).toBe(true);
+    expect(stripeProductMappingSchema.safeParse({ productReference: "price_membership", internalProductCode: "Annual Membership", internalProductName: "Annual membership", categoryCode: "membership", reason: "ok" }).success).toBe(false);
+  });
+
   it("keeps Stripe in B2C, formats minor USD units exactly, and uses the Bahrain business date", () => {
     const payment = normaliseStripeCharge({ ...charge, billing_details: { ...charge.billing_details, phone: "+973 1700 0000" } }, "product_id");
     expect(payment).toMatchObject({ chargeId: "ch_123", customerName: "Member Name", customerEmail: "member@example.com", customerPhone: "+973 1700 0000", originalAmount: "123.45", amountUsd: "123.45", originalCurrency: "USD", productReference: "price_membership" });

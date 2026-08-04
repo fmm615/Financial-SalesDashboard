@@ -18,6 +18,9 @@ export type B2cLedgerRow = {
   source: string;
   paymentStatus: "Completed" | "Failed" | "Pending" | "Refunded";
   providerReference: string | null;
+  sourceSystem: "stripe" | "tap" | "manual_bank_transfer";
+  productReference: string | null;
+  openReviewFlags: B2cOpenReviewFlag[];
   issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Refunded" | null;
 };
 export type B2cDashboardSnapshot = {
@@ -30,7 +33,13 @@ export type B2cDashboardSnapshot = {
   rows: B2cLedgerRow[];
 };
 
-type Flag = { source_area: string; source_record_id: string; flag_type: string; reason: string };
+type Flag = { id: string; source_area: string; source_record_id: string; flag_type: string; reason: string };
+
+export type B2cOpenReviewFlag = {
+  id: string;
+  type: B2cLedgerRow["issue"] extends infer Issue ? Exclude<Issue, null> : never;
+  reason: string;
+};
 
 function toScaledUsd(value: string): bigint {
   const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value);
@@ -66,6 +75,12 @@ function displayPaymentStatus(status: "succeeded" | "failed" | "pending"): B2cLe
   return "Pending";
 }
 
+function sourceMetadataText(value: unknown, key: string): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
+}
+
 export function resolveB2cReportingPeriod(selectedMonth: string | undefined, today = new Date()): B2cReportingPeriod {
   const fallback = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
   const isAllTime = selectedMonth === "all";
@@ -95,10 +110,10 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
   const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult] = await Promise.all([
-    client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,amount_usd,occurred_on").order("occurred_at", { ascending: false }),
+    client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
-    client.from("review_flags").select("source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
-    client.from("review_flags").select("source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
+    client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
+    client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
   ]);
   if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error) {
     throw new Error("Could not load B2C source records.");
@@ -113,7 +128,12 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   const paymentById = new Map(payments.map((payment) => [payment.id, payment]));
   const isReportablePayment = (payment: typeof payments[number]) => {
     const flagTypes = new Set((flagsByRecord.get(payment.id) ?? []).map((flag) => flag.flag_type));
-    return payment.payment_status === "succeeded" && !flagTypes.has("possible_duplicate") && !flagTypes.has("unmapped_product") && !flagTypes.has("needs_follow_up");
+    return payment.payment_status === "succeeded"
+      && payment.customer_email !== null
+      && payment.category_code !== "unmapped"
+      && !flagTypes.has("possible_duplicate")
+      && !flagTypes.has("unmapped_product")
+      && !flagTypes.has("needs_follow_up");
   };
 
   let eligiblePayments = BigInt(0);
@@ -132,7 +152,9 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   }
 
   const rows: B2cLedgerRow[] = [
-    ...payments.filter((payment) => isInB2cPeriod(payment.occurred_on, period)).map((payment) => ({
+    ...payments.filter((payment) => isInB2cPeriod(payment.occurred_on, period)).map((payment) => {
+      const reviewFlags = (flagsByRecord.get(payment.id) ?? []).map((flag) => ({ id: flag.id, type: flagLabel([flag])!, reason: flag.reason }));
+      return {
       id: payment.id,
       recordType: "Payment" as const,
       customerName: payment.customer_name,
@@ -147,13 +169,18 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       source: payment.source_system === "manual_bank_transfer" ? "Manual bank transfer" : payment.source_system === "stripe" ? "Stripe" : "Tap",
       paymentStatus: displayPaymentStatus(payment.payment_status),
       providerReference: payment.provider_transaction_id,
+      sourceSystem: payment.source_system,
+      productReference: sourceMetadataText(payment.source_metadata, "product_reference"),
+      openReviewFlags: reviewFlags,
       issue: flagLabel(flagsByRecord.get(payment.id) ?? []),
-    })),
+    };
+    }),
     ...refunds.filter((refund) => {
       const occurredOn = refund.occurred_at.slice(0, 10);
       return isInB2cPeriod(occurredOn, period);
     }).map((refund) => {
       const payment = paymentById.get(refund.payment_id);
+      const reviewFlags = (flagsByRecord.get(refund.id) ?? []).map((flag) => ({ id: flag.id, type: flagLabel([flag])!, reason: flag.reason }));
       return {
         id: refund.id,
         recordType: "Refund" as const,
@@ -169,6 +196,9 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         source: refund.source_system === "stripe" ? "Stripe" : refund.source_system === "tap" ? "Tap" : "Manual bank transfer",
         paymentStatus: "Refunded" as const,
         providerReference: refund.provider_refund_id,
+        sourceSystem: refund.source_system,
+        productReference: null,
+        openReviewFlags: reviewFlags,
         issue: flagLabel(flagsByRecord.get(refund.id) ?? []),
       };
     }),

@@ -7,5 +7,7 @@ import { createHash } from "node:crypto";
  */
 export function createB2cDuplicateFingerprint(input: { customerEmail: string | null; amountUsd: string; categoryCode: string; occurredOn: string; providerTransactionId: string }): string {
   const identity = input.customerEmail?.trim().toLowerCase() || `missing-email:${input.providerTransactionId}`;
-  return createHash("sha256").update(`${identity}|${input.amountUsd}|${input.categoryCode.trim().toLowerCase()}|${input.occurredOn}`, "utf8").digest("hex");
+  const [whole, fraction = ""] = input.amountUsd.trim().split(".");
+  const canonicalAmount = `${whole}.${fraction.padEnd(6, "0").slice(0, 6)}`;
+  return createHash("sha256").update(`${identity}|${canonicalAmount}|${input.categoryCode.trim().toLowerCase()}|${input.occurredOn}`, "utf8").digest("hex");
 }
