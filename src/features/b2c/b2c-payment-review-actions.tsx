@@ -7,6 +7,7 @@ import { useCanManage } from "@/lib/auth/role-context";
 import type { B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
 
 const inputClass = "mt-1 block h-10 w-full min-w-0 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
+const textareaClass = "mt-1 block min-h-24 w-full min-w-0 resize-y rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent";
 const fieldClass = "block min-w-0 text-sm font-medium text-text-secondary";
 
 /** Local Admin review controls for a Stripe source record. No action calls Stripe. */
@@ -55,21 +56,21 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
 
   return <>
     <button type="button" onClick={() => setOpen(true)} className="font-medium text-brand-accent hover:underline">{row.openReviewFlags.length ? "Review" : "Edit mapping"}</button>
-    {open && <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4">
-      <section role="dialog" aria-modal="true" aria-labelledby={`b2c-review-${row.id}`} className="mx-auto my-8 w-full max-w-3xl rounded-card bg-surface p-6 shadow-elevated sm:p-8">
+    {open && <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4 sm:p-6">
+      <section role="dialog" aria-modal="true" aria-labelledby={`b2c-review-${row.id}`} className="mx-auto my-4 w-full max-w-4xl overflow-hidden rounded-card bg-surface p-5 shadow-elevated sm:my-8 sm:p-8">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0"><h2 id={`b2c-review-${row.id}`} className="text-xl font-semibold text-text-primary">Review Stripe payment</h2><p className="mt-1 text-sm leading-6 text-text-muted">All changes are local to PLAYBOOK, require a reason, and are audited. Stripe is never changed.</p></div>
-          <button type="button" onClick={() => setOpen(false)} className="shrink-0 text-sm font-medium text-text-secondary hover:text-text-primary">Close</button>
+          <div className="min-w-0"><h2 id={`b2c-review-${row.id}`} className="text-xl font-semibold text-text-primary sm:text-2xl">Review Stripe payment</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-text-muted">All changes are local to PLAYBOOK, require a reason, and are audited. Stripe is never changed.</p></div>
+          <button type="button" onClick={() => setOpen(false)} aria-label="Close Stripe payment review" className="shrink-0 rounded-pill px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-muted hover:text-text-primary">Close</button>
         </div>
 
-        <div className="mt-5 grid gap-3 rounded-input border border-border bg-surface-muted/40 p-4 text-sm sm:grid-cols-2">
-          <p><span className="text-text-muted">Payment ID: </span><span className="font-mono text-xs text-text-primary">{row.providerReference ?? "Unavailable"}</span></p>
-          <p><span className="text-text-muted">Source product: </span><span className="font-medium text-text-primary">{row.productReference ?? "Unavailable from Stripe"}</span></p>
-          <p><span className="text-text-muted">Current category: </span><span className="font-medium text-text-primary">{row.category}</span></p>
-          <p><span className="text-text-muted">Current tier: </span><span className="font-medium text-text-primary">{row.membershipTier ?? "Not set"}</span></p>
+        <div className="mt-6 grid gap-x-6 gap-y-4 rounded-input border border-border bg-surface-muted/40 p-4 text-sm sm:grid-cols-2">
+          <p className="min-w-0"><span className="text-text-muted">Payment ID</span><span className="mt-1 block break-all font-mono text-xs text-text-primary">{row.providerReference ?? "Unavailable"}</span></p>
+          <p className="min-w-0"><span className="text-text-muted">Source product</span><span className="mt-1 block break-words font-medium text-text-primary">{row.productReference ?? "Unavailable from Stripe"}</span></p>
+          <p><span className="text-text-muted">Current category</span><span className="mt-1 block font-medium text-text-primary">{row.category}</span></p>
+          <p><span className="text-text-muted">Current tier</span><span className="mt-1 block font-medium text-text-primary">{row.membershipTier ?? "Not set"}</span></p>
         </div>
 
-        {row.sourceSystem === "stripe" && <div className="mt-5 rounded-input border border-warning/25 bg-warning/5 p-4">
+        {row.sourceSystem === "stripe" && <div className="mt-5 overflow-hidden rounded-input border border-warning/25 bg-warning/5 p-4 sm:p-5">
           <h3 className="font-semibold text-text-primary">{hasUnmappedProduct ? "Create" : "Edit"} local product mapping</h3>
           <p className="mt-1 text-sm leading-6 text-text-secondary">This classifies every local Stripe payment with this exact source product reference. It never edits Stripe.</p>
           {mappingAvailable ? <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
@@ -77,17 +78,22 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
             <label className={fieldClass}>Internal product name<input className={inputClass} value={internalProductName} onChange={(event) => setInternalProductName(event.target.value)} placeholder="Annual membership" /></label>
             <label className={fieldClass}>Reporting category<input className={inputClass} value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} placeholder="membership" /></label>
             <label className={fieldClass}>Membership tier <span className="font-normal text-text-muted">(optional)</span><input className={inputClass} value={membershipTier} onChange={(event) => setMembershipTier(event.target.value)} placeholder="annual" /></label>
-          </div> : <p className="mt-3 text-sm leading-6 text-warning">Stripe did not provide the configured product reference for this payment, so it cannot be mapped. You may resolve the review item with a note, but it remains excluded from financial totals.</p>}
+          </div> : <p className="mt-3 break-words text-sm leading-6 text-warning">Stripe did not provide the configured product reference for this payment, so it cannot be mapped. You may resolve the review item with a note, but it remains excluded from financial totals.</p>}
         </div>}
 
-        <label className={`${fieldClass} mt-5`}>Reason / evidence<input className={inputClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required audit note" /></label>
-        <div className="mt-5 space-y-3">
-          {row.openReviewFlags.map((flag) => <div key={flag.id} className="flex flex-col gap-3 rounded-input border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0"><StatusBadge status={flag.type} /><p className="mt-2 text-sm leading-6 text-text-secondary">{flag.reason}</p></div>
-            <button type="button" onClick={() => void resolveFlag(flag.id)} disabled={saving || reason.trim().length < 3} className="shrink-0 rounded-pill border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-brand-accent hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60">Mark resolved</button>
+        <label className={`${fieldClass} mt-5`}>Reason / evidence<textarea className={textareaClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence or resolution. This is saved in the audit history." /></label>
+        {row.openReviewFlags.length > 0 && <div className="mt-6 border-t border-border pt-5">
+          <div><h3 className="font-semibold text-text-primary">Open review items</h3><p className="mt-1 text-sm leading-6 text-text-muted">Use the same audit note above when resolving an item. Resolving does not change Stripe.</p></div>
+          <div className="mt-4 space-y-3">
+          {row.openReviewFlags.map((flag) => <div key={flag.id} className="overflow-hidden rounded-input border border-border bg-surface p-4">
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div className="min-w-0"><StatusBadge status={flag.type} /><p className="mt-3 break-words text-sm leading-6 text-text-secondary">{flag.reason}</p></div>
+              <button type="button" onClick={() => void resolveFlag(flag.id)} disabled={saving || reason.trim().length < 3} className="w-full shrink-0 rounded-pill border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-brand-accent hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Mark resolved</button>
+            </div>
           </div>)}
-        </div>
-        {mappingAvailable && <div className="mt-5"><PrimaryButton onClick={() => void mapProduct()} disabled={saving || reason.trim().length < 3}>{saving ? "Saving…" : "Save audited local mapping"}</PrimaryButton></div>}
+          </div>
+        </div>}
+        {mappingAvailable && <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border pt-5"><PrimaryButton onClick={() => void mapProduct()} disabled={saving || reason.trim().length < 3}>{saving ? "Saving…" : "Save audited local mapping"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">This updates PLAYBOOK classifications only. Stripe is never changed.</p></div>}
         {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
       </section>
     </div>}
