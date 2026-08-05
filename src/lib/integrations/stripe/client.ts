@@ -17,7 +17,9 @@ export class StripeClient {
   constructor(private readonly config: StripeConfig) {}
 
   private async request(path: string): Promise<unknown> {
-    const response = await fetch(`${this.config.apiBaseUrl}${path}`, { headers: { Authorization: `Bearer ${this.config.apiKey}` }, cache: "no-store" });
+    // Keep the provider boundary explicit: this client is incapable of sending
+    // a Stripe write request because every call is an explicit HTTP GET.
+    const response = await fetch(`${this.config.apiBaseUrl}${path}`, { method: "GET", headers: { Authorization: `Bearer ${this.config.apiKey}` }, cache: "no-store" });
     if (!response.ok) throw new Error(await safeErrorMessage(response));
     return response.json();
   }

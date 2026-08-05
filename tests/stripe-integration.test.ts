@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { formatStripeBillingInterval, normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
+import { assertHubSpotReadOnlyRequest } from "@/lib/integrations/hubspot/client";
 import { stripeProductMappingSchema } from "@/lib/validation/financial-contracts";
 import { b2cPaymentLocalCorrectionSchema } from "@/lib/validation/b2c-review-contracts";
 import { isValidStripeSignature } from "@/lib/integrations/stripe/signature";
@@ -17,6 +18,14 @@ const charge = {
 const succeededRefund = { id: "re_123", charge: "ch_123", amount: 1200, currency: "usd", created: 1_754_000_100, status: "succeeded" };
 
 describe("Stripe normalisation and webhook security", () => {
+  it("rejects every HubSpot provider write method while allowing only its read search query", () => {
+    expect(() => assertHubSpotReadOnlyRequest("/crm/v3/objects/deals/search", "POST")).not.toThrow();
+    expect(() => assertHubSpotReadOnlyRequest("/crm/v3/objects/deals/123", "GET")).not.toThrow();
+    expect(() => assertHubSpotReadOnlyRequest("/crm/v3/objects/deals/123", "PATCH")).toThrow("read-only");
+    expect(() => assertHubSpotReadOnlyRequest("/crm/v3/objects/deals", "POST")).toThrow("read-only");
+    expect(() => assertHubSpotReadOnlyRequest("/crm/v3/objects/deals/123", "DELETE")).toThrow("read-only");
+  });
+
   it("uses a canonical six-decimal amount in content fingerprints", () => {
     const baseline = { customerEmail: "member@example.com", categoryCode: "membership", occurredOn: "2026-08-04", providerTransactionId: "ch_123" };
     expect(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.9" })).toBe(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.900000" }));

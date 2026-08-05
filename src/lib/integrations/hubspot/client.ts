@@ -16,6 +16,19 @@ type HubSpotCompany = {
 
 const BACKFILL_PAGE_SIZE = 50;
 const HYDRATION_CONCURRENCY = 8;
+const HUBSPOT_DEALS_SEARCH_PATH = "/crm/v3/objects/deals/search";
+
+type HubSpotReadRequestInit = Omit<RequestInit, "method"> & { method?: "GET" | "POST" };
+
+/**
+ * HubSpot's CRM search endpoint is a read query despite using POST. All other
+ * provider methods and paths are rejected so this integration cannot write.
+ */
+export function assertHubSpotReadOnlyRequest(path: string, method: string): void {
+  if (method === "GET") return;
+  if (method === "POST" && path === HUBSPOT_DEALS_SEARCH_PATH) return;
+  throw new Error("HubSpot client is read-only: only GET and the deals search query are permitted.");
+}
 
 async function mapWithConcurrency<TInput, TResult>(
   inputs: TInput[],
@@ -55,7 +68,7 @@ async function safeErrorLabel(response: Response): Promise<string> {
   }
 }
 
-/** HubSpot HTTP access stays provider-specific and never reaches UI code. */
+/** HubSpot HTTP access stays provider-specific, never reaches UI code, and is read-only. */
 export class HubSpotClient {
   private readonly properties: string[];
 
@@ -63,9 +76,12 @@ export class HubSpotClient {
     this.properties = requestedHubSpotDealProperties(config.fieldMapping);
   }
 
-  private async request(path: string, init?: RequestInit): Promise<Response> {
+  private async request(path: string, init?: HubSpotReadRequestInit): Promise<Response> {
+    const method = init?.method ?? "GET";
+    assertHubSpotReadOnlyRequest(path, method);
     const response = await fetch(`${this.config.apiBaseUrl}${path}`, {
       ...init,
+      method,
       headers: {
         Authorization: `Bearer ${this.config.privateAppToken}`,
         "Content-Type": "application/json",
@@ -118,7 +134,7 @@ export class HubSpotClient {
     filters: Array<{ propertyName: string; operator: "EQ" | "GTE"; value: string }>,
     limit: number,
   ): Promise<{ deals: HubSpotDealWithCompany[]; nextCursor: string | null }> {
-    const response = await this.request("/crm/v3/objects/deals/search", {
+    const response = await this.request(HUBSPOT_DEALS_SEARCH_PATH, {
       method: "POST",
       body: JSON.stringify({
         filterGroups: [{ filters: [
