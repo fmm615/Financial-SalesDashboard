@@ -1,3 +1,4 @@
+import { b2cPaymentExclusionReasons, isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 const USD_SCALE = BigInt(1_000_000);
@@ -30,6 +31,21 @@ export type B2cDashboardSnapshot = {
   eligiblePaymentsUsd: string;
   refundsUsd: string;
   netPaymentsUsd: string;
+  completedSourcePaymentsUsd: string;
+  sourceRefundsUsd: string;
+  calculation: {
+    completedSourcePaymentCount: number;
+    reportablePaymentCount: number;
+    excludedCompletedPaymentCount: number;
+    excludedCompletedPaymentsUsd: string;
+    sourceRefundCount: number;
+    eligibleRefundCount: number;
+    missingCustomerEmailCount: number;
+    unmappedProductCount: number;
+    possibleDuplicateCount: number;
+    otherReviewCount: number;
+    nonSucceededPaymentCount: number;
+  };
   reviewItems: number;
   rows: B2cLedgerRow[];
 };
@@ -161,29 +177,72 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       membershipTier: override?.membership_tier ?? payment.membership_tier,
     };
   };
-  const isReportablePayment = (payment: typeof payments[number]) => {
+  const paymentReportability = (payment: typeof payments[number]) => {
     const flagTypes = new Set((flagsByRecord.get(payment.id) ?? []).map((flag) => flag.flag_type));
     const effective = effectivePayment(payment);
-    return payment.payment_status === "succeeded"
-      && effective.customerEmail !== null
-      && effective.categoryCode !== "unmapped"
-      && !flagTypes.has("possible_duplicate")
-      && !flagTypes.has("unmapped_product")
-      && !flagTypes.has("needs_follow_up");
+    return {
+      isReportable: isReportableB2cPayment({
+        paymentStatus: payment.payment_status,
+        customerEmail: effective.customerEmail,
+        categoryCode: effective.categoryCode,
+        openFlagTypes: flagTypes,
+      }),
+      exclusions: b2cPaymentExclusionReasons({
+        paymentStatus: payment.payment_status,
+        customerEmail: effective.customerEmail,
+        categoryCode: effective.categoryCode,
+        openFlagTypes: flagTypes,
+      }),
+    };
   };
 
   let eligiblePayments = BigInt(0);
   let refundsTotal = BigInt(0);
+  let completedSourcePayments = BigInt(0);
+  let sourceRefunds = BigInt(0);
+  let excludedCompletedPayments = BigInt(0);
+  let completedSourcePaymentCount = 0;
+  let reportablePaymentCount = 0;
+  let excludedCompletedPaymentCount = 0;
+  let sourceRefundCount = 0;
+  let eligibleRefundCount = 0;
+  let missingCustomerEmailCount = 0;
+  let unmappedProductCount = 0;
+  let possibleDuplicateCount = 0;
+  let otherReviewCount = 0;
+  let nonSucceededPaymentCount = 0;
   for (const payment of payments) {
-    if (isInB2cPeriod(payment.occurred_on, period) && isReportablePayment(payment)) {
-      eligiblePayments += toScaledUsd(payment.amount_usd);
+    if (!isInB2cPeriod(payment.occurred_on, period)) continue;
+    const reportability = paymentReportability(payment);
+    if (payment.payment_status !== "succeeded") {
+      nonSucceededPaymentCount += 1;
+      continue;
     }
+    const amount = toScaledUsd(payment.amount_usd);
+    completedSourcePayments += amount;
+    completedSourcePaymentCount += 1;
+    if (reportability.isReportable) {
+      eligiblePayments += amount;
+      reportablePaymentCount += 1;
+      continue;
+    }
+    excludedCompletedPayments += amount;
+    excludedCompletedPaymentCount += 1;
+    if (reportability.exclusions.includes("missing_customer_email")) missingCustomerEmailCount += 1;
+    if (reportability.exclusions.includes("unmapped_product")) unmappedProductCount += 1;
+    if (reportability.exclusions.includes("possible_duplicate")) possibleDuplicateCount += 1;
+    if (reportability.exclusions.includes("needs_follow_up") && !reportability.exclusions.includes("missing_customer_email")) otherReviewCount += 1;
   }
   for (const refund of refunds) {
     const occurredOn = refund.occurred_at.slice(0, 10);
     const payment = paymentById.get(refund.payment_id);
-    if (isInB2cPeriod(occurredOn, period) && payment && isReportablePayment(payment)) {
-      refundsTotal += toScaledUsd(refund.amount_usd);
+    if (!isInB2cPeriod(occurredOn, period)) continue;
+    const amount = toScaledUsd(refund.amount_usd);
+    sourceRefunds += amount;
+    sourceRefundCount += 1;
+    if (payment && paymentReportability(payment).isReportable) {
+      refundsTotal += amount;
+      eligibleRefundCount += 1;
     }
   }
 
@@ -250,6 +309,21 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     eligiblePaymentsUsd: formatUsd(eligiblePayments),
     refundsUsd: formatUsd(refundsTotal),
     netPaymentsUsd: formatUsd(eligiblePayments - refundsTotal),
+    completedSourcePaymentsUsd: formatUsd(completedSourcePayments),
+    sourceRefundsUsd: formatUsd(sourceRefunds),
+    calculation: {
+      completedSourcePaymentCount,
+      reportablePaymentCount,
+      excludedCompletedPaymentCount,
+      excludedCompletedPaymentsUsd: formatUsd(excludedCompletedPayments),
+      sourceRefundCount,
+      eligibleRefundCount,
+      missingCustomerEmailCount,
+      unmappedProductCount,
+      possibleDuplicateCount,
+      otherReviewCount,
+      nonSucceededPaymentCount,
+    },
     reviewItems: [...flagsByRecord.values()].reduce((sum, flags) => sum + flags.length, 0),
     rows,
   };
