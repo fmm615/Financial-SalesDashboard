@@ -15,6 +15,7 @@ export type B2cLedgerRow = {
   amountValueUsd: string;
   category: string;
   membershipTier: string | null;
+  billingInterval: string | null;
   source: string;
   paymentStatus: "Completed" | "Failed" | "Pending" | "Refunded";
   providerReference: string | null;
@@ -87,6 +88,20 @@ function sourceMetadataText(value: unknown, key: string): string | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = (value as Record<string, unknown>)[key];
   return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
+}
+
+function billingIntervalLabel(sourceMetadata: unknown): string | null {
+  const interval = sourceMetadataText(sourceMetadata, "stripe_billing_interval");
+  const count = Number(sourceMetadataText(sourceMetadata, "stripe_billing_interval_count") ?? "1");
+  if (!interval || !Number.isInteger(count) || count < 1) return null;
+  if (count === 1) {
+    if (interval === "day") return "Daily";
+    if (interval === "week") return "Weekly";
+    if (interval === "month") return "Monthly";
+    if (interval === "year") return "Annual";
+    return null;
+  }
+  return ["day", "week", "month", "year"].includes(interval) ? `Every ${count} ${interval}s` : null;
 }
 
 export function resolveB2cReportingPeriod(selectedMonth: string | undefined, today = new Date()): B2cReportingPeriod {
@@ -188,6 +203,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       amountValueUsd: payment.amount_usd,
       category: effective.categoryCode === "unmapped" ? "Unmapped" : effective.categoryCode,
       membershipTier: effective.membershipTier,
+      billingInterval: billingIntervalLabel(payment.source_metadata),
       source: payment.source_system === "manual_bank_transfer" ? "Manual bank transfer" : payment.source_system === "stripe" ? "Stripe" : "Tap",
       paymentStatus: displayPaymentStatus(payment.payment_status),
       providerReference: payment.provider_transaction_id,
@@ -216,6 +232,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         amountValueUsd: `-${refund.amount_usd}`,
         category: effective?.categoryCode === "unmapped" ? "Unmapped" : effective?.categoryCode ?? "Unavailable",
         membershipTier: effective?.membershipTier ?? null,
+        billingInterval: null,
         source: refund.source_system === "stripe" ? "Stripe" : refund.source_system === "tap" ? "Tap" : "Manual bank transfer",
         paymentStatus: "Refunded" as const,
         providerReference: refund.provider_refund_id,

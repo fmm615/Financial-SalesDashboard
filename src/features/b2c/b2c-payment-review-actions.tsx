@@ -93,7 +93,7 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
         <div className="mt-6 grid gap-x-6 gap-y-4 rounded-input border border-border bg-surface-muted/40 p-4 text-sm sm:grid-cols-2">
           <p className="min-w-0"><span className="text-text-muted">Payment ID</span><span className="mt-1 block break-all font-mono text-xs text-text-primary">{row.providerReference ?? "Unavailable"}</span></p>
           <p className="min-w-0"><span className="text-text-muted">Source product</span><span className="mt-1 block break-words font-medium text-text-primary">{row.productReference ?? "Unavailable from Stripe"}</span></p>
-          <p><span className="text-text-muted">Current category</span><span className="mt-1 block font-medium text-text-primary">{row.category}</span></p>
+          <p><span className="text-text-muted">Current PLAYBOOK category</span><span className="mt-1 block font-medium text-text-primary">{row.category}</span></p>
           <p><span className="text-text-muted">Current tier</span><span className="mt-1 block font-medium text-text-primary">{row.membershipTier ?? "Not set"}</span></p>
         </div>
 
@@ -103,7 +103,7 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
           {mappingAvailable ? <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
             <label className={fieldClass}>Internal product code<input className={inputClass} value={internalProductCode} onChange={(event) => setInternalProductCode(event.target.value)} placeholder="membership_annual" /></label>
             <label className={fieldClass}>Internal product name<input className={inputClass} value={internalProductName} onChange={(event) => setInternalProductName(event.target.value)} placeholder="Annual membership" /></label>
-            <label className={fieldClass}>Reporting category<input className={inputClass} value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} placeholder="membership" /></label>
+            <label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={categoryCode} onChange={(event) => setCategoryCode(event.target.value)} placeholder="membership" /></label>
             <label className={fieldClass}>Membership tier <span className="font-normal text-text-muted">(optional)</span><input className={inputClass} value={membershipTier} onChange={(event) => setMembershipTier(event.target.value)} placeholder="annual" /></label>
           </div> : <p className="mt-3 max-w-full whitespace-normal text-sm leading-6 text-warning" style={{ overflowWrap: "anywhere" }}>Stripe did not provide the configured product reference, so a reusable product mapping is unavailable. You can record a verified local category correction for this payment or resolve the review item with a note; only a verified correction can make it eligible for financial totals.</p>}
         </div>}
@@ -115,7 +115,7 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
             <label className={fieldClass}>Customer name <span className="font-normal text-text-muted">(current: {row.customerName ?? "—"})</span><input className={inputClass} value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Verified customer name" /></label>
             <label className={fieldClass}>Customer email <span className="font-normal text-text-muted">(current: {row.customerEmail ?? "—"})</span><input className={inputClass} value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} inputMode="email" placeholder="verified@example.com" /></label>
             <label className={fieldClass}>Customer mobile <span className="font-normal text-text-muted">(current: {row.customerPhone ?? "—"})</span><input className={inputClass} value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} inputMode="tel" placeholder="+973 0000 0000" /></label>
-            <label className={fieldClass}>Reporting category <span className="font-normal text-text-muted">(current: {row.category})</span><input className={inputClass} value={localCategoryCode} onChange={(event) => setLocalCategoryCode(event.target.value)} placeholder="membership" /></label>
+            <label className={fieldClass}>PLAYBOOK reporting category <span className="font-normal text-text-muted">(current: {row.category})</span><input className={inputClass} value={localCategoryCode} onChange={(event) => setLocalCategoryCode(event.target.value)} placeholder="membership" /></label>
             <label className={`${fieldClass} md:col-span-2`}>Membership tier <span className="font-normal text-text-muted">(current: {row.membershipTier ?? "—"})</span><input className={inputClass} value={localMembershipTier} onChange={(event) => setLocalMembershipTier(event.target.value)} placeholder="annual" /></label>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
+import { formatStripeBillingInterval, normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
 import { stripeProductMappingSchema } from "@/lib/validation/financial-contracts";
 import { b2cPaymentLocalCorrectionSchema } from "@/lib/validation/b2c-review-contracts";
@@ -56,9 +56,10 @@ describe("Stripe normalisation and webhook security", () => {
   it("uses the direct Stripe Checkout Price and Product name as plan context", () => {
     const plan = normaliseStripeCheckoutPlan({
       sessionId: "cs_123",
-      lineItems: { data: [{ price: { id: "price_founding", nickname: null, metadata: {}, product: { id: "prod_membership", name: "Founding Membership", metadata: {} } } }] },
+      lineItems: { data: [{ price: { id: "price_founding", nickname: null, metadata: {}, recurring: { interval: "year", interval_count: 1 }, product: { id: "prod_membership", name: "Founding Membership", metadata: {} } } }] },
     });
-    expect(plan).toEqual({ checkoutSessionId: "cs_123", priceId: "price_founding", productId: "prod_membership", planName: "Founding Membership" });
+    expect(plan).toEqual({ checkoutSessionId: "cs_123", priceId: "price_founding", productId: "prod_membership", planName: "Founding Membership", billingInterval: "year", billingIntervalCount: 1 });
+    expect(formatStripeBillingInterval(plan?.billingInterval ?? null, plan?.billingIntervalCount ?? null)).toBe("Annual");
   });
 
   it("does not guess a plan from a multi-product Checkout cart", () => {

@@ -29,6 +29,10 @@ const stripePriceSchema = z.object({
   id: z.string().min(1),
   nickname: z.string().nullable().optional(),
   metadata: metadataSchema.optional(),
+  recurring: z.object({
+    interval: z.enum(["day", "week", "month", "year"]),
+    interval_count: z.number().int().positive().optional(),
+  }).nullable().optional(),
   product: z.union([z.string().min(1), stripeProductSchema]).nullable().optional(),
 }).passthrough();
 const checkoutLineItemsSchema = z.object({
@@ -45,7 +49,14 @@ export type NormalisedStripeCharge = {
   sourceMetadata: Record<string, string>;
 };
 export type NormalisedStripeRefund = { refundId: string; chargeId: string; originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; reason: string | null; metadata: Record<string, string> };
-export type StripeCheckoutPlan = { checkoutSessionId: string; priceId: string; productId: string | null; planName: string | null };
+export type StripeCheckoutPlan = {
+  checkoutSessionId: string;
+  priceId: string;
+  productId: string | null;
+  planName: string | null;
+  billingInterval: "day" | "week" | "month" | "year" | null;
+  billingIntervalCount: number | null;
+};
 
 export class StripeNormalisationError extends Error {}
 
@@ -95,6 +106,16 @@ function planMetadataValue(metadata: Record<string, string>): string | null {
   return cleanText(metadata.plan ?? metadata.tier ?? metadata.membership_plan, 100);
 }
 
+/** Formats only Stripe's direct Price.recurring fields; it never infers a cadence. */
+export function formatStripeBillingInterval(interval: StripeCheckoutPlan["billingInterval"], count: number | null): string | null {
+  if (!interval) return null;
+  const intervalCount = count ?? 1;
+  if (intervalCount === 1) {
+    return { day: "Daily", week: "Weekly", month: "Monthly", year: "Annual" }[interval];
+  }
+  return `Every ${intervalCount} ${interval}${intervalCount === 1 ? "" : "s"}`;
+}
+
 /** Reads a Checkout line item's stable Price reference and source plan name. */
 export function normaliseStripeCheckoutPlan(payload: unknown): StripeCheckoutPlan | null {
   const result = checkoutLineItemsSchema.safeParse(payload);
@@ -112,6 +133,8 @@ export function normaliseStripeCheckoutPlan(payload: unknown): StripeCheckoutPla
     priceId: price.id,
     productId: product?.id ?? (typeof price.product === "string" ? price.product : null),
     planName: planMetadataValue(price.metadata ?? {}) ?? cleanText(price.nickname, 100) ?? (product ? planMetadataValue(product.metadata ?? {}) ?? cleanText(product.name, 100) : null),
+    billingInterval: price.recurring?.interval ?? null,
+    billingIntervalCount: price.recurring?.interval_count ?? null,
   };
 }
 
@@ -129,6 +152,8 @@ export function addStripeCheckoutPlan(charge: NormalisedStripeCharge, plan: Stri
       stripe_price_id: plan.priceId,
       ...(plan.productId ? { stripe_product_id: plan.productId } : {}),
       ...(plan.planName ? { stripe_plan_name: plan.planName } : {}),
+      ...(plan.billingInterval ? { stripe_billing_interval: plan.billingInterval } : {}),
+      ...(plan.billingIntervalCount ? { stripe_billing_interval_count: String(plan.billingIntervalCount) } : {}),
     },
   };
 }
