@@ -28,6 +28,7 @@ export type B2cLedgerRow = {
   productReference: string | null;
   hasLocalCorrection: boolean;
   localCorrectionFields: string[];
+  hasFinanceException: boolean;
   openReviewFlags: B2cOpenReviewFlag[];
   issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Refunded" | null;
 };
@@ -52,6 +53,7 @@ export type B2cDashboardSnapshot = {
     possibleDuplicateCount: number;
     otherReviewCount: number;
     nonSucceededPaymentCount: number;
+    financeExceptionPaymentCount: number;
   };
   reviewItems: number;
   rows: B2cLedgerRow[];
@@ -67,6 +69,13 @@ type LocalPaymentOverride = {
   membership_tier: string | null;
   local_amount_usd: string | null;
   local_occurred_on: string | null;
+};
+
+type FinanceExceptionDecision = {
+  payment_id: string;
+  decision: "include" | "revoke";
+  created_at: string;
+  id: string;
 };
 
 export type B2cOpenReviewFlag = {
@@ -101,6 +110,10 @@ function flagLabel(flags: Flag[]): B2cLedgerRow["issue"] {
   if (types.has("needs_follow_up")) return "Needs follow-up";
   if (types.has("refunded")) return "Refunded";
   return null;
+}
+
+function isMissingCustomerEmailFlag(flag: Flag): boolean {
+  return flag.flag_type === "needs_follow_up" && /missing a valid customer email/i.test(flag.reason);
 }
 
 function displayPaymentStatus(status: "succeeded" | "failed" | "pending"): B2cLedgerRow["paymentStatus"] {
@@ -157,16 +170,17 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  */
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, historicalBackfillResult, reconciliationResult] = await Promise.all([
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, financeExceptionResult, historicalBackfillResult, reconciliationResult] = await Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
     client.from("b2c_payment_local_overrides").select("payment_id,customer_name,customer_email,customer_phone,category_code,membership_tier,local_amount_usd,local_occurred_on"),
+    client.from("b2c_payment_finance_exception_decisions").select("id,payment_id,decision,created_at").order("created_at", { ascending: false }),
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "stripe").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "stripe").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? historicalBackfillResult.error ?? reconciliationResult.error) {
+  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? financeExceptionResult.error ?? historicalBackfillResult.error ?? reconciliationResult.error) {
     throw new Error("Could not load B2C source records.");
   }
 
@@ -186,6 +200,10 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   const payments = paymentsResult.data ?? [];
   const refunds = refundsResult.data ?? [];
   const overridesByPayment = new Map<string, LocalPaymentOverride>((localOverridesResult.data ?? []).map((override) => [override.payment_id, override]));
+  const latestFinanceDecisionByPayment = new Map<string, FinanceExceptionDecision>();
+  for (const decision of (financeExceptionResult.data ?? []) as FinanceExceptionDecision[]) {
+    if (!latestFinanceDecisionByPayment.has(decision.payment_id)) latestFinanceDecisionByPayment.set(decision.payment_id, decision);
+  }
   const flagsByRecord = new Map<string, Flag[]>();
   for (const flag of [...(paymentFlagsResult.data ?? []), ...(refundFlagsResult.data ?? [])]) {
     flagsByRecord.set(flag.source_record_id, [...(flagsByRecord.get(flag.source_record_id) ?? []), flag]);
@@ -212,20 +230,26 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     } : null);
   };
   const paymentReportability = (payment: typeof payments[number]) => {
-    const flagTypes = new Set((flagsByRecord.get(payment.id) ?? []).map((flag) => flag.flag_type));
+    const openFlags = flagsByRecord.get(payment.id) ?? [];
+    const flagTypes = new Set(openFlags.map((flag) => flag.flag_type));
     const effective = effectivePayment(payment);
+    const hasFinanceException = latestFinanceDecisionByPayment.get(payment.id)?.decision === "include";
     return {
       isReportable: isReportableB2cPayment({
         paymentStatus: payment.payment_status,
         customerEmail: effective.customerEmail,
         categoryCode: effective.categoryCode,
         openFlagTypes: flagTypes,
+        hasFinanceException,
+        hasBlockingNeedsFollowUp: openFlags.some((flag) => flag.flag_type === "needs_follow_up" && !isMissingCustomerEmailFlag(flag)),
       }),
       exclusions: b2cPaymentExclusionReasons({
         paymentStatus: payment.payment_status,
         customerEmail: effective.customerEmail,
         categoryCode: effective.categoryCode,
         openFlagTypes: flagTypes,
+        hasFinanceException,
+        hasBlockingNeedsFollowUp: openFlags.some((flag) => flag.flag_type === "needs_follow_up" && !isMissingCustomerEmailFlag(flag)),
       }),
     };
   };
@@ -245,6 +269,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   let possibleDuplicateCount = 0;
   let otherReviewCount = 0;
   let nonSucceededPaymentCount = 0;
+  let financeExceptionPaymentCount = 0;
   for (const payment of payments) {
     const effective = effectivePayment(payment);
     if (!isInB2cPeriod(effective.occurredOn, period)) continue;
@@ -259,6 +284,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     if (reportability.isReportable) {
       eligiblePayments += amount;
       reportablePaymentCount += 1;
+      if (latestFinanceDecisionByPayment.get(payment.id)?.decision === "include") financeExceptionPaymentCount += 1;
       continue;
     }
     excludedCompletedPayments += amount;
@@ -307,6 +333,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       productReference: sourceMetadataText(payment.source_metadata, "product_reference"),
       hasLocalCorrection: effective.hasLocalCorrection,
       localCorrectionFields: effective.correctedFields,
+      hasFinanceException: latestFinanceDecisionByPayment.get(payment.id)?.decision === "include",
       openReviewFlags: reviewFlags,
       issue: flagLabel(flagsByRecord.get(payment.id) ?? []),
     };
@@ -340,6 +367,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         productReference: null,
         hasLocalCorrection: Boolean(payment && effective?.hasLocalCorrection),
         localCorrectionFields: effective?.correctedFields ?? [],
+        hasFinanceException: Boolean(payment && latestFinanceDecisionByPayment.get(payment.id)?.decision === "include"),
         openReviewFlags: reviewFlags,
         issue: flagLabel(flagsByRecord.get(refund.id) ?? []),
       };
@@ -367,6 +395,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       possibleDuplicateCount,
       otherReviewCount,
       nonSucceededPaymentCount,
+      financeExceptionPaymentCount,
     },
     reviewItems: [...flagsByRecord.values()].reduce((sum, flags) => sum + flags.length, 0),
     rows,

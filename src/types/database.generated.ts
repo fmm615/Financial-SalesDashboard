@@ -140,6 +140,11 @@ export interface Database {
         category_code: string | null; membership_tier: string | null; local_amount_usd: Decimal | null; local_occurred_on: string | null; created_by: Uuid; updated_by: Uuid;
         created_at: Timestamp; updated_at: Timestamp;
       }>;
+      b2c_payment_finance_exception_decisions: Table<{
+        id: Uuid; payment_id: Uuid; decision: "include" | "revoke"; reason: string;
+        confirmed_provider_transaction: boolean; confirmed_no_known_duplicate: boolean;
+        created_by: Uuid; created_at: Timestamp;
+      }>;
       b2c_refunds: Table<{
         id: Uuid; payment_id: Uuid; source_system: B2cPaymentRow["source_system"]; provider_refund_id: string | null;
         original_amount: Decimal; original_currency: string; exchange_rate_to_usd: Decimal; amount_usd: Decimal;
@@ -219,6 +224,10 @@ export interface Database {
       resolve_b2c_review_flag: { Args: { p_flag_id: Uuid; p_resolution_status: "resolved" | "dismissed"; p_resolution_note: string }; Returns: undefined };
       apply_b2c_payment_local_correction: {
         Args: { p_payment_id: Uuid; p_customer_name: string | null; p_customer_email: string | null; p_customer_phone: string | null; p_category_code: string | null; p_membership_tier: string | null; p_local_amount_usd: Decimal | null; p_local_occurred_on: string | null; p_reason: string };
+        Returns: undefined;
+      };
+      include_b2c_payment_with_finance_exception: {
+        Args: { p_payment_id: Uuid; p_reason: string; p_confirmed_provider_transaction: boolean; p_confirmed_no_known_duplicate: boolean };
         Returns: undefined;
       };
     };

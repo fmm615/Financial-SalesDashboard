@@ -7,6 +7,10 @@ export type B2cPaymentReportabilityInput = {
   customerEmail: string | null;
   categoryCode: string | null;
   openFlagTypes: ReadonlySet<string>;
+  /** A separately audited, Admin-confirmed local inclusion decision. */
+  hasFinanceException?: boolean;
+  /** Source follow-up problems other than the explicitly permitted missing-email exception. */
+  hasBlockingNeedsFollowUp?: boolean;
 };
 
 export type B2cPaymentExclusionReason =
@@ -18,11 +22,12 @@ export type B2cPaymentExclusionReason =
 
 export function b2cPaymentExclusionReasons(input: B2cPaymentReportabilityInput): B2cPaymentExclusionReason[] {
   const reasons: B2cPaymentExclusionReason[] = [];
+  const exceptionApproved = input.hasFinanceException === true;
   if (input.paymentStatus !== "succeeded") reasons.push("not_succeeded");
-  if (!input.customerEmail) reasons.push("missing_customer_email");
-  if (!input.categoryCode || input.categoryCode === "unmapped" || input.openFlagTypes.has("unmapped_product")) reasons.push("unmapped_product");
+  if (!input.customerEmail && !exceptionApproved) reasons.push("missing_customer_email");
+  if ((!input.categoryCode || input.categoryCode === "unmapped" || input.openFlagTypes.has("unmapped_product")) && !exceptionApproved) reasons.push("unmapped_product");
   if (input.openFlagTypes.has("possible_duplicate")) reasons.push("possible_duplicate");
-  if (input.openFlagTypes.has("needs_follow_up")) reasons.push("needs_follow_up");
+  if (input.hasBlockingNeedsFollowUp ?? input.openFlagTypes.has("needs_follow_up")) reasons.push("needs_follow_up");
   return reasons;
 }
 

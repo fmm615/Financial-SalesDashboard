@@ -34,3 +34,12 @@ export const b2cPaymentLocalCorrectionSchema = z.object({
 });
 
 export type B2cPaymentLocalCorrectionInput = z.infer<typeof b2cPaymentLocalCorrectionSchema>;
+
+/** A controlled exception may count one succeeded source payment without all source metadata. */
+export const b2cFinanceExceptionSchema = z.object({
+  reason: z.string().trim().min(3, "Enter an exception reason of at least 3 characters.").max(1000),
+  confirmedProviderTransaction: z.boolean().refine(Boolean, "Confirm this is the exact Stripe payment ID."),
+  confirmedNoKnownDuplicate: z.boolean().refine(Boolean, "Confirm you reviewed this payment for duplicates."),
+}).strict();
+
+export type B2cFinanceExceptionInput = z.infer<typeof b2cFinanceExceptionSchema>;

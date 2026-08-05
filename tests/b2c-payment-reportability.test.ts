@@ -20,4 +20,18 @@ describe("B2C payment reportability", () => {
     ]);
     expect(isReportableB2cPayment({ ...completePayment, paymentStatus: "failed" })).toBe(false);
   });
+
+  it("allows only the documented missing-data exception while preserving duplicate and failed blocks", () => {
+    const approvedException = {
+      ...completePayment,
+      customerEmail: null,
+      categoryCode: "membership",
+      openFlagTypes: new Set(["needs_follow_up", "unmapped_product"]),
+      hasFinanceException: true,
+      hasBlockingNeedsFollowUp: false,
+    };
+    expect(isReportableB2cPayment(approvedException)).toBe(true);
+    expect(isReportableB2cPayment({ ...approvedException, openFlagTypes: new Set(["possible_duplicate"]) })).toBe(false);
+    expect(isReportableB2cPayment({ ...approvedException, paymentStatus: "failed" })).toBe(false);
+  });
 });

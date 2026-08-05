@@ -51,6 +51,8 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
   const [mappingMembershipTier, setMappingMembershipTier] = useState("");
   const [draft, setDraft] = useState<CorrectionDraft>(() => draftFromRow(row));
   const [reason, setReason] = useState("");
+  const [confirmedProviderTransaction, setConfirmedProviderTransaction] = useState(false);
+  const [confirmedNoKnownDuplicate, setConfirmedNoKnownDuplicate] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -75,6 +77,8 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
   function openReview() {
     setDraft(draftFromRow(row));
     setReason("");
+    setConfirmedProviderTransaction(false);
+    setConfirmedNoKnownDuplicate(false);
     setMessage(null);
     setOpen(true);
   }
@@ -97,17 +101,17 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
     } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The local Stripe product mapping could not be saved."); } finally { setSaving(false); }
   }
 
-  async function resolveFlag(flagId: string) {
+  async function saveFinanceException() {
     setSaving(true); setMessage(null);
     try {
-      const response = await fetch(`/api/admin/b2c/review-flags/${flagId}/resolve`, {
+      const response = await fetch(`/api/admin/b2c/payments/${row.id}/finance-exception`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resolutionStatus: "resolved", resolutionNote: reason }),
+        body: JSON.stringify({ reason, confirmedProviderTransaction, confirmedNoKnownDuplicate }),
       });
       const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error ?? "The B2C review item could not be resolved.");
+      if (!response.ok) throw new Error(result.error ?? "The Finance exception could not be saved.");
       setOpen(false); router.refresh();
-    } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The B2C review item could not be resolved."); } finally { setSaving(false); }
+    } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The Finance exception could not be saved."); } finally { setSaving(false); }
   }
 
   async function saveLocalCorrection() {
@@ -122,6 +126,8 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
       setOpen(false); router.refresh();
     } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The local B2C correction could not be saved."); } finally { setSaving(false); }
   }
+
+  const canUseFinanceException = row.paymentStatus === "Completed" && Boolean(row.providerReference) && row.category !== "Unmapped" && !row.hasFinanceException;
 
   return <>
     <button type="button" onClick={openReview} className="font-medium text-brand-accent hover:underline">Edit locally</button>
@@ -172,14 +178,28 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
         </div>
 
         {row.openReviewFlags.length > 0 && <div className="mt-6 border-t border-border pt-5">
-          <div><h3 className="font-semibold text-text-primary">Open review items</h3><p className="mt-1 text-sm leading-6 text-text-muted">Resolving an item records your note and closes that task only. It does not change Stripe or make a failed payment successful.</p></div>
+          <h3 className="font-semibold text-text-primary">Source review flags</h3>
+          <p className="mt-1 text-sm leading-6 text-text-muted">These remain part of the source history. Saving a verified correction clears its matching missing-data flag automatically; no Stripe record is changed.</p>
           <div className="mt-4 space-y-3">
             {row.openReviewFlags.map((flag) => <div key={flag.id} className="overflow-hidden rounded-input border border-border bg-surface p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3"><StatusBadge status={flag.type} /><button type="button" onClick={() => void resolveFlag(flag.id)} disabled={saving || reason.trim().length < 3} className="w-full shrink-0 rounded-pill border border-border px-4 py-2 text-sm font-semibold text-text-secondary hover:border-brand-accent hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto">Mark resolved</button></div>
+              <StatusBadge status={flag.type} />
               <p className="mt-3 break-words text-sm leading-6 text-text-secondary">{flag.reason}</p>
             </div>)}
           </div>
         </div>}
+
+        <div className="mt-6 overflow-hidden rounded-input border border-brand-accent/25 bg-brand-accent/5 p-4 sm:p-5">
+          <h3 className="font-semibold text-text-primary">Finance inclusion exception</h3>
+          {row.hasFinanceException ? <p className="mt-1 text-sm leading-6 text-success">This succeeded payment is included in PLAYBOOK Finance through an audited exception. Its missing Stripe source fields remain visible above.</p> : <>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">Use only when source details are genuinely unavailable but Finance has verified the local amount, business date, and PLAYBOOK category. This does not clear source flags or change Stripe.</p>
+            <label className="mt-4 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedProviderTransaction} onChange={(event) => setConfirmedProviderTransaction(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I confirm this is the exact provider payment ID shown above.</label>
+            <label className="mt-3 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedNoKnownDuplicate} onChange={(event) => setConfirmedNoKnownDuplicate(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I reviewed the available evidence and found no known duplicate.</label>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <PrimaryButton onClick={() => void saveFinanceException()} disabled={saving || !canUseFinanceException || !confirmedProviderTransaction || !confirmedNoKnownDuplicate || reason.trim().length < 3}>{saving ? "Saving…" : "Include by Finance exception"}</PrimaryButton>
+              <p className="text-xs leading-5 text-text-muted">{canUseFinanceException ? "Requires the audit reason above and both confirmations." : "A succeeded payment, exact provider ID, and a verified local PLAYBOOK category are required first."}</p>
+            </div>
+          </>}
+        </div>
         {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
       </section>
     </div>}
