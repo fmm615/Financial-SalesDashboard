@@ -131,77 +131,78 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
   }
 
   const canUseFinanceException = row.paymentStatus === "Completed" && Boolean(row.providerReference) && row.category !== "Unmapped" && !row.hasFinanceException;
+  const hasSourceReview = row.openReviewFlags.length > 0;
 
   return <>
     <button type="button" onClick={openReview} className="font-medium text-brand-accent hover:underline">Edit locally</button>
     {open && <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4 sm:p-6">
-      <section role="dialog" aria-modal="true" aria-labelledby={`b2c-review-${row.id}`} className="mx-auto my-4 w-full min-w-0 max-w-[calc(100vw-2rem)] overflow-hidden whitespace-normal rounded-card bg-surface p-5 shadow-elevated sm:my-8 sm:max-w-[calc(100vw-3rem)] sm:p-8 lg:max-w-4xl">
+      <section role="dialog" aria-modal="true" aria-labelledby={`b2c-review-${row.id}`} className="mx-auto my-4 w-full min-w-0 max-w-[calc(100vw-2rem)] overflow-hidden whitespace-normal rounded-card bg-surface p-5 shadow-elevated sm:my-8 sm:max-w-[calc(100vw-3rem)] sm:p-8 lg:max-w-3xl">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0"><h2 id={`b2c-review-${row.id}`} className="text-xl font-semibold text-text-primary sm:text-2xl">Edit B2C payment locally</h2><p className={`${copyClass} mt-1 max-w-2xl text-sm leading-6 text-text-muted`}>Every saved change is a separate PLAYBOOK correction with your reason and audit history. Stripe is never changed.</p></div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2"><h2 id={`b2c-review-${row.id}`} className="text-xl font-semibold text-text-primary sm:text-2xl">Correct B2C payment</h2><StatusBadge status={row.paymentStatus} /></div>
+            <p className={`${copyClass} mt-1 max-w-2xl text-sm leading-6 text-text-muted`}>Save verified local values with a reason. Stripe is never changed.</p>
+          </div>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close B2C payment editor" className="shrink-0 rounded-pill px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-muted hover:text-text-primary">Close</button>
         </div>
 
-        <div className="mt-6 grid gap-x-6 gap-y-4 rounded-input border border-border bg-surface-muted/40 p-4 text-sm sm:grid-cols-2">
-          <p className="min-w-0"><span className="text-text-muted">Stripe payment ID</span><span className="mt-1 block break-all font-mono text-xs text-text-primary">{row.providerReference ?? "Unavailable"}</span></p>
-          <p className="min-w-0"><span className="text-text-muted">Stripe source product</span><span className="mt-1 block break-words font-medium text-text-primary">{row.productReference ?? "Unavailable from Stripe"}</span></p>
-          <p><span className="text-text-muted">Provider payment status</span><span className="mt-1 block"><StatusBadge status={row.paymentStatus} /></span></p>
-          <p><span className="text-text-muted">Provider source</span><span className="mt-1 block font-medium text-text-primary">{row.source}</span></p>
-        </div>
-
-        {hasUnmappedProduct && <div className="mt-5 overflow-hidden rounded-input border border-warning/25 bg-warning/5 p-4 sm:p-5">
-          <h3 className="font-semibold text-text-primary">Create local product mapping</h3>
-          <p className={`${copyClass} mt-1 text-sm leading-6 text-text-secondary`}>A mapping classifies every local Stripe payment with the exact same product reference. It never edits Stripe. A one-payment correction below affects only this row.</p>
-          {mappingAvailable ? <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
-            <label className={fieldClass}>Internal product code<input className={inputClass} value={internalProductCode} onChange={(event) => setInternalProductCode(event.target.value)} placeholder="membership_annual" /></label>
-            <label className={fieldClass}>Internal product name<input className={inputClass} value={internalProductName} onChange={(event) => setInternalProductName(event.target.value)} placeholder="Annual membership" /></label>
-            <label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={mappingCategoryCode} onChange={(event) => setMappingCategoryCode(event.target.value)} placeholder="membership" /></label>
-            <label className={fieldClass}>Membership tier <span className="font-normal text-text-muted">(optional)</span><input className={inputClass} value={mappingMembershipTier} onChange={(event) => setMappingMembershipTier(event.target.value)} placeholder="annual" /></label>
-          </div> : <p className={`${copyClass} mt-3 text-sm leading-6 text-warning`}>Stripe did not provide a reusable product reference for this payment. You can still correct this one PLAYBOOK row below, but that will not affect any other payment.</p>}
-        </div>}
-
-        <div className="mt-5 overflow-hidden rounded-input border border-border bg-surface-muted/40 p-4 sm:p-5">
-          <h3 className="font-semibold text-text-primary">Verified local values</h3>
-          <p className={`${copyClass} mt-1 max-w-3xl text-sm leading-6 text-text-secondary`}>Edit only values Finance has verified. Amount and business date affect PLAYBOOK reporting; the original Stripe amount and timestamp remain preserved for traceability. A failed provider payment always remains failed.</p>
-          <div className="mt-4 grid gap-x-5 gap-y-4 md:grid-cols-2">
+        <div className="mt-6 rounded-card border border-border bg-surface-muted/35 p-4 sm:p-5">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"><div><h3 className="font-semibold text-text-primary">Verified local values</h3><p className={`${copyClass} mt-1 text-sm leading-6 text-text-muted`}>Update only the values Finance has verified.</p></div><p className="text-xs text-text-muted">Source amount: {row.sourceAmountUsd} · Source date: {row.sourceDateValue}</p></div>
+          <div className="mt-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Customer</p>
+            <div className="mt-3 grid gap-x-5 gap-y-4 md:grid-cols-2">
             <label className={fieldClass}>Customer name<input className={inputClass} value={draft.customerName} onChange={(event) => updateDraft("customerName", event.target.value)} placeholder="Verified customer name" /></label>
             <label className={fieldClass}>Customer email<input className={inputClass} value={draft.customerEmail} onChange={(event) => updateDraft("customerEmail", event.target.value)} inputMode="email" placeholder="verified@example.com" /></label>
             <label className={fieldClass}>Customer mobile<input className={inputClass} value={draft.customerPhone} onChange={(event) => updateDraft("customerPhone", event.target.value)} inputMode="tel" placeholder="+973 0000 0000" /></label>
+            </div>
+          </div>
+          <div className="mt-5 border-t border-border pt-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">PLAYBOOK reporting</p>
+            <div className="mt-3 grid gap-x-5 gap-y-4 md:grid-cols-2">
             <label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={draft.categoryCode} onChange={(event) => updateDraft("categoryCode", event.target.value)} placeholder="membership" /></label>
             <label className={fieldClass}>Plan / tier<input className={inputClass} value={draft.membershipTier} onChange={(event) => updateDraft("membershipTier", event.target.value)} placeholder="Founding Membership" /></label>
-            <label className={fieldClass}>Local B2C amount (USD)<input className={inputClass} type="number" min="0.000001" step="0.000001" value={draft.amountUsd} onChange={(event) => updateDraft("amountUsd", event.target.value)} /><span className="mt-1 block text-xs font-normal text-text-muted">Stripe source amount: {row.sourceAmountUsd}</span></label>
-            <label className={fieldClass}>Local business date<input className={inputClass} type="date" value={draft.occurredOn} onChange={(event) => updateDraft("occurredOn", event.target.value)} /><span className="mt-1 block text-xs font-normal text-text-muted">Stripe source date: {row.sourceDateValue}</span></label>
+            <label className={fieldClass}>Local B2C amount (USD)<input className={inputClass} type="number" min="0.000001" step="0.000001" value={draft.amountUsd} onChange={(event) => updateDraft("amountUsd", event.target.value)} /></label>
+            <label className={fieldClass}>Local business date<input className={inputClass} type="date" value={draft.occurredOn} onChange={(event) => updateDraft("occurredOn", event.target.value)} /></label>
+            </div>
           </div>
         </div>
 
-        <label className={`${fieldClass} mt-5`}>Reason / evidence<textarea className={textareaClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required: explain the verified evidence for this local change. This is saved in the audit history." /></label>
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-5">
+        <label className={`${fieldClass} mt-5`}>Reason / evidence <span className="font-normal text-text-muted">(required)</span><textarea className={textareaClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence for this change. It is saved in the audit history." /></label>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <PrimaryButton onClick={() => void saveLocalCorrection()} disabled={saving || !hasLocalCorrectionInput || reason.trim().length < 3}>{saving ? "Saving…" : "Save audited local correction"}</PrimaryButton>
-          {hasUnmappedProduct && mappingAvailable && <PrimaryButton onClick={() => void mapProduct()} disabled={saving || reason.trim().length < 3}>{saving ? "Saving…" : "Save local product mapping"}</PrimaryButton>}
           <p className="text-xs leading-5 text-text-muted">{hasLocalCorrectionInput ? "The saved correction updates PLAYBOOK reporting only." : "Change at least one local value and enter a reason to save."}</p>
         </div>
 
-        {row.openReviewFlags.length > 0 && <div className="mt-6 border-t border-border pt-5">
-          <h3 className="font-semibold text-text-primary">Source review flags</h3>
-          <p className={`${copyClass} mt-1 text-sm leading-6 text-text-muted`}>These remain part of the source history. Saving a verified correction clears its matching missing-data flag automatically; no Stripe record is changed.</p>
-          <div className="mt-4 space-y-3">
-            {row.openReviewFlags.map((flag) => <div key={flag.id} className="min-w-0 max-w-full overflow-hidden rounded-input border border-border bg-surface p-4">
-              <StatusBadge status={flag.type} />
-              <p className={`${copyClass} mt-3 text-sm leading-6 text-text-secondary`}>{flag.reason}</p>
-            </div>)}
-          </div>
-        </div>}
-
-        <div className="mt-6 overflow-hidden rounded-input border border-brand-accent/25 bg-brand-accent/5 p-4 sm:p-5">
-          <h3 className="font-semibold text-text-primary">Finance inclusion exception</h3>
-          {row.hasFinanceException ? <p className={`${copyClass} mt-1 text-sm leading-6 text-success`}>This succeeded payment is included in PLAYBOOK Finance through an audited exception. Its missing Stripe source fields remain visible above.</p> : <>
-            <p className={`${copyClass} mt-1 max-w-3xl text-sm leading-6 text-text-secondary`}>Use only when source details are genuinely unavailable but Finance has verified the local amount, business date, and PLAYBOOK category. This does not clear source flags or change Stripe.</p>
-            <label className="mt-4 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedProviderTransaction} onChange={(event) => setConfirmedProviderTransaction(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I confirm this is the exact provider payment ID shown above.</label>
-            <label className="mt-3 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedNoKnownDuplicate} onChange={(event) => setConfirmedNoKnownDuplicate(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I reviewed the available evidence and found no known duplicate.</label>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <PrimaryButton onClick={() => void saveFinanceException()} disabled={saving || !canUseFinanceException || !confirmedProviderTransaction || !confirmedNoKnownDuplicate || reason.trim().length < 3}>{saving ? "Saving…" : "Include by Finance exception"}</PrimaryButton>
-              <p className="text-xs leading-5 text-text-muted">{canUseFinanceException ? "Requires the audit reason above and both confirmations." : "A succeeded payment, exact provider ID, and a verified local PLAYBOOK category are required first."}</p>
+        <div className="mt-6 space-y-3 border-t border-border pt-5">
+          <details className="group rounded-input border border-border bg-surface">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>Source details</span><span className="text-xs font-normal text-text-muted group-open:hidden">View</span><span className="hidden text-xs font-normal text-text-muted group-open:inline">Hide</span></summary>
+            <div className="grid gap-x-6 gap-y-4 border-t border-border px-4 py-4 text-sm sm:grid-cols-2">
+              <p className="min-w-0"><span className="text-text-muted">Stripe payment ID</span><span className="mt-1 block break-all font-mono text-xs text-text-primary">{row.providerReference ?? "Unavailable"}</span></p>
+              <p className="min-w-0"><span className="text-text-muted">Stripe source product</span><span className={`${copyClass} mt-1 block font-medium text-text-primary`}>{row.productReference ?? "Unavailable from Stripe"}</span></p>
+              <p><span className="text-text-muted">Provider status</span><span className="mt-1 block"><StatusBadge status={row.paymentStatus} /></span></p>
+              <p><span className="text-text-muted">Provider source</span><span className="mt-1 block font-medium text-text-primary">{row.source}</span></p>
             </div>
-          </>}
+          </details>
+
+          {hasSourceReview && <details className="group rounded-input border border-border bg-surface">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>Source review flags <span className="ml-1 font-normal text-text-muted">({row.openReviewFlags.length})</span></span><span className="text-xs font-normal text-text-muted group-open:hidden">View</span><span className="hidden text-xs font-normal text-text-muted group-open:inline">Hide</span></summary>
+            <div className="border-t border-border px-4 py-4">
+              <p className={`${copyClass} text-sm leading-6 text-text-muted`}>These source flags remain in history. A verified local correction clears only its matching missing-data flag; Stripe is never changed.</p>
+              <div className="mt-4 space-y-3">
+                {row.openReviewFlags.map((flag) => <div key={flag.id} className="min-w-0 max-w-full rounded-input border border-border bg-surface-muted/35 p-4"><StatusBadge status={flag.type} /><p className={`${copyClass} mt-3 text-sm leading-6 text-text-secondary`}>{flag.reason}</p></div>)}
+              </div>
+              {hasUnmappedProduct && !mappingAvailable && <p className={`${copyClass} mt-4 rounded-input border border-warning/25 bg-warning/5 p-3 text-sm leading-6 text-warning`}>Stripe did not provide a reusable product reference. A local correction above affects this payment only.</p>}
+            </div>
+          </details>}
+
+          {hasUnmappedProduct && mappingAvailable && <details className="group rounded-input border border-warning/25 bg-warning/5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>Create reusable product mapping</span><span className="text-xs font-normal text-warning group-open:hidden">Optional</span><span className="hidden text-xs font-normal text-warning group-open:inline">Hide</span></summary>
+            <div className="border-t border-warning/20 px-4 py-4"><p className={`${copyClass} text-sm leading-6 text-text-secondary`}>This classifies every local payment with this exact source product reference. It does not edit Stripe.</p><div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2"><label className={fieldClass}>Internal product code<input className={inputClass} value={internalProductCode} onChange={(event) => setInternalProductCode(event.target.value)} placeholder="membership_annual" /></label><label className={fieldClass}>Internal product name<input className={inputClass} value={internalProductName} onChange={(event) => setInternalProductName(event.target.value)} placeholder="Annual membership" /></label><label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={mappingCategoryCode} onChange={(event) => setMappingCategoryCode(event.target.value)} placeholder="membership" /></label><label className={fieldClass}>Membership tier <span className="font-normal text-text-muted">(optional)</span><input className={inputClass} value={mappingMembershipTier} onChange={(event) => setMappingMembershipTier(event.target.value)} placeholder="annual" /></label></div><div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void mapProduct()} disabled={saving || reason.trim().length < 3}>{saving ? "Saving…" : "Save local product mapping"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Uses the reason above and applies only in PLAYBOOK.</p></div></div>
+          </details>}
+
+          {(canUseFinanceException || row.hasFinanceException) && <details className="group rounded-input border border-brand-accent/25 bg-brand-accent/5">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>Finance inclusion exception</span><span className="text-xs font-normal text-text-muted group-open:hidden">Advanced</span><span className="hidden text-xs font-normal text-text-muted group-open:inline">Hide</span></summary>
+            <div className="border-t border-brand-accent/15 px-4 py-4">{row.hasFinanceException ? <p className={`${copyClass} text-sm leading-6 text-success`}>This succeeded payment is included in PLAYBOOK Finance through an audited exception. Its missing Stripe source fields remain visible.</p> : <><p className={`${copyClass} text-sm leading-6 text-text-secondary`}>Use only when source details are genuinely unavailable and Finance has verified the local amount, business date, and category.</p><label className="mt-4 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedProviderTransaction} onChange={(event) => setConfirmedProviderTransaction(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I confirm this is the exact provider payment ID shown above.</label><label className="mt-3 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedNoKnownDuplicate} onChange={(event) => setConfirmedNoKnownDuplicate(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I reviewed the available evidence and found no known duplicate.</label><div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void saveFinanceException()} disabled={saving || !confirmedProviderTransaction || !confirmedNoKnownDuplicate || reason.trim().length < 3}>{saving ? "Saving…" : "Include by Finance exception"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Requires the reason above and both confirmations.</p></div></>}</div>
+          </details>}
         </div>
         {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
       </section>
