@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { normaliseStripeCharge, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
+import { normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
 import { stripeProductMappingSchema } from "@/lib/validation/financial-contracts";
 import { b2cPaymentLocalCorrectionSchema } from "@/lib/validation/b2c-review-contracts";
@@ -53,6 +53,24 @@ describe("Stripe normalisation and webhook security", () => {
     expect(normaliseStripeCharge({ ...charge, billing_details: { ...charge.billing_details, phone: "not a phone" } }, "product_id").customerPhone).toBeNull();
   });
 
+  it("uses the direct Stripe Checkout Price and Product name as plan context", () => {
+    const plan = normaliseStripeCheckoutPlan({
+      sessionId: "cs_123",
+      lineItems: { data: [{ price: { id: "price_founding", nickname: null, metadata: {}, product: { id: "prod_membership", name: "Founding Membership", metadata: {} } } }] },
+    });
+    expect(plan).toEqual({ checkoutSessionId: "cs_123", priceId: "price_founding", productId: "prod_membership", planName: "Founding Membership" });
+  });
+
+  it("does not guess a plan from a multi-product Checkout cart", () => {
+    expect(normaliseStripeCheckoutPlan({
+      sessionId: "cs_multi",
+      lineItems: { data: [
+        { price: { id: "price_membership", metadata: {}, product: "prod_membership" } },
+        { price: { id: "price_add_on", metadata: {}, product: "prod_add_on" } },
+      ] },
+    })).toBeNull();
+  });
+
   it("does not invent a foreign-currency conversion or accept a non-succeeded refund as a financial record", () => {
     expect(() => normaliseStripeCharge({ ...charge, currency: "bhd" }, "product_id")).toThrow("no verified USD conversion rate");
     expect(() => normaliseStripeRefund({ ...succeededRefund, status: "pending" })).toThrow(StripeRefundNotSucceededError);
@@ -75,6 +93,26 @@ describe("Stripe normalisation and webhook security", () => {
 });
 
 describe("Stripe ingestion orchestration", () => {
+  it("enriches a Checkout charge with its direct Price and plan name without writing to Stripe", async () => {
+    const repository = { persistCharge: vi.fn().mockResolvedValue({ inserted: true }), persistRefund: vi.fn() };
+    const checkoutPlan = { sessionId: "cs_123", lineItems: { data: [{ price: { id: "price_founding", metadata: {}, product: { id: "prod_membership", name: "Founding Membership", metadata: {} } } }] } };
+    const source = {
+      fetchCharge: vi.fn(), listChargesCreatedSince: vi.fn().mockResolvedValue([{ ...charge, metadata: {}, payment_intent: "pi_123" }]), listRefundsCreatedSince: vi.fn().mockResolvedValue([]),
+      fetchCheckoutPlanForPaymentIntent: vi.fn().mockResolvedValue(checkoutPlan),
+    };
+    await runStripeReconciliation({
+      source,
+      productReferenceMetadataKey: "product_id",
+      repository: { ...repository, startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }), completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn() },
+      now: new Date("2026-08-02T12:00:00.000Z"),
+    });
+    expect(source.fetchCheckoutPlanForPaymentIntent).toHaveBeenCalledWith("pi_123");
+    expect(repository.persistCharge).toHaveBeenCalledWith(expect.objectContaining({
+      productReference: "price_founding",
+      sourceMetadata: expect.objectContaining({ stripe_plan_name: "Founding Membership", stripe_price_id: "price_founding" }),
+    }));
+  });
+
   it("does not treat a failed retry as a possible financial duplicate", async () => {
     const repository = { persistCharge: vi.fn().mockResolvedValue({ inserted: true }), persistRefund: vi.fn() };
     const source = { fetchCharge: vi.fn(), listChargesCreatedSince: vi.fn(), listRefundsCreatedSince: vi.fn() };

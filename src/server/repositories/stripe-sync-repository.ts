@@ -113,7 +113,9 @@ export class SupabaseStripeSyncRepository {
     const values = {
       source_system: "stripe" as const, provider_transaction_id: input.chargeId, provider_event_id: input.providerEventId ?? existing?.provider_event_id ?? null,
       customer_id: customerId, customer_email: input.customerEmail, customer_name: input.customerName, customer_phone: input.customerPhone, product_mapping_id: mapping?.id ?? null, category_code: categoryCode,
-      membership_tier: mapping?.membershipTier ?? null, payment_status: input.paymentStatus, original_amount: input.originalAmount,
+      // A verified local mapping remains the reporting classification. When no
+      // mapping exists, show the direct Stripe plan name for traceability only.
+      membership_tier: mapping?.membershipTier ?? input.sourceMetadata.stripe_plan_name ?? null, payment_status: input.paymentStatus, original_amount: input.originalAmount,
       original_currency: input.originalCurrency, exchange_rate_to_usd: input.exchangeRateToUsd, amount_usd: input.amountUsd, gross_amount_usd: input.amountUsd,
       tax_amount_usd: null, net_amount_usd: null, occurred_at: input.occurredAt, occurred_on: input.occurredOn, duplicate_fingerprint: duplicateFingerprint,
       reconciliation_source: input.reconciliationSource ?? null, source_metadata: input.sourceMetadata,

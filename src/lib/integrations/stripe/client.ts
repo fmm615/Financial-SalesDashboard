@@ -23,6 +23,20 @@ export class StripeClient {
   }
 
   async fetchCharge(chargeId: string): Promise<unknown> { return this.request(`/v1/charges/${encodeURIComponent(chargeId)}`); }
+  /**
+   * Checkout is the reliable path from a Charge's PaymentIntent to its Price
+   * and Product. The result remains untrusted until normalised by the service.
+   */
+  async fetchCheckoutPlanForPaymentIntent(paymentIntentId: string): Promise<unknown | null> {
+    const query = new URLSearchParams({ payment_intent: paymentIntentId, limit: "1" });
+    const sessions = await this.request(`/v1/checkout/sessions?${query.toString()}`) as StripeListResponse;
+    const session = sessions.data?.[0] as { id?: unknown } | undefined;
+    if (typeof session?.id !== "string") return null;
+    const lineItemQuery = new URLSearchParams({ limit: "100" });
+    lineItemQuery.append("expand[]", "data.price.product");
+    const lineItems = await this.request(`/v1/checkout/sessions/${encodeURIComponent(session.id)}/line_items?${lineItemQuery.toString()}`);
+    return { sessionId: session.id, lineItems };
+  }
   async listChargesCreatedSince(since: Date): Promise<unknown[]> { return this.listSince("charges", since); }
   async listRefundsCreatedSince(since: Date): Promise<unknown[]> { return this.listSince("refunds", since); }
   async listChargesPage(cursor?: string): Promise<StripePage> { return this.listPage("charges", cursor); }

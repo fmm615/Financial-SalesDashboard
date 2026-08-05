@@ -20,6 +20,23 @@ const refundSchema = z.object({
   id: z.string().min(1), charge: z.string().nullable(), amount: z.number().int().positive(), currency: z.string().length(3),
   created: z.number().int().nonnegative(), status: z.string().nullable().optional(), reason: z.string().nullable().optional(), metadata: metadataSchema.optional(),
 }).passthrough();
+const stripeProductSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().nullable().optional(),
+  metadata: metadataSchema.optional(),
+}).passthrough();
+const stripePriceSchema = z.object({
+  id: z.string().min(1),
+  nickname: z.string().nullable().optional(),
+  metadata: metadataSchema.optional(),
+  product: z.union([z.string().min(1), stripeProductSchema]).nullable().optional(),
+}).passthrough();
+const checkoutLineItemsSchema = z.object({
+  sessionId: z.string().min(1),
+  lineItems: z.object({
+    data: z.array(z.object({ price: stripePriceSchema.nullable().optional() }).passthrough()),
+  }).passthrough(),
+});
 
 export type StripePaymentStatus = "succeeded" | "failed" | "pending";
 export type NormalisedStripeCharge = {
@@ -28,6 +45,7 @@ export type NormalisedStripeCharge = {
   sourceMetadata: Record<string, string>;
 };
 export type NormalisedStripeRefund = { refundId: string; chargeId: string; originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; reason: string | null; metadata: Record<string, string> };
+export type StripeCheckoutPlan = { checkoutSessionId: string; priceId: string; productId: string | null; planName: string | null };
 
 export class StripeNormalisationError extends Error {}
 
@@ -71,6 +89,48 @@ function bahrainBusinessDate(occurredAt: Date): string {
 function requireUsd(currency: string): "USD" {
   if (currency !== "USD") throw new StripeNormalisationError(`Stripe charge uses ${currency}; no verified USD conversion rate is available.`);
   return "USD";
+}
+
+function planMetadataValue(metadata: Record<string, string>): string | null {
+  return cleanText(metadata.plan ?? metadata.tier ?? metadata.membership_plan, 100);
+}
+
+/** Reads a Checkout line item's stable Price reference and source plan name. */
+export function normaliseStripeCheckoutPlan(payload: unknown): StripeCheckoutPlan | null {
+  const result = checkoutLineItemsSchema.safeParse(payload);
+  if (!result.success) return null;
+  // One B2C payment currently has one reportable classification. A cart with
+  // multiple different Prices needs an approved allocation rule, so never
+  // silently classify it from whichever line happens to be first.
+  const prices = result.data.lineItems.data.flatMap((item) => item.price ? [item.price] : []);
+  if (prices.length !== 1) return null;
+  const [price] = prices;
+  if (!price) return null;
+  const product = typeof price.product === "object" && price.product ? price.product : null;
+  return {
+    checkoutSessionId: result.data.sessionId,
+    priceId: price.id,
+    productId: product?.id ?? (typeof price.product === "string" ? price.product : null),
+    planName: planMetadataValue(price.metadata ?? {}) ?? cleanText(price.nickname, 100) ?? (product ? planMetadataValue(product.metadata ?? {}) ?? cleanText(product.name, 100) : null),
+  };
+}
+
+/** Adds only direct Stripe Checkout data to a normalised Charge; it does not change the provider. */
+export function addStripeCheckoutPlan(charge: NormalisedStripeCharge, plan: StripeCheckoutPlan): NormalisedStripeCharge {
+  return {
+    ...charge,
+    // An existing configured Charge metadata value is intentionally preferred.
+    // Otherwise the Stripe Price ID is a stable, direct product reference.
+    productReference: charge.productReference ?? plan.priceId,
+    sourceMetadata: {
+      ...charge.sourceMetadata,
+      ...(charge.productReference ? {} : { product_reference: plan.priceId }),
+      stripe_checkout_session_id: plan.checkoutSessionId,
+      stripe_price_id: plan.priceId,
+      ...(plan.productId ? { stripe_product_id: plan.productId } : {}),
+      ...(plan.planName ? { stripe_plan_name: plan.planName } : {}),
+    },
+  };
 }
 
 /** Converts only the provider fields PLAYBOOK persists; raw Stripe payloads never enter the database. */

@@ -1,8 +1,9 @@
-import { normaliseStripeCharge, normaliseStripeRefund, parseStripeWebhookEvent, StripeRefundNotSucceededError, type StripeWebhookEvent } from "@/lib/integrations/stripe/normalise";
+import { addStripeCheckoutPlan, normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, parseStripeWebhookEvent, StripeRefundNotSucceededError, type StripeWebhookEvent } from "@/lib/integrations/stripe/normalise";
 import type { StripeBackfillRun, SupabaseStripeSyncRepository } from "@/server/repositories/stripe-sync-repository";
 
 export type StripeSource = {
   fetchCharge(chargeId: string): Promise<unknown>;
+  fetchCheckoutPlanForPaymentIntent?(paymentIntentId: string): Promise<unknown | null>;
   listChargesCreatedSince(since: Date): Promise<unknown[]>;
   listRefundsCreatedSince(since: Date): Promise<unknown[]>;
 };
@@ -20,8 +21,22 @@ type StripeBackfillRepository = StripeRepository & Pick<SupabaseStripeSyncReposi
 function chargeReference(chargeId: string): string { return `Stripe charge ${chargeId}`; }
 function refundReference(refundId: string): string { return `Stripe refund ${refundId}`; }
 
-async function persistCharge(input: { charge: unknown; productReferenceMetadataKey: string; repository: StripeRepository; providerEventId?: string; reconciliationSource?: string }): Promise<boolean> {
-  const charge = normaliseStripeCharge(input.charge, input.productReferenceMetadataKey);
+type StripePlanLookupSource = { fetchCheckoutPlanForPaymentIntent?: (paymentIntentId: string) => Promise<unknown | null> };
+
+async function persistCharge(input: { charge: unknown; source?: Pick<StripeSource, "fetchCharge"> & StripePlanLookupSource; productReferenceMetadataKey: string; repository: StripeRepository; providerEventId?: string; reconciliationSource?: string }): Promise<boolean> {
+  let charge = normaliseStripeCharge(input.charge, input.productReferenceMetadataKey);
+  const paymentIntentId = charge.sourceMetadata.payment_intent_id;
+  if (paymentIntentId && input.source?.fetchCheckoutPlanForPaymentIntent) {
+    try {
+      const rawPlan = await input.source.fetchCheckoutPlanForPaymentIntent(paymentIntentId);
+      const plan = rawPlan ? normaliseStripeCheckoutPlan(rawPlan) : null;
+      if (plan) charge = addStripeCheckoutPlan(charge, plan);
+    } catch {
+      // The Charge remains a valid source record if it was not created through
+      // Checkout or the optional plan lookup is unavailable. An unmapped flag
+      // keeps it out of financial totals until a verified local mapping exists.
+    }
+  }
   const result = await input.repository.persistCharge({ ...charge, providerEventId: input.providerEventId, reconciliationSource: input.reconciliationSource });
   return result.inserted;
 }
@@ -30,7 +45,7 @@ async function persistRefund(input: { refund: unknown; source: Pick<StripeSource
   const refund = normaliseStripeRefund(input.refund);
   // A refund can arrive before the matching charge's webhook. Read the charge first
   // so the original B2C record always exists before its separate refund row.
-  await persistCharge({ charge: await input.source.fetchCharge(refund.chargeId), productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository });
+  await persistCharge({ charge: await input.source.fetchCharge(refund.chargeId), source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository });
   const result = await input.repository.persistRefund(refund);
   return result.inserted;
 }
@@ -44,7 +59,7 @@ export async function processStripeWebhook(input: { event: StripeWebhookEvent; s
   if (!recorded.isNew) return { processed: 0, duplicates: 1, ignored: 0 };
   try {
     if (input.event.type === "charge.succeeded" || input.event.type === "charge.failed") {
-      await persistCharge({ charge: input.event.data.object, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, providerEventId: input.event.id });
+      await persistCharge({ charge: input.event.data.object, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, providerEventId: input.event.id });
       await input.repository.markEventCompleted(recorded.id);
       return { processed: 1, duplicates: 0, ignored: 0 };
     }
@@ -82,7 +97,7 @@ export async function runStripeReconciliation(input: { source: StripeSource; pro
     const [charges, refunds] = await Promise.all([input.source.listChargesCreatedSince(lookbackStart), input.source.listRefundsCreatedSince(lookbackStart)]);
     for (const charge of charges) {
       try {
-        if (await persistCharge({ charge, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_48_hour_reconciliation" })) inserted += 1;
+        if (await persistCharge({ charge, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_48_hour_reconciliation" })) inserted += 1;
         processed += 1;
       } catch (error) {
         const id = (charge as { id?: unknown }).id;
@@ -140,7 +155,7 @@ export async function runStripeHistoricalBackfillBatch(input: {
       const page = await input.source.listChargesPage(cursor.providerCursor);
       for (const charge of page.records) {
         try {
-          await persistCharge({ charge, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_historical_backfill" });
+          await persistCharge({ charge, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_historical_backfill" });
           processed += 1;
         } catch (error) {
           const id = (charge as { id?: unknown }).id;
