@@ -10,6 +10,11 @@ import type { B2cDashboardSnapshot, B2cLedgerRow } from "@/server/repositories/b
 
 type LedgerSort = { key: "date" | "amount"; direction: "ascending" | "descending" };
 
+function formatCoverageTimestamp(value: string | null): string | null {
+  if (!value) return null;
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bahrain" }).format(new Date(value));
+}
+
 function filterRows(rows: B2cLedgerRow[], filters: typeof initialB2cLedgerFilters): B2cLedgerRow[] {
   const search = filters.search.trim().toLowerCase();
   const minimum = filters.minAmount === "" ? null : Number(filters.minAmount);
@@ -64,21 +69,29 @@ export function B2cOperations({ snapshot = null, loadError }: { snapshot?: B2cDa
     setSort((current) => current.key === key ? { key, direction: current.direction === "ascending" ? "descending" : "ascending" } : { key, direction: "descending" });
   }
 
+  const financialTotalsAvailable = snapshot?.sourceCoverage.reportingTotalsReady ?? false;
+  const financialValue = (value: string) => financialTotalsAvailable ? value : "Not fully loaded";
+  const sourceAsOf = snapshot ? formatCoverageTimestamp(snapshot.sourceCoverage.dataAsOf) : null;
+
   return <AppShell title="B2C operations" description="Stripe and other B2C payments are kept separate from B2B. Only completed, mapped, non-duplicate payments contribute to the reported totals; refunds remain separate source records." controls={snapshot ? <B2cPeriodSelector month={snapshot.period.month} /> : undefined}>
     {loadError || !snapshot ? <ErrorState title="B2C data unavailable" description={loadError ?? "The B2C dashboard could not be loaded."} /> : <>
-      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-        <MetricCard label={`Eligible B2C payments · ${snapshot.period.monthLabel}`} value={snapshot.hasSourceRecords ? snapshot.eligiblePaymentsUsd : "Not loaded"} note={snapshot.hasSourceRecords ? `${snapshot.calculation.reportablePaymentCount} of ${snapshot.calculation.completedSourcePaymentCount} completed source payments are reportable` : "No B2C source records have been received yet"} />
-        <MetricCard label={`Eligible refunds · ${snapshot.period.monthLabel}`} value={snapshot.hasSourceRecords ? snapshot.refundsUsd : "Not loaded"} note={snapshot.hasSourceRecords ? `${snapshot.calculation.eligibleRefundCount} of ${snapshot.calculation.sourceRefundCount} source refunds reduce reportable cash` : "No B2C source records have been received yet"} />
-        <MetricCard label={`Net B2C payments · ${snapshot.period.monthLabel}`} value={snapshot.hasSourceRecords ? snapshot.netPaymentsUsd : "Not loaded"} note={snapshot.hasSourceRecords ? "Reportable payments less eligible refunds; not recognised revenue" : "No B2C source records have been received yet"} />
-        <MetricCard label={`Completed source payments · ${snapshot.period.monthLabel}`} value={snapshot.hasSourceRecords ? snapshot.completedSourcePaymentsUsd : "Not loaded"} note={snapshot.hasSourceRecords ? "Before review; never used as a financial total" : "No B2C source records have been received yet"} tone="neutral" />
-        <MetricCard label="Items needing review" value={snapshot.hasSourceRecords ? String(snapshot.reviewItems) : "Not loaded"} note={snapshot.hasSourceRecords ? "Duplicates, unmapped products, failures, and refunds" : "No B2C source records have been received yet"} tone={snapshot.reviewItems > 0 ? "warning" : "neutral"} />
+      <div className={`mb-4 rounded-card border p-4 ${financialTotalsAvailable ? "border-success/25 bg-success/5" : "border-warning/30 bg-warning/5"}`} role="status">
+        <p className={`font-semibold ${financialTotalsAvailable ? "text-success" : "text-warning"}`}>{snapshot.sourceCoverage.title}</p>
+        <p className="mt-1 text-sm leading-6 text-text-secondary">{snapshot.sourceCoverage.description}{sourceAsOf ? ` Source data is current through ${sourceAsOf} Bahrain time.` : ""}</p>
       </div>
-      <SectionCard title="B2C calculation breakdown" description="Source records are shown separately from financial totals. A completed source payment is counted only after it has a verified email, approved PLAYBOOK category, and no open duplicate or review flag." className="mt-4">
+      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-5">
+        <MetricCard label={`Reportable B2C payments · ${snapshot.period.monthLabel}`} value={snapshot.hasSourceRecords ? financialValue(snapshot.eligiblePaymentsUsd) : "Not loaded"} note={financialTotalsAvailable ? `${snapshot.calculation.reportablePaymentCount} approved payment${snapshot.calculation.reportablePaymentCount === 1 ? "" : "s"}` : "Withheld until the Stripe history is complete"} />
+        <MetricCard label={`Linked succeeded refunds · ${snapshot.period.monthLabel}`} value={snapshot.hasSourceRecords ? financialValue(snapshot.refundsUsd) : "Not loaded"} note={financialTotalsAvailable ? `${snapshot.calculation.eligibleRefundCount} linked refund${snapshot.calculation.eligibleRefundCount === 1 ? "" : "s"} reduce reportable cash` : "Withheld until the Stripe history is complete"} />
+        <MetricCard label={`Net B2C cash received · ${snapshot.period.monthLabel}`} value={snapshot.hasSourceRecords ? financialValue(snapshot.netPaymentsUsd) : "Not loaded"} note={financialTotalsAvailable ? "Reportable payments less linked succeeded refunds; not recognised revenue" : "Withheld until the Stripe history is complete"} />
+        <MetricCard label={`Retrieved completed source payments · ${snapshot.period.monthLabel}`} value={snapshot.hasSourceRecords ? snapshot.completedSourcePaymentsUsd : "Not loaded"} note={snapshot.hasSourceRecords ? "Operational source volume only; never a financial total" : "No B2C source records have been received yet"} tone="neutral" />
+        <MetricCard label="Open review flags" value={snapshot.hasSourceRecords ? String(snapshot.reviewItems) : "Not loaded"} note={snapshot.hasSourceRecords ? "Flag count; one source record can have more than one" : "No B2C source records have been received yet"} tone={snapshot.reviewItems > 0 ? "warning" : "neutral"} />
+      </div>
+      <SectionCard title="B2C reporting reconciliation" description="This bridge explains exactly why source activity and reportable cash differ. A completed source payment is counted only after it has a verified email, approved PLAYBOOK category, and no open duplicate or follow-up flag." className="mt-4">
         <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div><dt className="text-sm text-text-muted">Completed source payments</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-text-primary">{snapshot.completedSourcePaymentsUsd}</dd><p className="mt-1 text-sm text-text-muted">{snapshot.calculation.completedSourcePaymentCount} payments before review</p></div>
           <div><dt className="text-sm text-text-muted">Excluded pending review</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-warning">{snapshot.calculation.excludedCompletedPaymentsUsd}</dd><p className="mt-1 text-sm text-text-muted">{snapshot.calculation.excludedCompletedPaymentCount} completed payments</p></div>
-          <div><dt className="text-sm text-text-muted">Reportable B2C payments</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-success">{snapshot.eligiblePaymentsUsd}</dd><p className="mt-1 text-sm text-text-muted">{snapshot.calculation.reportablePaymentCount} approved payments</p></div>
-          <div><dt className="text-sm text-text-muted">Source refunds</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-text-primary">{snapshot.sourceRefundsUsd}</dd><p className="mt-1 text-sm text-text-muted">{snapshot.calculation.sourceRefundCount} refunds; {snapshot.refundsUsd} currently eligible</p></div>
+          <div><dt className="text-sm text-text-muted">Reportable B2C payments</dt><dd className={`mt-1 text-lg font-semibold tabular-nums ${financialTotalsAvailable ? "text-success" : "text-text-muted"}`}>{financialValue(snapshot.eligiblePaymentsUsd)}</dd><p className="mt-1 text-sm text-text-muted">{financialTotalsAvailable ? `${snapshot.calculation.reportablePaymentCount} approved payments` : "Not published while source coverage is incomplete"}</p></div>
+          <div><dt className="text-sm text-text-muted">Succeeded source refunds</dt><dd className="mt-1 text-lg font-semibold tabular-nums text-text-primary">{snapshot.sourceRefundsUsd}</dd><p className="mt-1 text-sm text-text-muted">{snapshot.calculation.sourceRefundCount} source refunds; {financialTotalsAvailable ? `${snapshot.refundsUsd} deducted from reportable cash` : "financial deduction withheld"}</p></div>
         </dl>
         <p className="mt-5 border-t border-line pt-4 text-sm leading-6 text-text-secondary">Current exclusions: {snapshot.calculation.unmappedProductCount} unmapped product{snapshot.calculation.unmappedProductCount === 1 ? "" : "s"}, {snapshot.calculation.missingCustomerEmailCount} missing customer email{snapshot.calculation.missingCustomerEmailCount === 1 ? "" : "s"}, {snapshot.calculation.possibleDuplicateCount} possible duplicate{snapshot.calculation.possibleDuplicateCount === 1 ? "" : "s"}, {snapshot.calculation.otherReviewCount} other review item{snapshot.calculation.otherReviewCount === 1 ? "" : "s"}, and {snapshot.calculation.nonSucceededPaymentCount} failed or pending payment{snapshot.calculation.nonSucceededPaymentCount === 1 ? "" : "s"}. Categories can overlap, so these reason counts do not add up to the excluded-payment count.</p>
       </SectionCard>

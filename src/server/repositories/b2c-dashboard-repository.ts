@@ -1,4 +1,5 @@
 import { b2cPaymentExclusionReasons, isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
+import { resolveB2cSourceCoverage, type B2cSourceCoverage } from "@/lib/b2c/source-coverage";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 const USD_SCALE = BigInt(1_000_000);
@@ -27,6 +28,7 @@ export type B2cLedgerRow = {
 };
 export type B2cDashboardSnapshot = {
   period: B2cReportingPeriod;
+  sourceCoverage: B2cSourceCoverage;
   hasSourceRecords: boolean;
   eligiblePaymentsUsd: string;
   refundsUsd: string;
@@ -148,16 +150,31 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  */
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult] = await Promise.all([
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, historicalBackfillResult, reconciliationResult] = await Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
     client.from("b2c_payment_local_overrides").select("payment_id,customer_name,customer_email,customer_phone,category_code,membership_tier"),
+    client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "stripe").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "stripe").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error) {
+  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? historicalBackfillResult.error ?? reconciliationResult.error) {
     throw new Error("Could not load B2C source records.");
   }
+
+  const sourceCoverage = resolveB2cSourceCoverage({
+    historicalBackfill: historicalBackfillResult.data ? {
+      status: historicalBackfillResult.data.status,
+      recordsFailed: historicalBackfillResult.data.records_failed,
+      completedAt: historicalBackfillResult.data.completed_at,
+    } : null,
+    latestReconciliation: reconciliationResult.data ? {
+      status: reconciliationResult.data.status,
+      requestedRangeEnd: reconciliationResult.data.requested_range_end,
+      completedAt: reconciliationResult.data.completed_at,
+    } : null,
+  });
 
   const payments = paymentsResult.data ?? [];
   const refunds = refundsResult.data ?? [];
@@ -305,6 +322,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
 
   return {
     period,
+    sourceCoverage,
     hasSourceRecords: payments.length > 0 || refunds.length > 0,
     eligiblePaymentsUsd: formatUsd(eligiblePayments),
     refundsUsd: formatUsd(refundsTotal),
