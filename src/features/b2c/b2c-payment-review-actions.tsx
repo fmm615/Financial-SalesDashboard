@@ -13,6 +13,21 @@ const fieldClass = "block min-w-0 text-sm font-medium text-text-secondary";
 // Keep it inside the modal at every viewport size instead of clipping it.
 const copyClass = "min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]";
 
+function editableValue(value: string | null | undefined): string {
+  const trimmed = String(value ?? "").trim();
+  return trimmed === "-" || trimmed === "—" ? "" : trimmed;
+}
+
+function editableCategory(value: string | null | undefined): string {
+  const normalised = editableValue(value).toLowerCase();
+  return normalised === "unmapped" ? "" : normalised;
+}
+
+function hasMeaningfulAuditReason(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length >= 3 && !/^(?:-+|—+|n\/?a)$/i.test(trimmed);
+}
+
 type CorrectionDraft = {
   customerName: string;
   customerEmail: string;
@@ -25,11 +40,11 @@ type CorrectionDraft = {
 
 function draftFromRow(row: B2cLedgerRow): CorrectionDraft {
   return {
-    customerName: row.customerName ?? "",
-    customerEmail: row.customerEmail ?? "",
-    customerPhone: row.customerPhone ?? "",
-    categoryCode: row.category === "Unmapped" ? "unmapped" : row.category,
-    membershipTier: row.membershipTier ?? "",
+    customerName: editableValue(row.customerName),
+    customerEmail: editableValue(row.customerEmail),
+    customerPhone: editableValue(row.customerPhone),
+    categoryCode: editableCategory(row.category),
+    membershipTier: editableValue(row.membershipTier),
     // Numeric PostgreSQL values can be serialised as numbers by a Supabase
     // client even though the UI domain formats money as text. Form state must
     // always be text so the change comparison and input controls stay safe.
@@ -67,11 +82,11 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
   const mappingAvailable = row.sourceSystem === "stripe" && Boolean(row.productReference);
   const current = draftFromRow(row);
   const correction = {
-    customerName: isChanged(draft.customerName, current.customerName) ? draft.customerName.trim() : undefined,
-    customerEmail: isChanged(draft.customerEmail, current.customerEmail, (value) => value.trim().toLowerCase()) ? draft.customerEmail.trim().toLowerCase() : undefined,
-    customerPhone: isChanged(draft.customerPhone, current.customerPhone) ? draft.customerPhone.trim() : undefined,
-    categoryCode: isChanged(draft.categoryCode, current.categoryCode, (value) => value.trim().toLowerCase()) ? draft.categoryCode.trim().toLowerCase() : undefined,
-    membershipTier: isChanged(draft.membershipTier, current.membershipTier) ? draft.membershipTier.trim() : undefined,
+    customerName: isChanged(draft.customerName, current.customerName, editableValue) ? editableValue(draft.customerName) || undefined : undefined,
+    customerEmail: isChanged(draft.customerEmail, current.customerEmail, (value) => editableValue(value).toLowerCase()) ? editableValue(draft.customerEmail).toLowerCase() || undefined : undefined,
+    customerPhone: isChanged(draft.customerPhone, current.customerPhone, editableValue) ? editableValue(draft.customerPhone) || undefined : undefined,
+    categoryCode: isChanged(draft.categoryCode, current.categoryCode, editableCategory) ? editableCategory(draft.categoryCode) || undefined : undefined,
+    membershipTier: isChanged(draft.membershipTier, current.membershipTier, editableValue) ? editableValue(draft.membershipTier) || undefined : undefined,
     amountUsd: isChanged(draft.amountUsd, current.amountUsd) ? draft.amountUsd.trim() : undefined,
     occurredOn: isChanged(draft.occurredOn, current.occurredOn) ? draft.occurredOn : undefined,
   };
@@ -156,25 +171,25 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
           <div className="mt-5">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Customer</p>
             <div className="mt-3 grid gap-x-5 gap-y-4 md:grid-cols-2">
-            <label className={fieldClass}>Customer name<input className={inputClass} value={draft.customerName} onChange={(event) => updateDraft("customerName", event.target.value)} placeholder="Verified customer name" /></label>
-            <label className={fieldClass}>Customer email<input className={inputClass} value={draft.customerEmail} onChange={(event) => updateDraft("customerEmail", event.target.value)} inputMode="email" placeholder="verified@example.com" /></label>
-            <label className={fieldClass}>Customer mobile<input className={inputClass} value={draft.customerPhone} onChange={(event) => updateDraft("customerPhone", event.target.value)} inputMode="tel" placeholder="+973 0000 0000" /></label>
+            <label className={fieldClass}>Customer name<input className={inputClass} value={draft.customerName} onChange={(event) => updateDraft("customerName", event.target.value)} placeholder="Unavailable from Stripe" /></label>
+            <label className={fieldClass}>Customer email<input className={inputClass} value={draft.customerEmail} onChange={(event) => updateDraft("customerEmail", event.target.value)} inputMode="email" placeholder="Unavailable from Stripe" /></label>
+            <label className={fieldClass}>Customer mobile<input className={inputClass} value={draft.customerPhone} onChange={(event) => updateDraft("customerPhone", event.target.value)} inputMode="tel" placeholder="Unavailable from Stripe" /></label>
             </div>
           </div>
           <div className="mt-5 border-t border-border pt-5">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">PLAYBOOK reporting</p>
             <div className="mt-3 grid gap-x-5 gap-y-4 md:grid-cols-2">
-            <label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={draft.categoryCode} onChange={(event) => updateDraft("categoryCode", event.target.value)} placeholder="membership" /></label>
-            <label className={fieldClass}>Plan / tier<input className={inputClass} value={draft.membershipTier} onChange={(event) => updateDraft("membershipTier", event.target.value)} placeholder="Founding Membership" /></label>
+            <label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={draft.categoryCode} onChange={(event) => updateDraft("categoryCode", event.target.value)} placeholder="Required for Finance, e.g. membership" /><span className="mt-1 block text-xs font-normal text-text-muted">Enter a verified category; do not use a dash.</span></label>
+            <label className={fieldClass}>Plan / tier<input className={inputClass} value={draft.membershipTier} onChange={(event) => updateDraft("membershipTier", event.target.value)} placeholder="Unavailable from Stripe" /></label>
             <label className={fieldClass}>Local B2C amount (USD)<input className={inputClass} type="number" min="0.000001" step="0.000001" value={draft.amountUsd} onChange={(event) => updateDraft("amountUsd", event.target.value)} /></label>
             <label className={fieldClass}>Local business date<input className={inputClass} type="date" value={draft.occurredOn} onChange={(event) => updateDraft("occurredOn", event.target.value)} /></label>
             </div>
           </div>
         </div>
 
-        <label className={`${fieldClass} mt-5`}>Reason / evidence <span className="font-normal text-text-muted">(required)</span><textarea className={textareaClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence for this change. It is saved in the audit history." /></label>
+        <label className={`${fieldClass} mt-5`}>Reason / evidence <span className="font-normal text-text-muted">(required)</span><textarea className={textareaClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence for this change. It is saved in the audit history." /><span className="mt-1 block text-xs font-normal text-text-muted">Leave a value blank when it is unavailable. A dash is not verified data.</span></label>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <PrimaryButton onClick={() => void saveLocalCorrection()} disabled={saving || !hasLocalCorrectionInput || reason.trim().length < 3}>{saving ? "Saving…" : "Save audited local correction"}</PrimaryButton>
+          <PrimaryButton onClick={() => void saveLocalCorrection()} disabled={saving || !hasLocalCorrectionInput || !hasMeaningfulAuditReason(reason)}>{saving ? "Saving…" : "Save audited local correction"}</PrimaryButton>
           <p className="text-xs leading-5 text-text-muted">{hasLocalCorrectionInput ? "The saved correction updates PLAYBOOK reporting only." : "Change at least one local value and enter a reason to save."}</p>
         </div>
 
@@ -202,12 +217,12 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
 
           {hasUnmappedProduct && mappingAvailable && <details className="group rounded-input border border-warning/25 bg-warning/5">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>Create reusable product mapping</span><span className="text-xs font-normal text-warning group-open:hidden">Optional</span><span className="hidden text-xs font-normal text-warning group-open:inline">Hide</span></summary>
-            <div className="border-t border-warning/20 px-4 py-4"><p className={`${copyClass} text-sm leading-6 text-text-secondary`}>This classifies every local payment with this exact source product reference. It does not edit Stripe.</p><div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2"><label className={fieldClass}>Internal product code<input className={inputClass} value={internalProductCode} onChange={(event) => setInternalProductCode(event.target.value)} placeholder="membership_annual" /></label><label className={fieldClass}>Internal product name<input className={inputClass} value={internalProductName} onChange={(event) => setInternalProductName(event.target.value)} placeholder="Annual membership" /></label><label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={mappingCategoryCode} onChange={(event) => setMappingCategoryCode(event.target.value)} placeholder="membership" /></label><label className={fieldClass}>Membership tier <span className="font-normal text-text-muted">(optional)</span><input className={inputClass} value={mappingMembershipTier} onChange={(event) => setMappingMembershipTier(event.target.value)} placeholder="annual" /></label></div><div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void mapProduct()} disabled={saving || reason.trim().length < 3}>{saving ? "Saving…" : "Save local product mapping"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Uses the reason above and applies only in PLAYBOOK.</p></div></div>
+            <div className="border-t border-warning/20 px-4 py-4"><p className={`${copyClass} text-sm leading-6 text-text-secondary`}>This classifies every local payment with this exact source product reference. It does not edit Stripe.</p><div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2"><label className={fieldClass}>Internal product code<input className={inputClass} value={internalProductCode} onChange={(event) => setInternalProductCode(event.target.value)} placeholder="membership_annual" /></label><label className={fieldClass}>Internal product name<input className={inputClass} value={internalProductName} onChange={(event) => setInternalProductName(event.target.value)} placeholder="Annual membership" /></label><label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={mappingCategoryCode} onChange={(event) => setMappingCategoryCode(event.target.value)} placeholder="membership" /></label><label className={fieldClass}>Membership tier <span className="font-normal text-text-muted">(optional)</span><input className={inputClass} value={mappingMembershipTier} onChange={(event) => setMappingMembershipTier(event.target.value)} placeholder="annual" /></label></div><div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void mapProduct()} disabled={saving || !hasMeaningfulAuditReason(reason)}>{saving ? "Saving…" : "Save local product mapping"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Uses the reason above and applies only in PLAYBOOK.</p></div></div>
           </details>}
 
           {showFinanceException && <details className="group rounded-input border border-brand-accent/25 bg-brand-accent/5">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>{row.hasFinanceException ? "Finance inclusion exception" : "Count in Finance despite missing source details"}</span><span className="text-xs font-normal text-text-muted group-open:hidden">Advanced</span><span className="hidden text-xs font-normal text-text-muted group-open:inline">Hide</span></summary>
-            <div className="border-t border-brand-accent/15 px-4 py-4">{row.hasFinanceException ? <p className={`${copyClass} text-sm leading-6 text-success`}>This payment is included in PLAYBOOK Finance through an audited exception. The original missing Stripe source details remain visible in its history.</p> : <><p className={`${copyClass} text-sm leading-6 text-text-secondary`}>This payment is currently excluded because Stripe did not provide: <strong className="font-semibold text-text-primary">{financeExceptionSourceGaps.join(" and ")}</strong>.</p><p className={`${copyClass} mt-2 text-sm leading-6 text-text-secondary`}>First, save the verified local value above if you have it. Use this only when the source detail is genuinely unavailable but Finance has still verified the amount, business date, and PLAYBOOK category.</p>{!canUseFinanceException && <p className="mt-3 rounded-input border border-warning/25 bg-warning/5 p-3 text-sm leading-6 text-warning">Save a verified local PLAYBOOK category above before this payment can be included by exception.</p>}<label className="mt-4 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedProviderTransaction} onChange={(event) => setConfirmedProviderTransaction(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I confirm this is the exact provider payment ID shown above.</label><label className="mt-3 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedNoKnownDuplicate} onChange={(event) => setConfirmedNoKnownDuplicate(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I reviewed the available evidence and found no known duplicate.</label><div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void saveFinanceException()} disabled={saving || !canUseFinanceException || !confirmedProviderTransaction || !confirmedNoKnownDuplicate || reason.trim().length < 3}>{saving ? "Saving…" : "Include in PLAYBOOK Finance"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Requires the reason above and both confirmations. Stripe is never changed.</p></div></>}</div>
+            <div className="border-t border-brand-accent/15 px-4 py-4">{row.hasFinanceException ? <p className={`${copyClass} text-sm leading-6 text-success`}>This payment is included in PLAYBOOK Finance through an audited exception. The original missing Stripe source details remain visible in its history.</p> : <><p className={`${copyClass} text-sm leading-6 text-text-secondary`}>This payment is currently excluded because Stripe did not provide: <strong className="font-semibold text-text-primary">{financeExceptionSourceGaps.join(" and ")}</strong>.</p><p className={`${copyClass} mt-2 text-sm leading-6 text-text-secondary`}>First, save the verified local value above if you have it. Use this only when the source detail is genuinely unavailable but Finance has still verified the amount, business date, and PLAYBOOK category.</p>{!canUseFinanceException && <p className="mt-3 rounded-input border border-warning/25 bg-warning/5 p-3 text-sm leading-6 text-warning">Enter and save a real verified PLAYBOOK category above, such as “membership”. Do not use “unmapped” or a dash.</p>}<label className="mt-4 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedProviderTransaction} onChange={(event) => setConfirmedProviderTransaction(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I confirm this is the exact provider payment ID shown above.</label><label className="mt-3 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedNoKnownDuplicate} onChange={(event) => setConfirmedNoKnownDuplicate(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I reviewed the available evidence and found no known duplicate.</label><div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void saveFinanceException()} disabled={saving || !canUseFinanceException || !confirmedProviderTransaction || !confirmedNoKnownDuplicate || !hasMeaningfulAuditReason(reason)}>{saving ? "Saving…" : "Include in PLAYBOOK Finance"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Requires the reason above and both confirmations. Stripe is never changed.</p></div></>}</div>
           </details>}
         </div>
         {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
