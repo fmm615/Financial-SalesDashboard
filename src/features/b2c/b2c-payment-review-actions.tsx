@@ -9,6 +9,9 @@ import type { B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repositor
 const inputClass = "mt-1 block h-10 w-full min-w-0 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
 const textareaClass = "mt-1 block min-h-24 w-full min-w-0 resize-y rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent";
 const fieldClass = "block min-w-0 text-sm font-medium text-text-secondary";
+// Review copy can contain provider-supplied values and long audit explanations.
+// Keep it inside the modal at every viewport size instead of clipping it.
+const copyClass = "min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere]";
 
 type CorrectionDraft = {
   customerName: string;
@@ -132,9 +135,9 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
   return <>
     <button type="button" onClick={openReview} className="font-medium text-brand-accent hover:underline">Edit locally</button>
     {open && <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4 sm:p-6">
-      <section role="dialog" aria-modal="true" aria-labelledby={`b2c-review-${row.id}`} className="mx-auto my-4 w-full max-w-4xl overflow-hidden rounded-card bg-surface p-5 shadow-elevated sm:my-8 sm:p-8">
+      <section role="dialog" aria-modal="true" aria-labelledby={`b2c-review-${row.id}`} className="mx-auto my-4 w-full min-w-0 max-w-[calc(100vw-2rem)] overflow-hidden whitespace-normal rounded-card bg-surface p-5 shadow-elevated sm:my-8 sm:max-w-[calc(100vw-3rem)] sm:p-8 lg:max-w-4xl">
         <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0"><h2 id={`b2c-review-${row.id}`} className="text-xl font-semibold text-text-primary sm:text-2xl">Edit B2C payment locally</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-text-muted">Every saved change is a separate PLAYBOOK correction with your reason and audit history. Stripe is never changed.</p></div>
+          <div className="min-w-0"><h2 id={`b2c-review-${row.id}`} className="text-xl font-semibold text-text-primary sm:text-2xl">Edit B2C payment locally</h2><p className={`${copyClass} mt-1 max-w-2xl text-sm leading-6 text-text-muted`}>Every saved change is a separate PLAYBOOK correction with your reason and audit history. Stripe is never changed.</p></div>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close B2C payment editor" className="shrink-0 rounded-pill px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-muted hover:text-text-primary">Close</button>
         </div>
 
@@ -147,18 +150,18 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
 
         {hasUnmappedProduct && <div className="mt-5 overflow-hidden rounded-input border border-warning/25 bg-warning/5 p-4 sm:p-5">
           <h3 className="font-semibold text-text-primary">Create local product mapping</h3>
-          <p className="mt-1 text-sm leading-6 text-text-secondary">A mapping classifies every local Stripe payment with the exact same product reference. It never edits Stripe. A one-payment correction below affects only this row.</p>
+          <p className={`${copyClass} mt-1 text-sm leading-6 text-text-secondary`}>A mapping classifies every local Stripe payment with the exact same product reference. It never edits Stripe. A one-payment correction below affects only this row.</p>
           {mappingAvailable ? <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
             <label className={fieldClass}>Internal product code<input className={inputClass} value={internalProductCode} onChange={(event) => setInternalProductCode(event.target.value)} placeholder="membership_annual" /></label>
             <label className={fieldClass}>Internal product name<input className={inputClass} value={internalProductName} onChange={(event) => setInternalProductName(event.target.value)} placeholder="Annual membership" /></label>
             <label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={mappingCategoryCode} onChange={(event) => setMappingCategoryCode(event.target.value)} placeholder="membership" /></label>
             <label className={fieldClass}>Membership tier <span className="font-normal text-text-muted">(optional)</span><input className={inputClass} value={mappingMembershipTier} onChange={(event) => setMappingMembershipTier(event.target.value)} placeholder="annual" /></label>
-          </div> : <p className="mt-3 break-words text-sm leading-6 text-warning">Stripe did not provide a reusable product reference for this payment. You can still correct this one PLAYBOOK row below, but that will not affect any other payment.</p>}
+          </div> : <p className={`${copyClass} mt-3 text-sm leading-6 text-warning`}>Stripe did not provide a reusable product reference for this payment. You can still correct this one PLAYBOOK row below, but that will not affect any other payment.</p>}
         </div>}
 
         <div className="mt-5 overflow-hidden rounded-input border border-border bg-surface-muted/40 p-4 sm:p-5">
           <h3 className="font-semibold text-text-primary">Verified local values</h3>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">Edit only values Finance has verified. Amount and business date affect PLAYBOOK reporting; the original Stripe amount and timestamp remain preserved for traceability. A failed provider payment always remains failed.</p>
+          <p className={`${copyClass} mt-1 max-w-3xl text-sm leading-6 text-text-secondary`}>Edit only values Finance has verified. Amount and business date affect PLAYBOOK reporting; the original Stripe amount and timestamp remain preserved for traceability. A failed provider payment always remains failed.</p>
           <div className="mt-4 grid gap-x-5 gap-y-4 md:grid-cols-2">
             <label className={fieldClass}>Customer name<input className={inputClass} value={draft.customerName} onChange={(event) => updateDraft("customerName", event.target.value)} placeholder="Verified customer name" /></label>
             <label className={fieldClass}>Customer email<input className={inputClass} value={draft.customerEmail} onChange={(event) => updateDraft("customerEmail", event.target.value)} inputMode="email" placeholder="verified@example.com" /></label>
@@ -179,19 +182,19 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
 
         {row.openReviewFlags.length > 0 && <div className="mt-6 border-t border-border pt-5">
           <h3 className="font-semibold text-text-primary">Source review flags</h3>
-          <p className="mt-1 text-sm leading-6 text-text-muted">These remain part of the source history. Saving a verified correction clears its matching missing-data flag automatically; no Stripe record is changed.</p>
+          <p className={`${copyClass} mt-1 text-sm leading-6 text-text-muted`}>These remain part of the source history. Saving a verified correction clears its matching missing-data flag automatically; no Stripe record is changed.</p>
           <div className="mt-4 space-y-3">
-            {row.openReviewFlags.map((flag) => <div key={flag.id} className="overflow-hidden rounded-input border border-border bg-surface p-4">
+            {row.openReviewFlags.map((flag) => <div key={flag.id} className="min-w-0 max-w-full overflow-hidden rounded-input border border-border bg-surface p-4">
               <StatusBadge status={flag.type} />
-              <p className="mt-3 break-words text-sm leading-6 text-text-secondary">{flag.reason}</p>
+              <p className={`${copyClass} mt-3 text-sm leading-6 text-text-secondary`}>{flag.reason}</p>
             </div>)}
           </div>
         </div>}
 
         <div className="mt-6 overflow-hidden rounded-input border border-brand-accent/25 bg-brand-accent/5 p-4 sm:p-5">
           <h3 className="font-semibold text-text-primary">Finance inclusion exception</h3>
-          {row.hasFinanceException ? <p className="mt-1 text-sm leading-6 text-success">This succeeded payment is included in PLAYBOOK Finance through an audited exception. Its missing Stripe source fields remain visible above.</p> : <>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">Use only when source details are genuinely unavailable but Finance has verified the local amount, business date, and PLAYBOOK category. This does not clear source flags or change Stripe.</p>
+          {row.hasFinanceException ? <p className={`${copyClass} mt-1 text-sm leading-6 text-success`}>This succeeded payment is included in PLAYBOOK Finance through an audited exception. Its missing Stripe source fields remain visible above.</p> : <>
+            <p className={`${copyClass} mt-1 max-w-3xl text-sm leading-6 text-text-secondary`}>Use only when source details are genuinely unavailable but Finance has verified the local amount, business date, and PLAYBOOK category. This does not clear source flags or change Stripe.</p>
             <label className="mt-4 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedProviderTransaction} onChange={(event) => setConfirmedProviderTransaction(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I confirm this is the exact provider payment ID shown above.</label>
             <label className="mt-3 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedNoKnownDuplicate} onChange={(event) => setConfirmedNoKnownDuplicate(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I reviewed the available evidence and found no known duplicate.</label>
             <div className="mt-4 flex flex-wrap items-center gap-3">
