@@ -1,6 +1,22 @@
 import { AppShell } from "@/components/app-shell";
-import { AuditHistory } from "@/components/audit-history";
-import { DataTable, FilterBar, SectionCard, TableCell, TableHead, TableHeader } from "@/components/ui";
-import { auditEntries } from "@/mocks/audit-log";
+import { DataTable, EmptyState, ErrorState, SectionCard, TableCell, TableHead, TableHeader } from "@/components/ui";
+import type { AuditLogRecord } from "@/server/repositories/audit-log-repository";
 
-export function AuditLogPage() { return <AppShell title="Audit log" description="Searchable historical trace of manual and provider-originated actions. This UI uses illustrative records only."><section className="border border-line bg-white shadow-card"><div className="flex flex-col justify-between gap-4 border-b border-line px-5 py-4 lg:flex-row lg:items-center"><div><h2 className="font-medium">Audit activity</h2><p className="mt-1 text-sm text-slate-500">Before/after values support financial traceability once the backend is connected.</p></div><FilterBar filters={["User", "Date", "Module", "Action type"]} /></div><DataTable caption="Audit log"><TableHead><TableHeader>Date & time</TableHeader><TableHeader>User</TableHeader><TableHeader>Area</TableHeader><TableHeader>Record</TableHeader><TableHeader>Action</TableHeader><TableHeader>Before</TableHeader><TableHeader>After</TableHeader><TableHeader>Reason</TableHeader><TableHeader>Source</TableHeader></TableHead><tbody className="divide-y divide-line">{auditEntries.map((entry) => <tr key={`${entry.timestamp}-${entry.record}`}><TableCell>{entry.timestamp}</TableCell><TableCell>{entry.user}</TableCell><TableCell>{entry.area}</TableCell><TableCell>{entry.record}</TableCell><TableCell className="font-medium">{entry.action}</TableCell><TableCell>{entry.before}</TableCell><TableCell>{entry.after}</TableCell><TableCell>{entry.reason}</TableCell><TableCell>{entry.source}</TableCell></tr>)}</tbody></DataTable></section><SectionCard title="Reusable history preview" description="This component is available for future transaction, deal, target, and Summit detail views." className="mt-4"><AuditHistory entries={auditEntries.slice(0, 2)} /></SectionCard></AppShell>; }
+function formatTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bahrain" }).format(new Date(value));
+}
+
+function snapshotSummary(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  const summary = JSON.stringify(value);
+  return summary.length > 160 ? `${summary.slice(0, 157)}…` : summary;
+}
+
+/** The audit screen intentionally reads append-only source and correction history. */
+export function AuditLogPage({ records = [], loadError }: { records?: AuditLogRecord[]; loadError?: string }) {
+  return <AppShell title="Audit log" description="Append-only history of provider processing, local corrections, and Admin actions. Financial corrections include the saved reason and before/after values.">
+    {loadError ? <ErrorState title="Audit history unavailable" description={loadError} /> : <SectionCard title="Audit activity" description="Newest first. Times are shown in Bahrain time. No row here can change Stripe, HubSpot, or a financial source record.">
+      {records.length === 0 ? <EmptyState title="No audit history is available" description="Audit records appear here after the first provider or Admin action." /> : <DataTable caption="Audit activity"><TableHead><TableHeader>Date & time</TableHeader><TableHeader>User</TableHeader><TableHeader>Area</TableHeader><TableHeader>Record</TableHeader><TableHeader>Action</TableHeader><TableHeader>Before</TableHeader><TableHeader>After</TableHeader><TableHeader>Reason</TableHeader><TableHeader>Source</TableHeader></TableHead><tbody className="divide-y divide-line">{records.map((record) => <tr key={record.id}><TableCell>{formatTimestamp(record.occurredAt)}</TableCell><TableCell>{record.actor}</TableCell><TableCell>{record.area}</TableCell><TableCell className="font-mono text-xs">{record.recordId ?? "—"}</TableCell><TableCell className="font-medium">{record.action}</TableCell><TableCell className="max-w-44 break-words text-xs text-text-secondary"><span title={JSON.stringify(record.beforeValue)}>{snapshotSummary(record.beforeValue)}</span></TableCell><TableCell className="max-w-44 break-words text-xs text-text-secondary"><span title={JSON.stringify(record.afterValue)}>{snapshotSummary(record.afterValue)}</span></TableCell><TableCell className="max-w-52 break-words text-sm">{record.reason ?? "—"}</TableCell><TableCell>{record.source}</TableCell></tr>)}</tbody></DataTable>}
+    </SectionCard>}
+  </AppShell>;
+}

@@ -9,6 +9,14 @@ export const b2cReviewResolutionSchema = z.object({
 export type B2cReviewResolutionInput = z.infer<typeof b2cReviewResolutionSchema>;
 
 const optionalNonEmpty = (maximum: number) => z.string().trim().min(1).max(maximum).optional();
+const optionalUsdAmount = z.string().trim()
+  .regex(/^\d{1,14}(?:\.\d{1,6})?$/, "Enter a valid positive USD amount with up to 6 decimal places.")
+  .refine((value) => Number(value) > 0, "Enter a USD amount greater than zero.")
+  .optional();
+const optionalBusinessDate = z.string().trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid business date.")
+  .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)), "Enter a valid business date.")
+  .optional();
 
 /** A verified correction overlays one local B2C source record without mutating Stripe data. */
 export const b2cPaymentLocalCorrectionSchema = z.object({
@@ -17,8 +25,10 @@ export const b2cPaymentLocalCorrectionSchema = z.object({
   customerPhone: z.string().trim().regex(/^[0-9+().\-\s]{5,40}$/, "Enter a valid customer mobile number.").optional(),
   categoryCode: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]*$/, "Use lowercase letters, numbers, hyphens, or underscores.").max(100).optional(),
   membershipTier: optionalNonEmpty(100),
+  amountUsd: optionalUsdAmount,
+  occurredOn: optionalBusinessDate,
   reason: z.string().trim().min(3, "Enter an audit reason of at least 3 characters.").max(1000),
-}).strict().refine((value) => Boolean(value.customerName || value.customerEmail || value.customerPhone || value.categoryCode || value.membershipTier), {
+}).strict().refine((value) => Boolean(value.customerName || value.customerEmail || value.customerPhone || value.categoryCode || value.membershipTier || value.amountUsd || value.occurredOn), {
   message: "Enter at least one verified local correction.",
   path: ["customerName"],
 });

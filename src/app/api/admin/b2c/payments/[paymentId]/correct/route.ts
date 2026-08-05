@@ -28,6 +28,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     p_customer_phone: parsed.data.customerPhone ?? null,
     p_category_code: parsed.data.categoryCode ?? null,
     p_membership_tier: parsed.data.membershipTier ?? null,
+    p_local_amount_usd: parsed.data.amountUsd ?? null,
+    p_local_occurred_on: parsed.data.occurredOn ?? null,
     p_reason: parsed.data.reason,
   });
   if (error) return NextResponse.json({ error: "The local B2C correction could not be saved." }, { status: 422 });

@@ -1,5 +1,6 @@
 import { b2cPaymentExclusionReasons, isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import { resolveB2cSourceCoverage, type B2cSourceCoverage } from "@/lib/b2c/source-coverage";
+import { resolveEffectiveB2cPayment } from "@/lib/b2c/effective-payment";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 const USD_SCALE = BigInt(1_000_000);
@@ -15,6 +16,8 @@ export type B2cLedgerRow = {
   dateValue: string;
   amountUsd: string;
   amountValueUsd: string;
+  sourceAmountUsd: string;
+  sourceDateValue: string;
   category: string;
   membershipTier: string | null;
   billingInterval: string | null;
@@ -23,6 +26,8 @@ export type B2cLedgerRow = {
   providerReference: string | null;
   sourceSystem: "stripe" | "tap" | "manual_bank_transfer";
   productReference: string | null;
+  hasLocalCorrection: boolean;
+  localCorrectionFields: string[];
   openReviewFlags: B2cOpenReviewFlag[];
   issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Refunded" | null;
 };
@@ -60,6 +65,8 @@ type LocalPaymentOverride = {
   customer_phone: string | null;
   category_code: string | null;
   membership_tier: string | null;
+  local_amount_usd: string | null;
+  local_occurred_on: string | null;
 };
 
 export type B2cOpenReviewFlag = {
@@ -155,7 +162,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
-    client.from("b2c_payment_local_overrides").select("payment_id,customer_name,customer_email,customer_phone,category_code,membership_tier"),
+    client.from("b2c_payment_local_overrides").select("payment_id,customer_name,customer_email,customer_phone,category_code,membership_tier,local_amount_usd,local_occurred_on"),
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "stripe").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "stripe").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
@@ -186,13 +193,23 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   const paymentById = new Map(payments.map((payment) => [payment.id, payment]));
   const effectivePayment = (payment: typeof payments[number]) => {
     const override = overridesByPayment.get(payment.id);
-    return {
-      customerName: override?.customer_name ?? payment.customer_name,
-      customerEmail: override?.customer_email ?? payment.customer_email,
-      customerPhone: override?.customer_phone ?? payment.customer_phone,
-      categoryCode: override?.category_code ?? payment.category_code,
-      membershipTier: override?.membership_tier ?? payment.membership_tier,
-    };
+    return resolveEffectiveB2cPayment({
+      customerName: payment.customer_name,
+      customerEmail: payment.customer_email,
+      customerPhone: payment.customer_phone,
+      categoryCode: payment.category_code,
+      membershipTier: payment.membership_tier,
+      amountUsd: payment.amount_usd,
+      occurredOn: payment.occurred_on,
+    }, override ? {
+      customerName: override.customer_name,
+      customerEmail: override.customer_email,
+      customerPhone: override.customer_phone,
+      categoryCode: override.category_code,
+      membershipTier: override.membership_tier,
+      amountUsd: override.local_amount_usd,
+      occurredOn: override.local_occurred_on,
+    } : null);
   };
   const paymentReportability = (payment: typeof payments[number]) => {
     const flagTypes = new Set((flagsByRecord.get(payment.id) ?? []).map((flag) => flag.flag_type));
@@ -229,13 +246,14 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   let otherReviewCount = 0;
   let nonSucceededPaymentCount = 0;
   for (const payment of payments) {
-    if (!isInB2cPeriod(payment.occurred_on, period)) continue;
+    const effective = effectivePayment(payment);
+    if (!isInB2cPeriod(effective.occurredOn, period)) continue;
     const reportability = paymentReportability(payment);
     if (payment.payment_status !== "succeeded") {
       nonSucceededPaymentCount += 1;
       continue;
     }
-    const amount = toScaledUsd(payment.amount_usd);
+    const amount = toScaledUsd(effective.amountUsd);
     completedSourcePayments += amount;
     completedSourcePaymentCount += 1;
     if (reportability.isReportable) {
@@ -264,7 +282,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   }
 
   const rows: B2cLedgerRow[] = [
-    ...payments.filter((payment) => isInB2cPeriod(payment.occurred_on, period)).map((payment) => {
+    ...payments.filter((payment) => isInB2cPeriod(effectivePayment(payment).occurredOn, period)).map((payment) => {
       const reviewFlags = (flagsByRecord.get(payment.id) ?? []).map((flag) => ({ id: flag.id, type: flagLabel([flag])!, reason: flag.reason }));
       const effective = effectivePayment(payment);
       return {
@@ -273,11 +291,13 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       customerName: effective.customerName,
       customerEmail: effective.customerEmail,
       customerPhone: effective.customerPhone,
-      date: formatDate(payment.occurred_on),
-      dateValue: payment.occurred_on,
-      amountUsd: formatUsd(toScaledUsd(payment.amount_usd)),
-      amountValueUsd: payment.amount_usd,
-      category: effective.categoryCode === "unmapped" ? "Unmapped" : effective.categoryCode,
+      date: formatDate(effective.occurredOn),
+      dateValue: effective.occurredOn,
+      amountUsd: formatUsd(toScaledUsd(effective.amountUsd)),
+      amountValueUsd: effective.amountUsd,
+      sourceAmountUsd: formatUsd(toScaledUsd(payment.amount_usd)),
+      sourceDateValue: payment.occurred_on,
+      category: !effective.categoryCode || effective.categoryCode === "unmapped" ? "Unmapped" : effective.categoryCode,
       membershipTier: effective.membershipTier,
       billingInterval: billingIntervalLabel(payment.source_metadata),
       source: payment.source_system === "manual_bank_transfer" ? "Manual bank transfer" : payment.source_system === "stripe" ? "Stripe" : "Tap",
@@ -285,6 +305,8 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       providerReference: payment.provider_transaction_id,
       sourceSystem: payment.source_system,
       productReference: sourceMetadataText(payment.source_metadata, "product_reference"),
+      hasLocalCorrection: effective.hasLocalCorrection,
+      localCorrectionFields: effective.correctedFields,
       openReviewFlags: reviewFlags,
       issue: flagLabel(flagsByRecord.get(payment.id) ?? []),
     };
@@ -306,6 +328,8 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         dateValue: refund.occurred_at.slice(0, 10),
         amountUsd: formatUsd(-toScaledUsd(refund.amount_usd)),
         amountValueUsd: `-${refund.amount_usd}`,
+        sourceAmountUsd: formatUsd(-toScaledUsd(refund.amount_usd)),
+        sourceDateValue: refund.occurred_at.slice(0, 10),
         category: effective?.categoryCode === "unmapped" ? "Unmapped" : effective?.categoryCode ?? "Unavailable",
         membershipTier: effective?.membershipTier ?? null,
         billingInterval: null,
@@ -314,6 +338,8 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         providerReference: refund.provider_refund_id,
         sourceSystem: refund.source_system,
         productReference: null,
+        hasLocalCorrection: Boolean(payment && effective?.hasLocalCorrection),
+        localCorrectionFields: effective?.correctedFields ?? [],
         openReviewFlags: reviewFlags,
         issue: flagLabel(flagsByRecord.get(refund.id) ?? []),
       };
