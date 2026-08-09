@@ -117,6 +117,14 @@ export async function runTapReconciliation(input: {
     await input.repository.completeSyncRun(run.id);
     return { processed, failed, inserted, lookbackStart, lookbackEnd };
   } catch (error) {
+    // A provider-level reconciliation failure has no individual charge/refund
+    // row to attach to, so preserve it as a reviewable local integration error.
+    try {
+      await input.repository.recordSyncError(run.id, error, "Tap 48-hour reconciliation");
+    } catch {
+      // Keep the original provider failure as the response; an audit write
+      // failure must not disguise the cause of the failed import.
+    }
     await input.repository.failSyncRun(run.id, error);
     throw error;
   }
@@ -171,6 +179,14 @@ export async function runTapHistoricalBackfillBatch(input: {
     const saved = await input.repository.finishHistoricalBackfillBatch({ runId: run.id, processed, failed, nextCursor: page.nextCursor ? `refunds:${page.nextCursor}` : null });
     return { runId: saved.id, processed, failed, totalProcessed: saved.recordsProcessed, totalFailed: saved.recordsFailed, hasMore: !saved.completed };
   } catch (error) {
+    // A page-level provider failure has no individual charge/refund row to
+    // attach to, so preserve it as a reviewable local integration error.
+    try {
+      await input.repository.recordSyncError(run.id, error, "Tap historical backfill");
+    } catch {
+      // Keep the original provider failure as the response; an audit write
+      // failure must not disguise the cause of the failed import.
+    }
     await input.repository.failSyncRun(run.id, error);
     throw error;
   }

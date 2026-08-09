@@ -37,6 +37,13 @@ describe("Tap normalisation and signed event processing", () => {
     vi.unstubAllGlobals();
   });
 
+  it("treats Tap's explicit no-refunds response as an empty refund history", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Refunds not found" }), { status: 400 })));
+    const client = new TapClient({ apiBaseUrl: "https://api.tap.company", apiKey: "sk_test", productReferenceMetadataKey: "product_id" });
+    await expect(client.listRefundsPage()).resolves.toEqual({ records: [], nextCursor: null });
+    vi.unstubAllGlobals();
+  });
+
   it("accepts only Tap's signed hashstring", () => {
     const signed = "x_idchg_TS01x_amount50.42x_currencyUSDx_gateway_referencegw_1x_payment_referencep_1x_statusCAPTUREDx_created2026-08-04T08:00:00.000Z";
     const signature = createHmac("sha256", "sk_test").update(signed, "utf8").digest("hex");

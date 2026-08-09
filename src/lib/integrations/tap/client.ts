@@ -81,11 +81,21 @@ export class TapClient {
     const path = collection === "charges" ? "/v2/charges/list" : "/v2/refunds/list";
     // Charges support an explicit sort order. Refunds are documented as
     // reverse-chronological already and do not accept the `order` parameter.
-    const response = await this.list(path, {
-      limit: 50,
-      ...(collection === "charges" ? { order: "reverse_chronological" } : {}),
-      ...(cursor ? { starting_after: cursor } : {}),
-    });
+    let response: TapListResponse;
+    try {
+      response = await this.list(path, {
+        limit: 50,
+        ...(collection === "charges" ? { order: "reverse_chronological" } : {}),
+        ...(cursor ? { starting_after: cursor } : {}),
+      });
+    } catch (error) {
+      // Tap returns HTTP 400 "Refunds not found" for an account with no
+      // refunds. That is an empty source collection, not an import failure.
+      if (collection === "refunds" && error instanceof Error && /Tap API request failed \(400\)\. Refunds not found\.?$/i.test(error.message)) {
+        return { records: [], nextCursor: null };
+      }
+      throw error;
+    }
     const records = extractRecords(response, collection);
     const last = records.at(-1) as { id?: unknown } | undefined;
     // Tap's documented maximum page size is 50. A full page may have another

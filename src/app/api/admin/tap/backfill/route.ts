@@ -10,6 +10,14 @@ import { runTapHistoricalBackfillBatch } from "@/server/services/sync-tap";
 export const runtime = "nodejs";
 const backfillRequestSchema = z.object({ restartCompleted: z.boolean().optional() });
 
+function safeTapErrorDetail(error: unknown): string {
+  const raw = error instanceof Error ? error.message : "Unexpected local processing error.";
+  const redacted = raw.replace(/(?:Bearer\s+|sk|rk|whsec)_[^\s,]+/gi, "[redacted]").slice(0, 350);
+  return redacted.startsWith("Tap API request failed") || redacted.startsWith("Tap returned")
+    ? redacted
+    : "Unexpected local processing error. The safe technical detail was saved to Tap integration errors.";
+}
+
 /** Starts/resumes a bounded, persisted, read-only Tap history import. */
 export async function POST(request: NextRequest) {
   const sessionClient = await createServerSupabaseClient();
@@ -25,6 +33,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Tap historical backfill failed:", error instanceof Error ? error.message : "Unknown failure");
-    return NextResponse.json({ error: "Tap historical backfill could not be completed. Review Tap integration errors." }, { status: 500 });
+    return NextResponse.json({ error: `Tap historical backfill could not be completed. ${safeTapErrorDetail(error)}` }, { status: 500 });
   }
 }
