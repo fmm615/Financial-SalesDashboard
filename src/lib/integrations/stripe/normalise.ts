@@ -152,6 +152,7 @@ export function addStripeCheckoutPlan(charge: NormalisedStripeCharge, plan: Stri
       stripe_price_id: plan.priceId,
       ...(plan.productId ? { stripe_product_id: plan.productId } : {}),
       ...(plan.planName ? { stripe_plan_name: plan.planName } : {}),
+      ...(plan.planName ? { provider_plan_name: plan.planName } : {}),
       ...(plan.billingInterval ? { stripe_billing_interval: plan.billingInterval } : {}),
       ...(plan.billingIntervalCount ? { stripe_billing_interval_count: String(plan.billingIntervalCount) } : {}),
     },

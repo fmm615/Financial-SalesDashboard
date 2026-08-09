@@ -89,6 +89,10 @@ The OAuth callback, cookie-session middleware, allowlist role lookup, and server
 
 The clean HubSpot integration preserves provider IDs, explicitly maps stages and fields, writes a booking only for closed-won deals, and never derives recognised sales. Configure it using [HUBSPOT_SETUP.md](docs/HUBSPOT_SETUP.md) before enabling a webhook or scheduled reconciliation.
 
+## Tap B2C integration
+
+Tap is a read-only B2C provider integration. Configure its server-only key, local mappings, historical backfill, and optional signed webhook using [TAP_SETUP.md](docs/TAP_SETUP.md).
+
 ## Tests
 
 Critical financial calculations, integrations and authorization flows must be covered by automated tests.

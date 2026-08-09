@@ -170,7 +170,7 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  */
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, financeExceptionResult, historicalBackfillResult, reconciliationResult] = await Promise.all([
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, financeExceptionResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = await Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
@@ -179,26 +179,19 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     client.from("b2c_payment_finance_exception_decisions").select("id,payment_id,decision,created_at").order("created_at", { ascending: false }),
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "stripe").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "stripe").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "tap").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "tap").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? financeExceptionResult.error ?? historicalBackfillResult.error ?? reconciliationResult.error) {
+  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? financeExceptionResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error) {
     throw new Error("Could not load B2C source records.");
   }
 
-  const sourceCoverage = resolveB2cSourceCoverage({
-    historicalBackfill: historicalBackfillResult.data ? {
-      status: historicalBackfillResult.data.status,
-      recordsFailed: historicalBackfillResult.data.records_failed,
-      completedAt: historicalBackfillResult.data.completed_at,
-    } : null,
-    latestReconciliation: reconciliationResult.data ? {
-      status: reconciliationResult.data.status,
-      requestedRangeEnd: reconciliationResult.data.requested_range_end,
-      completedAt: reconciliationResult.data.completed_at,
-    } : null,
-  });
-
   const payments = paymentsResult.data ?? [];
   const refunds = refundsResult.data ?? [];
+  const sourceCoverage = resolveB2cSourceCoverage({ providers: [
+    { provider: "stripe", active: payments.some((payment) => payment.source_system === "stripe") || refunds.some((refund) => refund.source_system === "stripe") || Boolean(stripeHistoricalResult.data), historicalBackfill: stripeHistoricalResult.data ? { status: stripeHistoricalResult.data.status, recordsFailed: stripeHistoricalResult.data.records_failed, completedAt: stripeHistoricalResult.data.completed_at } : null, latestReconciliation: stripeReconciliationResult.data ? { status: stripeReconciliationResult.data.status, requestedRangeEnd: stripeReconciliationResult.data.requested_range_end, completedAt: stripeReconciliationResult.data.completed_at } : null },
+    { provider: "tap", active: payments.some((payment) => payment.source_system === "tap") || refunds.some((refund) => refund.source_system === "tap") || Boolean(tapHistoricalResult.data), historicalBackfill: tapHistoricalResult.data ? { status: tapHistoricalResult.data.status, recordsFailed: tapHistoricalResult.data.records_failed, completedAt: tapHistoricalResult.data.completed_at } : null, latestReconciliation: tapReconciliationResult.data ? { status: tapReconciliationResult.data.status, requestedRangeEnd: tapReconciliationResult.data.requested_range_end, completedAt: tapReconciliationResult.data.completed_at } : null },
+  ] });
   const overridesByPayment = new Map<string, LocalPaymentOverride>((localOverridesResult.data ?? []).map((override) => [override.payment_id, override]));
   const latestFinanceDecisionByPayment = new Map<string, FinanceExceptionDecision>();
   for (const decision of (financeExceptionResult.data ?? []) as FinanceExceptionDecision[]) {

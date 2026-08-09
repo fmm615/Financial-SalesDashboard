@@ -71,7 +71,16 @@ Read [STRIPE_SETUP.md](STRIPE_SETUP.md) before adding live credentials or an end
 
 Purpose: regional B2C payments.
 
-Apply the same reliability principles as Stripe.
+The Tap boundary lives in `src/lib/integrations/tap/`; the sync service writes only to local PLAYBOOK tables. It is read-only against Tap: the client has only Tap's charge/refund list queries and single-charge retrieval. The list API uses `POST` to submit a search query, but the client contains no Tap create, update, refund, or delete method.
+
+- An Admin can run the 48-hour reconciliation and the resumable historical import from **Admin → Integration status**. Each historical page has at most 50 provider records. Provider IDs make retries idempotent locally.
+- Tap's signed webhook endpoint is `/api/webhooks/tap`. It validates Tap's `hashstring` before local processing. The webhook records the posted charge locally; it does not call Tap back.
+- A Tap payment keeps its original provider transaction ID, direct customer name/email/mobile when supplied, source product reference, provider status, and source references. Missing values remain `—` and are flagged; no Slack or profile fallback is used.
+- PLAYBOOK accepts only USD Tap charges/refunds until Finance approves an exchange-rate source and rule. A non-USD Tap record is recorded as a safe integration error and is never silently converted.
+- Tap product mappings and one-payment local corrections use the same B2C controls as Stripe. They are source-system scoped, append-only/audited locally, and never change Tap. Finance exceptions never bypass failed/pending, duplicate, or unresolved blocking issues.
+- Combined B2C Finance totals are shown only after every active provider's historical import completes cleanly. This prevents a complete Stripe history plus a partial Tap history from being presented as a complete B2C total.
+
+Read [TAP_SETUP.md](TAP_SETUP.md) before adding a Tap key or webhook endpoint.
 
 ## HubSpot
 

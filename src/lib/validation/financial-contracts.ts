@@ -62,6 +62,11 @@ export const stripeProductMappingSchema = z.object({
   reason: nonEmpty.max(1000),
 }).strict();
 
+/** A local classification may be reused only within the same B2C provider. */
+export const b2cProductMappingSchema = stripeProductMappingSchema.extend({
+  sourceSystem: z.enum(["stripe", "tap"]),
+}).strict();
+
 export const financialTargetSchema = z.object({
   metricCode: z.string().regex(/^[a-z0-9][a-z0-9_-]*$/),
   periodStart: isoDate,
@@ -164,6 +169,7 @@ export type ManualBankTransferInput = z.infer<typeof manualBankTransferSchema>;
 export type FinancialCorrectionInput = z.infer<typeof financialCorrectionSchema>;
 export type ProductMappingInput = z.infer<typeof productMappingSchema>;
 export type StripeProductMappingInput = z.infer<typeof stripeProductMappingSchema>;
+export type B2cProductMappingInput = z.infer<typeof b2cProductMappingSchema>;
 export type FinancialTargetInput = z.infer<typeof financialTargetSchema>;
 export type SummitUpdateInput = z.infer<typeof summitUpdateSchema>;
 export type ReviewResolutionInput = z.infer<typeof reviewResolutionSchema>;

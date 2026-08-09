@@ -1,17 +1,10 @@
-export type StripeHistoricalBackfillState = {
-  status: string;
-  recordsFailed: number;
-  completedAt: string | null;
-} | null;
+export type B2cProviderName = "stripe" | "tap";
 
-export type StripeReconciliationState = {
-  status: string;
-  requestedRangeEnd: string | null;
-  completedAt: string | null;
-} | null;
+export type ProviderHistoricalBackfillState = { status: string; recordsFailed: number; completedAt: string | null } | null;
+export type ProviderReconciliationState = { status: string; requestedRangeEnd: string | null; completedAt: string | null } | null;
+export type B2cProviderCoverageInput = { provider: B2cProviderName; active: boolean; historicalBackfill: ProviderHistoricalBackfillState; latestReconciliation: ProviderReconciliationState };
 
 export type B2cSourceCoverage = {
-  /** Whether the whole Stripe history has been read without unpersisted source failures. */
   reportingTotalsReady: boolean;
   state: "ready" | "incomplete" | "not_loaded";
   dataAsOf: string | null;
@@ -24,58 +17,25 @@ function laterTimestamp(first: string | null, second: string | null): string | n
   if (!second) return first;
   return first >= second ? first : second;
 }
+function label(provider: B2cProviderName): string { return provider === "stripe" ? "Stripe" : "Tap"; }
 
-/**
- * A retrieved Stripe row is not proof that a reporting period is complete.
- * Financial totals are available only after the resumable historical import
- * finished without source-record failures. Routine reconciliation can then
- * advance the transparent "as of" timestamp; it never changes Stripe.
- */
-export function resolveB2cSourceCoverage(input: {
-  historicalBackfill: StripeHistoricalBackfillState;
-  latestReconciliation: StripeReconciliationState;
-}): B2cSourceCoverage {
-  const historical = input.historicalBackfill;
-  const reconciliationAsOf = input.latestReconciliation?.status === "completed"
-    ? input.latestReconciliation.requestedRangeEnd ?? input.latestReconciliation.completedAt
-    : null;
-  const dataAsOf = laterTimestamp(historical?.completedAt ?? null, reconciliationAsOf);
+/** Financial totals are only complete after every active B2C source's clean, full local history import. */
+export function resolveB2cSourceCoverage(input: { providers: B2cProviderCoverageInput[] }): B2cSourceCoverage {
+  const active = input.providers.filter((provider) => provider.active);
+  const dataAsOf = active.reduce<string | null>((latest, provider) => {
+    const reconciliation = provider.latestReconciliation?.status === "completed" ? provider.latestReconciliation.requestedRangeEnd ?? provider.latestReconciliation.completedAt : null;
+    return laterTimestamp(latest, laterTimestamp(provider.historicalBackfill?.completedAt ?? null, reconciliation));
+  }, null);
+  if (!active.length) return { reportingTotalsReady: false, state: "not_loaded", dataAsOf: null, title: "No B2C source history has been loaded", description: "PLAYBOOK will show B2C financial totals after an Admin imports at least one configured provider history." };
 
-  if (!historical) {
-    return {
-      reportingTotalsReady: false,
-      state: "not_loaded",
-      dataAsOf: null,
-      title: "Historical Stripe data has not been fully loaded",
-      description: "PLAYBOOK can show retrieved source records, but it withholds financial totals until the full historical Stripe import completes.",
-    };
+  const notLoaded = active.filter((provider) => !provider.historicalBackfill);
+  if (notLoaded.length) return { reportingTotalsReady: false, state: "not_loaded", dataAsOf, title: `${notLoaded.map((provider) => label(provider.provider)).join(" and ")} historical data has not been fully loaded`, description: "PLAYBOOK can show retrieved source records, but it withholds combined B2C financial totals until every active provider history is complete." };
+  const incomplete = active.filter((provider) => provider.historicalBackfill?.status !== "completed");
+  if (incomplete.length) return { reportingTotalsReady: false, state: "incomplete", dataAsOf, title: "Historical B2C import is still in progress", description: `${incomplete.map((provider) => label(provider.provider)).join(" and ")} source history is partial. Financial totals are intentionally withheld until the import finishes.` };
+  const failed = active.filter((provider) => (provider.historicalBackfill?.recordsFailed ?? 0) > 0);
+  if (failed.length) {
+    const count = failed.reduce((sum, provider) => sum + (provider.historicalBackfill?.recordsFailed ?? 0), 0);
+    return { reportingTotalsReady: false, state: "incomplete", dataAsOf, title: "Historical B2C import completed with exceptions", description: `${count} source record${count === 1 ? "" : "s"} could not be loaded across ${failed.map((provider) => label(provider.provider)).join(" and ")}. Resolve or retry them before treating B2C totals as complete.` };
   }
-
-  if (historical.status !== "completed") {
-    return {
-      reportingTotalsReady: false,
-      state: "incomplete",
-      dataAsOf,
-      title: "Historical Stripe import is still in progress",
-      description: "The source ledger is partial. Financial totals are intentionally withheld until the import finishes.",
-    };
-  }
-
-  if (historical.recordsFailed > 0) {
-    return {
-      reportingTotalsReady: false,
-      state: "incomplete",
-      dataAsOf,
-      title: "Historical Stripe import completed with exceptions",
-      description: `${historical.recordsFailed} source record${historical.recordsFailed === 1 ? "" : "s"} could not be loaded. Resolve or retry those records before treating B2C totals as complete.`,
-    };
-  }
-
-  return {
-    reportingTotalsReady: true,
-    state: "ready",
-    dataAsOf,
-    title: "B2C financial totals are ready",
-    description: "The full Stripe history was loaded without source-record failures. Financial totals include only reportable payments and their linked succeeded refunds.",
-  };
+  return { reportingTotalsReady: true, state: "ready", dataAsOf, title: "B2C financial totals are ready", description: `The full ${active.map((provider) => label(provider.provider)).join(" and ")} history was loaded without source-record failures. Financial totals include only reportable payments and their linked succeeded refunds.` };
 }

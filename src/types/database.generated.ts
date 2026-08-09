@@ -221,6 +221,10 @@ export interface Database {
         Args: { p_external_product_id: string; p_internal_product_code: string; p_internal_product_name: string; p_category_code: string; p_membership_tier: string | null; p_reason: string };
         Returns: Uuid;
       };
+      apply_b2c_product_mapping: {
+        Args: { p_source_system: "stripe" | "tap"; p_external_product_id: string; p_internal_product_code: string; p_internal_product_name: string; p_category_code: string; p_membership_tier: string | null; p_reason: string };
+        Returns: Uuid;
+      };
       resolve_b2c_review_flag: { Args: { p_flag_id: Uuid; p_resolution_status: "resolved" | "dismissed"; p_resolution_note: string }; Returns: undefined };
       apply_b2c_payment_local_correction: {
         Args: { p_payment_id: Uuid; p_customer_name: string | null; p_customer_email: string | null; p_customer_phone: string | null; p_category_code: string | null; p_membership_tier: string | null; p_local_amount_usd: Decimal | null; p_local_occurred_on: string | null; p_reason: string };

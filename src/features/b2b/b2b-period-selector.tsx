@@ -32,7 +32,7 @@ export function B2bPeriodSelector({ month }: { month: string }) {
 
   return <div className="relative inline-flex items-center rounded-pill border border-border bg-surface text-sm font-medium text-text-secondary shadow-card hover:border-brand-accent/30 hover:text-text-primary">
     <CalendarDays size={15} aria-hidden="true" className="pointer-events-none ml-3.5 shrink-0" />
-    <select aria-label="B2B reporting period" value={month} onChange={(event) => selectMonth(event.target.value)} className="cursor-pointer appearance-none bg-transparent py-2 pl-2 pr-8 text-sm font-medium outline-none">
+    <select aria-label="B2B financial reporting month" value={month} onChange={(event) => selectMonth(event.target.value)} className="cursor-pointer appearance-none bg-transparent py-2 pl-2 pr-8 text-sm font-medium outline-none">
       {monthOptions(month).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
     <ChevronDown size={15} aria-hidden="true" className="pointer-events-none absolute right-3.5" />

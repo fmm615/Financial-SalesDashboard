@@ -43,7 +43,7 @@ This must protect webhook processing and reconciliation from double counting the
 
 ### Controlled B2C Finance exception
 
-If essential Stripe source details are genuinely unavailable, an Admin may include one **succeeded** B2C payment by a documented Finance exception. This is permitted only after confirming the exact unique provider transaction ID, confirming no known duplicate from available evidence, saving a verified local PLAYBOOK category/amount/date, and recording a reason. The exception is append-only and audited. It never overrides a failed/pending payment, an identified possible duplicate, or another unresolved source issue; it never changes Stripe.
+If essential B2C provider source details are genuinely unavailable, an Admin may include one **succeeded** B2C payment by a documented Finance exception. This is permitted only after confirming the exact unique provider transaction ID, confirming no known duplicate from available evidence, saving a verified local PLAYBOOK category/amount/date, and recording a reason. The exception is append-only and audited. It never overrides a failed/pending payment, an identified possible duplicate, or another unresolved source issue; it never changes Stripe or Tap.
 
 ## Refunds
 
