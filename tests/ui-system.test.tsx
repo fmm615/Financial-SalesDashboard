@@ -5,7 +5,7 @@ import { ExecutiveDashboard } from "@/features/executive/executive-dashboard";
 import { B2bOperations } from "@/features/b2b/b2b-operations";
 import { ReportsPage } from "@/features/reports/reports-page";
 import { ReviewQueuePage } from "@/features/review-queue/review-queue-page";
-import { EmptyState, LoadingSkeleton, NotBackfilledState } from "@/components/ui";
+import { EmptyState, LoadingSkeleton, NotBackfilledState, TableCell } from "@/components/ui";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/executive", useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
@@ -27,6 +27,12 @@ describe("UI foundation", () => {
     expect(screen.getByLabelText("Loading data")).toBeInTheDocument();
     expect(screen.getByText("Nothing to review")).toBeInTheDocument();
     expect(screen.getByText("Historical data not available")).toBeInTheDocument();
+  });
+
+  it("passes native table-cell attributes through to the rendered cell", () => {
+    render(<table><tbody><tr><TableCell colSpan={2}>Loading archive</TableCell></tr></tbody></table>);
+
+    expect(screen.getByText("Loading archive")).toHaveAttribute("colspan", "2");
   });
 
   it("opens a review detail drawer and shows duplicate records side by side", () => {

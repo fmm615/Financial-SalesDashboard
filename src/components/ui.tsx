@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleAlert, Clock3, Loader2, Search, SlidersHorizontal } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { formatUsd } from "@/lib/format";
 import { cardReveal, motionTransition, sectionReveal } from "@/lib/motion";
 import type { MetricTone, RecordStatus, ReviewFlag } from "@/types/dashboard";
@@ -26,7 +26,7 @@ export function FilterBar({ filters = ["Date", "Status"] }: { filters?: string[]
 export function DataTable({ children, caption }: { children: ReactNode; caption: string }) { return <div className="overflow-x-auto"><table className="min-w-full text-left text-sm [&_tbody>tr]:transition-colors [&_tbody>tr:hover]:bg-surface-muted/65"><caption className="sr-only">{caption}</caption>{children}</table></div>; }
 export function TableHead({ children }: { children: ReactNode }) { return <thead className="border-y border-border bg-surface-muted/80 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted"><tr>{children}</tr></thead>; }
 export function TableHeader({ children }: { children: ReactNode }) { return <th scope="col" className="whitespace-nowrap px-4 py-3.5 font-semibold">{children}</th>; }
-export function TableCell({ children, className = "" }: { children: ReactNode; className?: string }) { return <td className={`whitespace-nowrap px-4 py-3.5 align-top text-text-secondary ${className}`}>{children}</td>; }
+export function TableCell({ children, className = "", ...props }: ComponentPropsWithoutRef<"td">) { return <td {...props} className={`whitespace-nowrap px-4 py-3.5 align-top text-text-secondary ${className}`}>{children}</td>; }
 
 export function LoadingSkeleton({ rows = 3 }: { rows?: number }) { return <div aria-label="Loading data" className="space-y-3">{Array.from({ length: rows }, (_, index) => <div key={index} className="h-5 w-full animate-pulse rounded-sm bg-surface-muted" />)}</div>; }
 export function EmptyState({ title = "No records yet", description = "Records will appear here when they are available." }: { title?: string; description?: string }) { return <div className="py-10 text-center"><p className="font-semibold text-text-primary">{title}</p><p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-text-muted">{description}</p></div>; }
