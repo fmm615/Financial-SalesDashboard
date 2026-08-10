@@ -150,7 +150,7 @@ expect(toReviewQueueItem({
 });
 ```
 
-Add list-filter/count expectations: `openCount` counts open items, `resolvedThisMonthCount` counts resolved/dismissed items created in the supplied current month, and `highPriorityOpenCount` counts open priority 1–2 items. Add route tests proving an unauthenticated request receives 403, an invalid query/UUID receives 422, and a repository failure receives one safe 500 message without database detail.
+Add list-filter/count expectations: `openCount` counts open items, `resolvedThisMonthCount` counts resolved/dismissed items by their `resolved_at` month, and `highPriorityOpenCount` counts open priority 1–2 items. Add route tests proving an unauthenticated request receives 403, an invalid query/UUID receives 422, and a repository failure receives one safe 500 message without database detail.
 
 - [ ] **Step 2: Run the focused tests and verify they fail**
 
