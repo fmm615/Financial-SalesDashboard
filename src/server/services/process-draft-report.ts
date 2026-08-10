@@ -1,4 +1,5 @@
 import { createDraftReportContent } from "@/lib/reports/draft-report-content";
+import { createDraftReportSnapshot } from "@/lib/reports/report-data";
 import { createSimplePdf } from "@/lib/reports/simple-pdf";
 import type { ReportRequestInput } from "@/lib/validation/financial-contracts";
 import type { DatabaseClient } from "@/lib/supabase/server";
@@ -43,7 +44,7 @@ export async function processDraftReportJob(client: DatabaseClient, jobId: strin
       periodEnd: job.period_end,
       deliveryRequested: job.delivery_requested,
     };
-    const content = createDraftReportContent(request);
+    const content = createDraftReportContent(createDraftReportSnapshot(request));
     const basePath = `draft/${job.id}/${job.report_type}-${job.period_start}-${job.period_end}`;
     const uploads = await Promise.all([
       client.storage.from(reportBucket).upload(`${basePath}.pdf`, createSimplePdf(content.pdfLines), { contentType: "application/pdf", upsert: true }),

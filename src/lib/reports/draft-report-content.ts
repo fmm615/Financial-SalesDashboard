@@ -1,4 +1,4 @@
-import type { ReportRequestInput } from "@/lib/validation/financial-contracts";
+import type { ReportCoverage, ReportDataSnapshot } from "@/lib/reports/report-data";
 
 export type DraftReportContent = {
   title: string;
@@ -6,35 +6,52 @@ export type DraftReportContent = {
   disclaimer: string;
   csv: string;
   pdfLines: string[];
-  summarySnapshot: Record<string, string | boolean>;
+  summarySnapshot: Record<string, string | boolean | ReportCoverage[]>;
 };
 
 function formatPeriod(periodStart: string, periodEnd: string): string {
   return `${periodStart} to ${periodEnd}`;
 }
 
+function formatCoverageArea(area: ReportCoverage["area"]): string {
+  return area.toUpperCase();
+}
+
+function formatCoverageStatus(status: ReportCoverage["status"]): string {
+  return status.replaceAll("_", " ");
+}
+
+function quoteCsvValue(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
 /**
  * This deliberately contains no provider rows or financial totals. B2C and B2B
  * source data is still under Finance review, so it is unsafe to publish it.
  */
-export function createDraftReportContent(request: ReportRequestInput): DraftReportContent {
-  const periodLabel = formatPeriod(request.periodStart, request.periodEnd);
+export function createDraftReportContent(snapshot: ReportDataSnapshot): DraftReportContent {
+  const periodLabel = formatPeriod(snapshot.periodStart, snapshot.periodEnd);
   const disclaimer = "DRAFT FIXTURE REPORT — NOT FINANCIAL REPORTING";
-  const title = `PLAYBOOK ${request.reportType.replace("_", " ")} report`;
+  const title = `PLAYBOOK ${snapshot.reportType.replace("_", " ")} report`;
   const csvRows = [
     ["field", "value"],
-    ["report_status", "draft_fixture_only"],
-    ["period_start", request.periodStart],
-    ["period_end", request.periodEnd],
-    ["financial_data_included", "false"],
-    ["reason", "B2C and B2B source data is pending Finance review"],
+    ["readiness", snapshot.readiness],
+    ["snapshot_version", snapshot.version],
+    ["period_start", snapshot.periodStart],
+    ["period_end", snapshot.periodEnd],
+    ["financial_data_included", String(snapshot.financialDataIncluded)],
+    ...snapshot.coverage.map((coverage) => [`coverage_${coverage.area}_status`, coverage.status]),
+    ...snapshot.coverage.map((coverage) => [`coverage_${coverage.area}_message`, coverage.message]),
   ];
+  const coverageLines = snapshot.coverage.map(
+    (coverage) => `${formatCoverageArea(coverage.area)}: ${formatCoverageStatus(coverage.status)} — ${coverage.message}`,
+  );
 
   return {
     title,
     periodLabel,
     disclaimer,
-    csv: `${csvRows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n")}\n`,
+    csv: `${csvRows.map((row) => row.map(quoteCsvValue).join(",")).join("\n")}\n`,
     pdfLines: [
       "PLAYBOOK Financial Operating System",
       disclaimer,
@@ -44,13 +61,17 @@ export function createDraftReportContent(request: ReportRequestInput): DraftRepo
       "This report validates the archive and download workflow only.",
       "No B2C or B2B source rows, financial totals, targets, or performance",
       "claims are included while Finance resolves incomplete source data.",
+      "",
+      "Coverage:",
+      ...coverageLines,
     ],
     summarySnapshot: {
-      report_status: "draft_fixture_only",
-      financial_data_included: false,
-      source_data_status: "pending_finance_review",
-      period_start: request.periodStart,
-      period_end: request.periodEnd,
+      readiness: snapshot.readiness,
+      version: snapshot.version,
+      financial_data_included: snapshot.financialDataIncluded,
+      period_start: snapshot.periodStart,
+      period_end: snapshot.periodEnd,
+      coverage: snapshot.coverage.map((coverage) => ({ ...coverage })),
     },
   };
 }
