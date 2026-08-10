@@ -1,0 +1,2807 @@
+- generic [ref=f14e2]:
+  - link "Skip to main content" [ref=f14e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary [ref=f14e4]:
+    - navigation "Main navigation" [ref=f14e5]:
+      - link "PLAYBOOK FOS" [ref=f14e6] [cursor=pointer]:
+        - /url: /executive
+        - generic [ref=f14e7]: PLAYBOOK
+        - generic [ref=f14e8]: FOS
+      - generic [ref=f14e9]:
+        - generic [ref=f14e10]:
+          - paragraph [ref=f14e11]: Overview
+          - link "Executive" [ref=f14e12] [cursor=pointer]:
+            - /url: /executive
+        - generic [ref=f14e18]:
+          - paragraph [ref=f14e19]: Operations
+          - link "B2C operations" [ref=f14e20] [cursor=pointer]:
+            - /url: /operations/b2c
+        - link "B2B operations" [ref=f14e26] [cursor=pointer]:
+          - /url: /operations/b2b
+        - link "Finance" [ref=f14e34] [cursor=pointer]:
+          - /url: /finance
+        - generic [ref=f14e37]:
+          - paragraph [ref=f14e38]: Governance
+          - link "Reports" [ref=f14e39] [cursor=pointer]:
+            - /url: /reports
+        - link "Review queue" [ref=f14e44] [cursor=pointer]:
+          - /url: /review-queue
+        - link "Audit log" [ref=f14e49] [cursor=pointer]:
+          - /url: /audit-log
+        - link "Administration" [ref=f14e54] [cursor=pointer]:
+          - /url: /admin
+      - generic [ref=f14e58]:
+        - generic [ref=f14e59]: Admin workspace
+        - paragraph [ref=f14e61]: Changes are recorded in the audit log.
+  - banner [ref=f14e62]:
+    - generic [ref=f14e63]:
+      - paragraph [ref=f14e64]: Financial workspace
+      - paragraph [ref=f14e65]: Controlled reporting & traceable operations
+    - generic [ref=f14e66]:
+      - generic [ref=f14e67]: admin
+      - button "Notifications" [ref=f14e68] [cursor=pointer]
+      - button "Sign out" [ref=f14e73] [cursor=pointer]
+  - main [ref=f14e77]:
+    - generic [ref=f14e78]:
+      - generic [ref=f14e79]:
+        - paragraph [ref=f14e80]: PLAYBOOK Financial Operating System
+        - heading "B2B operations" [level=1] [ref=f14e81]
+        - paragraph [ref=f14e82]: Corporate pipeline, closed-won bookings, and recognised sales are tracked as separate financial concepts. Deals needing Admin review remain visible but are excluded from totals.
+      - generic [ref=f14e84]:
+        - combobox "B2B financial reporting month" [ref=f14e86] [cursor=pointer]:
+          - option "All time"
+          - option "December 2026"
+          - option "November 2026"
+          - option "October 2026"
+          - option "September 2026"
+          - option "August 2026" [selected]
+          - option "July 2026"
+          - option "June 2026"
+          - option "May 2026"
+          - option "April 2026"
+          - option "March 2026"
+          - option "February 2026"
+          - option "January 2026"
+          - option "December 2025"
+          - option "November 2025"
+          - option "October 2025"
+          - option "September 2025"
+          - option "August 2025"
+          - option "July 2025"
+          - option "June 2025"
+          - option "May 2025"
+          - option "April 2025"
+          - option "March 2025"
+          - option "February 2025"
+          - option "January 2025"
+          - option "December 2024"
+          - option "November 2024"
+          - option "October 2024"
+          - option "September 2024"
+          - option "August 2024"
+          - option "July 2024"
+          - option "June 2024"
+          - option "May 2024"
+          - option "April 2024"
+          - option "March 2024"
+          - option "February 2024"
+          - option "January 2024"
+          - option "December 2023"
+          - option "November 2023"
+          - option "October 2023"
+          - option "September 2023"
+          - option "August 2023"
+          - option "July 2023"
+          - option "June 2023"
+          - option "May 2023"
+          - option "April 2023"
+          - option "March 2023"
+          - option "February 2023"
+          - option "January 2023"
+          - option "December 2022"
+          - option "November 2022"
+          - option "October 2022"
+          - option "September 2022"
+          - option "August 2022"
+          - option "July 2022"
+          - option "June 2022"
+          - option "May 2022"
+          - option "April 2022"
+          - option "March 2022"
+          - option "February 2022"
+          - option "January 2022"
+        - button "Add manual B2B deal" [ref=f14e87] [cursor=pointer]
+    - generic [ref=f14e89]:
+      - generic [ref=f14e90]:
+        - article [ref=f14e91]:
+          - paragraph [ref=f14e93]: Open pipeline
+          - paragraph [ref=f14e94]: $2,008,203.07
+          - paragraph [ref=f14e95]: Current eligible open deals
+        - article [ref=f14e96]:
+          - paragraph [ref=f14e98]: Win rate · August 2026
+          - paragraph [ref=f14e99]: Not available
+          - paragraph [ref=f14e100]: No eligible closed decisions with a close date
+        - article [ref=f14e101]:
+          - paragraph [ref=f14e103]: Bookings · Q3 2026
+          - paragraph [ref=f14e104]: $0.00
+          - paragraph [ref=f14e105]: Closed-won bookings only
+        - article [ref=f14e106]:
+          - paragraph [ref=f14e108]: Recognised sales · August 2026
+          - paragraph [ref=f14e109]: $11,111.00
+          - paragraph [ref=f14e110]: Separate from bookings
+      - generic [ref=f14e111]:
+        - generic [ref=f14e113]:
+          - heading "Open pipeline by stage" [level=2] [ref=f14e114]
+          - paragraph [ref=f14e115]: Current eligible open-deal value only. Deals awaiting Admin review and closed deals are excluded.
+        - generic [ref=f14e117]:
+          - generic [ref=f14e118]:
+            - paragraph [ref=f14e119]: Qualified
+            - paragraph [ref=f14e120]: $923,230.00
+            - paragraph [ref=f14e121]: 74 eligible deals
+          - generic [ref=f14e122]:
+            - paragraph [ref=f14e123]: Proposal
+            - paragraph [ref=f14e124]: $580,642.07
+            - paragraph [ref=f14e125]: 36 eligible deals
+          - generic [ref=f14e126]:
+            - paragraph [ref=f14e127]: Negotiation
+            - paragraph [ref=f14e128]: $265,565.00
+            - paragraph [ref=f14e129]: 11 eligible deals
+          - generic [ref=f14e130]:
+            - paragraph [ref=f14e131]: Discovery
+            - paragraph [ref=f14e132]: $222,845.00
+            - paragraph [ref=f14e133]: 19 eligible deals
+          - generic [ref=f14e134]:
+            - paragraph [ref=f14e135]: Parked
+            - paragraph [ref=f14e136]: $15,921.00
+            - paragraph [ref=f14e137]: 2 eligible deals
+      - generic [ref=f14e138]:
+        - generic [ref=f14e139]:
+          - generic [ref=f14e140]:
+            - heading "B2B deals" [level=2] [ref=f14e141]
+            - paragraph [ref=f14e142]: The selected period filters bookings and recognised sales. The table shows the total recognised amount recorded against each deal. Pipeline remains a current snapshot; historical pipeline cannot be reconstructed from a deal's current state. Issues are flagged for Admin review; only eligible deals contribute to totals.
+          - generic [ref=f14e144]:
+            - text: Stage
+            - combobox "Filter B2B deals by stage" [ref=f14e145]:
+              - option "All stages (206)" [selected]
+              - option "Discovery (37)"
+              - option "Qualified (77)"
+              - option "Proposal (37)"
+              - option "Negotiation (12)"
+              - option "Parked (4)"
+              - option "Closed Won (35)"
+              - option "Closed Lost (4)"
+        - table [ref=f14e148]:
+          - caption [ref=f14e149]: HubSpot B2B deals
+          - rowgroup [ref=f14e150]:
+            - row [ref=f14e151]:
+              - columnheader "Deal" [ref=f14e152]
+              - columnheader "Owner" [ref=f14e153]
+              - columnheader "Stage" [ref=f14e154]
+              - columnheader "Amount" [ref=f14e155]
+              - columnheader "Close date" [ref=f14e156]
+              - columnheader "Booking" [ref=f14e157]
+              - columnheader "Recognised sales" [ref=f14e158]
+              - columnheader "Issue" [ref=f14e159]
+              - columnheader "Admin action" [ref=f14e160]
+          - rowgroup [ref=f14e162]:
+            - row [ref=f14e163]:
+              - cell "Test deal" [ref=f14e164]
+              - cell "Tester" [ref=f14e165]
+              - cell "Discovery" [ref=f14e166]
+              - cell "$11,111" [ref=f14e167]
+              - cell "Aug 1, 2026" [ref=f14e168]
+              - cell "Not booked" [ref=f14e169]
+              - 'cell "Recognised Total: $11,111" [ref=f14e171]':
+                - generic [ref=f14e172]:
+                  - generic [ref=f14e173]: Recognised
+                  - generic [ref=f14e174]: "Total: $11,111"
+              - cell "—" [ref=f14e175]
+              - cell [ref=f14e176]:
+                - generic [ref=f14e177]:
+                  - button "Review / edit" [ref=f14e178] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e179] [cursor=pointer]
+            - row [ref=f14e180]:
+              - cell "Localized" [ref=f14e181]
+              - cell "Bayan Hasan" [ref=f14e182]
+              - cell "Proposal" [ref=f14e183]
+              - cell "$10,000" [ref=f14e184]
+              - cell "Aug 31, 2024" [ref=f14e185]
+              - cell "Not booked" [ref=f14e186]
+              - cell "Not recognised" [ref=f14e188]
+              - cell "—" [ref=f14e191]
+              - cell [ref=f14e192]:
+                - generic [ref=f14e193]:
+                  - button "Review / edit" [ref=f14e194] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e195] [cursor=pointer]
+            - row [ref=f14e196]:
+              - cell "Ride Safe" [ref=f14e197]
+              - cell "Bayan Hasan" [ref=f14e198]
+              - cell "Negotiation" [ref=f14e199]
+              - cell "$10,000" [ref=f14e200]
+              - cell "Aug 31, 2024" [ref=f14e201]
+              - cell "Not booked" [ref=f14e202]
+              - cell "Not recognised" [ref=f14e204]
+              - cell "—" [ref=f14e207]
+              - cell [ref=f14e208]:
+                - generic [ref=f14e209]:
+                  - button "Review / edit" [ref=f14e210] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e211] [cursor=pointer]
+            - row [ref=f14e212]:
+              - cell "Localized x Tamkeen" [ref=f14e213]
+              - cell "Habiba Almosawi" [ref=f14e214]
+              - cell "Closed Won" [ref=f14e215]
+              - cell "$58,300" [ref=f14e216]
+              - cell "Oct 20, 2024" [ref=f14e217]
+              - cell "Booked" [ref=f14e218]
+              - cell "Not recognised" [ref=f14e220]
+              - cell "—" [ref=f14e223]
+              - cell [ref=f14e224]:
+                - generic [ref=f14e225]:
+                  - button "Review / edit" [ref=f14e226] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e227] [cursor=pointer]
+            - row [ref=f14e228]:
+              - cell "SISCO GROUP - New Deal" [ref=f14e229]
+              - cell "Habiba Almosawi" [ref=f14e230]
+              - cell "Proposal" [ref=f14e231]
+              - cell "$7,700" [ref=f14e232]
+              - cell "Sep 30, 2024" [ref=f14e233]
+              - cell "Not booked" [ref=f14e234]
+              - cell "Not recognised" [ref=f14e236]
+              - cell "—" [ref=f14e239]
+              - cell [ref=f14e240]:
+                - generic [ref=f14e241]:
+                  - button "Review / edit" [ref=f14e242] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e243] [cursor=pointer]
+            - row [ref=f14e244]:
+              - cell "TIKTOK" [ref=f14e245]
+              - cell "Habiba Almosawi" [ref=f14e246]
+              - cell "Qualified" [ref=f14e247]
+              - cell "$18,000" [ref=f14e248]
+              - cell "Oct 22, 2024" [ref=f14e249]
+              - cell "Not booked" [ref=f14e250]
+              - cell "Not recognised" [ref=f14e252]
+              - cell "—" [ref=f14e255]
+              - cell [ref=f14e256]:
+                - generic [ref=f14e257]:
+                  - button "Review / edit" [ref=f14e258] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e259] [cursor=pointer]
+            - row [ref=f14e260]:
+              - cell "Baghdad Business School" [ref=f14e261]
+              - cell "Habiba Almosawi" [ref=f14e262]
+              - cell "Proposal" [ref=f14e263]
+              - cell "$17,750" [ref=f14e264]
+              - cell "Oct 1, 2024" [ref=f14e265]
+              - cell "Not booked" [ref=f14e266]
+              - cell "Not recognised" [ref=f14e268]
+              - cell "—" [ref=f14e271]
+              - cell [ref=f14e272]:
+                - generic [ref=f14e273]:
+                  - button "Review / edit" [ref=f14e274] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e275] [cursor=pointer]
+            - row [ref=f14e276]:
+              - cell "Start AD Award Ceremony" [ref=f14e277]
+              - cell "Bayan Hasan" [ref=f14e278]
+              - cell "Closed Lost" [ref=f14e279]
+              - cell "$5,000" [ref=f14e280]
+              - cell "Sep 10, 2024" [ref=f14e281]
+              - cell "Not booked" [ref=f14e282]
+              - cell "Not recognised" [ref=f14e284]
+              - cell "—" [ref=f14e287]
+              - cell [ref=f14e288]:
+                - generic [ref=f14e289]:
+                  - button "Review / edit" [ref=f14e290] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e291] [cursor=pointer]
+            - row [ref=f14e292]:
+              - cell "Misk Fashion Program" [ref=f14e293]
+              - cell "Bayan Hasan" [ref=f14e294]
+              - cell "Proposal" [ref=f14e295]
+              - cell "$79,597.83" [ref=f14e296]
+              - cell "Aug 31, 2024" [ref=f14e297]
+              - cell "Not booked" [ref=f14e298]
+              - cell "Not recognised" [ref=f14e300]
+              - cell "—" [ref=f14e303]
+              - cell [ref=f14e304]:
+                - generic [ref=f14e305]:
+                  - button "Review / edit" [ref=f14e306] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e307] [cursor=pointer]
+            - row [ref=f14e308]:
+              - cell "Qatar Airways" [ref=f14e309]
+              - cell "Bayan Hasan" [ref=f14e310]
+              - cell "Proposal" [ref=f14e311]
+              - cell "Unavailable" [ref=f14e312]
+              - cell "Aug 31, 2024" [ref=f14e313]
+              - cell "Not booked" [ref=f14e314]
+              - cell "Unavailable" [ref=f14e316]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e319]
+              - cell [ref=f14e321]:
+                - button "Review / edit" [ref=f14e323] [cursor=pointer]
+            - row [ref=f14e324]:
+              - cell "JLL" [ref=f14e325]
+              - cell "Bayan Hasan" [ref=f14e326]
+              - cell "Discovery" [ref=f14e327]
+              - cell "Unavailable" [ref=f14e328]
+              - cell "Jun 30, 2024" [ref=f14e329]
+              - cell "Not booked" [ref=f14e330]
+              - cell "Unavailable" [ref=f14e332]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e335]
+              - cell [ref=f14e337]:
+                - button "Review / edit" [ref=f14e339] [cursor=pointer]
+            - row [ref=f14e340]:
+              - cell "Thaki" [ref=f14e341]
+              - cell "Maram Alaali" [ref=f14e342]
+              - cell "Discovery" [ref=f14e343]
+              - cell "Unavailable" [ref=f14e344]
+              - cell "Jun 30, 2024" [ref=f14e345]
+              - cell "Not booked" [ref=f14e346]
+              - cell "Unavailable" [ref=f14e348]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e351]
+              - cell [ref=f14e353]:
+                - button "Review / edit" [ref=f14e355] [cursor=pointer]
+            - row [ref=f14e356]:
+              - cell "Alkhair Capital" [ref=f14e357]
+              - cell "Maryam Mohamed" [ref=f14e358]
+              - cell "Discovery" [ref=f14e359]
+              - cell "Unavailable" [ref=f14e360]
+              - cell "Jun 30, 2024" [ref=f14e361]
+              - cell "Not booked" [ref=f14e362]
+              - cell "Unavailable" [ref=f14e364]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e367]
+              - cell [ref=f14e369]:
+                - button "Review / edit" [ref=f14e371] [cursor=pointer]
+            - row [ref=f14e372]:
+              - cell "LAZARD" [ref=f14e373]
+              - cell "Maryam Mohamed" [ref=f14e374]
+              - cell "Discovery" [ref=f14e375]
+              - cell "Unavailable" [ref=f14e376]
+              - cell "Jun 30, 2024" [ref=f14e377]
+              - cell "Not booked" [ref=f14e378]
+              - cell "Unavailable" [ref=f14e380]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e383]
+              - cell [ref=f14e385]:
+                - button "Review / edit" [ref=f14e387] [cursor=pointer]
+            - row [ref=f14e388]:
+              - cell "Earth University" [ref=f14e389]
+              - cell "Sana Adil" [ref=f14e390]
+              - cell "Discovery" [ref=f14e391]
+              - cell "Unavailable" [ref=f14e392]
+              - cell "Jun 30, 2024" [ref=f14e393]
+              - cell "Not booked" [ref=f14e394]
+              - cell "Unavailable" [ref=f14e396]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e399]
+              - cell [ref=f14e401]:
+                - button "Review / edit" [ref=f14e403] [cursor=pointer]
+            - row [ref=f14e404]:
+              - cell "Indian Chamber of Commerce" [ref=f14e405]
+              - cell "Sana Adil" [ref=f14e406]
+              - cell "Discovery" [ref=f14e407]
+              - cell "Unavailable" [ref=f14e408]
+              - cell "Jun 30, 2024" [ref=f14e409]
+              - cell "Not booked" [ref=f14e410]
+              - cell "Unavailable" [ref=f14e412]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e415]
+              - cell [ref=f14e417]:
+                - button "Review / edit" [ref=f14e419] [cursor=pointer]
+            - row [ref=f14e420]:
+              - cell "Entertainment Media Ventures" [ref=f14e421]
+              - cell "Maryam Mohamed" [ref=f14e422]
+              - cell "Discovery" [ref=f14e423]
+              - cell "Unavailable" [ref=f14e424]
+              - cell "Jun 30, 2024" [ref=f14e425]
+              - cell "Not booked" [ref=f14e426]
+              - cell "Unavailable" [ref=f14e428]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e431]
+              - cell [ref=f14e433]:
+                - button "Review / edit" [ref=f14e435] [cursor=pointer]
+            - row [ref=f14e436]:
+              - cell "Omnivest" [ref=f14e437]
+              - cell "Maryam Mohamed" [ref=f14e438]
+              - cell "Discovery" [ref=f14e439]
+              - cell "Unavailable" [ref=f14e440]
+              - cell "Jun 30, 2024" [ref=f14e441]
+              - cell "Not booked" [ref=f14e442]
+              - cell "Unavailable" [ref=f14e444]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e447]
+              - cell [ref=f14e449]:
+                - button "Review / edit" [ref=f14e451] [cursor=pointer]
+            - row [ref=f14e452]:
+              - cell "Oasis 500" [ref=f14e453]
+              - cell "Maryam Mohamed" [ref=f14e454]
+              - cell "Discovery" [ref=f14e455]
+              - cell "Unavailable" [ref=f14e456]
+              - cell "Jun 30, 2024" [ref=f14e457]
+              - cell "Not booked" [ref=f14e458]
+              - cell "Unavailable" [ref=f14e460]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e463]
+              - cell [ref=f14e465]:
+                - button "Review / edit" [ref=f14e467] [cursor=pointer]
+            - row [ref=f14e468]:
+              - cell "Action Holding Group" [ref=f14e469]
+              - cell "Bayan Hasan" [ref=f14e470]
+              - cell "Discovery" [ref=f14e471]
+              - cell "Unavailable" [ref=f14e472]
+              - cell "Jun 30, 2024" [ref=f14e473]
+              - cell "Not booked" [ref=f14e474]
+              - cell "Unavailable" [ref=f14e476]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e479]
+              - cell [ref=f14e481]:
+                - button "Review / edit" [ref=f14e483] [cursor=pointer]
+            - row [ref=f14e484]:
+              - cell "Edmaaj" [ref=f14e485]
+              - cell "Maram Alaali" [ref=f14e486]
+              - cell "Discovery" [ref=f14e487]
+              - cell "Unavailable" [ref=f14e488]
+              - cell "May 31, 2024" [ref=f14e489]
+              - cell "Not booked" [ref=f14e490]
+              - cell "Unavailable" [ref=f14e492]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e495]
+              - cell [ref=f14e497]:
+                - button "Review / edit" [ref=f14e499] [cursor=pointer]
+            - row [ref=f14e500]:
+              - cell "Atlantic Council" [ref=f14e501]
+              - cell "Maram Alaali" [ref=f14e502]
+              - cell "Discovery" [ref=f14e503]
+              - cell "Unavailable" [ref=f14e504]
+              - cell "May 31, 2024" [ref=f14e505]
+              - cell "Not booked" [ref=f14e506]
+              - cell "Unavailable" [ref=f14e508]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e511]
+              - cell [ref=f14e513]:
+                - button "Review / edit" [ref=f14e515] [cursor=pointer]
+            - row [ref=f14e516]:
+              - cell "Bapco (Renewal)" [ref=f14e517]
+              - cell "Shreya Rammohan" [ref=f14e518]
+              - cell "Closed Won" [ref=f14e519]
+              - cell "$24,183" [ref=f14e520]
+              - cell "Aug 11, 2024" [ref=f14e521]
+              - cell "Booked" [ref=f14e522]
+              - cell "Not recognised" [ref=f14e524]
+              - cell "—" [ref=f14e527]
+              - cell [ref=f14e528]:
+                - generic [ref=f14e529]:
+                  - button "Review / edit" [ref=f14e530] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e531] [cursor=pointer]
+            - row [ref=f14e532]:
+              - cell "Beyond the Billion" [ref=f14e533]
+              - cell "Bayan Hasan" [ref=f14e534]
+              - cell "Negotiation" [ref=f14e535]
+              - cell "Unavailable" [ref=f14e536]
+              - cell "May 31, 2024" [ref=f14e537]
+              - cell "Not booked" [ref=f14e538]
+              - cell "Unavailable" [ref=f14e540]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e543]
+              - cell [ref=f14e545]:
+                - button "Review / edit" [ref=f14e547] [cursor=pointer]
+            - row [ref=f14e548]:
+              - cell "Women Spark x Misk" [ref=f14e549]
+              - cell "Maram Alaali" [ref=f14e550]
+              - cell "Discovery" [ref=f14e551]
+              - cell "Unavailable" [ref=f14e552]
+              - cell "May 31, 2024" [ref=f14e553]
+              - cell "Not booked" [ref=f14e554]
+              - cell "Unavailable" [ref=f14e556]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e559]
+              - cell [ref=f14e561]:
+                - button "Review / edit" [ref=f14e563] [cursor=pointer]
+            - row [ref=f14e564]:
+              - cell "Misk Startup & NPO Workshops" [ref=f14e565]
+              - cell "Bayan Hasan" [ref=f14e566]
+              - cell "Closed Won" [ref=f14e567]
+              - cell "$149,128.50" [ref=f14e568]
+              - cell "Sep 26, 2024" [ref=f14e569]
+              - cell "Booked" [ref=f14e570]
+              - cell "Not recognised" [ref=f14e572]
+              - cell "—" [ref=f14e575]
+              - cell [ref=f14e576]:
+                - generic [ref=f14e577]:
+                  - button "Review / edit" [ref=f14e578] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e579] [cursor=pointer]
+            - row [ref=f14e580]:
+              - cell "JLL MENA" [ref=f14e581]
+              - cell "Bayan Hasan" [ref=f14e582]
+              - cell "Discovery" [ref=f14e583]
+              - cell "Unavailable" [ref=f14e584]
+              - cell "May 31, 2024" [ref=f14e585]
+              - cell "Not booked" [ref=f14e586]
+              - cell "Unavailable" [ref=f14e588]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e591]
+              - cell [ref=f14e593]:
+                - button "Review / edit" [ref=f14e595] [cursor=pointer]
+            - row [ref=f14e596]:
+              - cell "PWC x Misk Mentorship Program" [ref=f14e597]
+              - cell "Bayan Hasan" [ref=f14e598]
+              - cell "Parked" [ref=f14e599]
+              - cell "Unavailable" [ref=f14e600]
+              - cell "Aug 8, 2024" [ref=f14e601]
+              - cell "Not booked" [ref=f14e602]
+              - cell "Unavailable" [ref=f14e604]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e607]
+              - cell [ref=f14e609]:
+                - button "Review / edit" [ref=f14e611] [cursor=pointer]
+            - row [ref=f14e612]:
+              - cell "Esposa Group" [ref=f14e613]
+              - cell "Bayan Hasan" [ref=f14e614]
+              - cell "Discovery" [ref=f14e615]
+              - cell "Unavailable" [ref=f14e616]
+              - cell "May 31, 2024" [ref=f14e617]
+              - cell "Not booked" [ref=f14e618]
+              - cell "Unavailable" [ref=f14e620]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e623]
+              - cell [ref=f14e625]:
+                - button "Review / edit" [ref=f14e627] [cursor=pointer]
+            - row [ref=f14e628]:
+              - cell "Nisai" [ref=f14e629]
+              - cell "Bayan Hasan" [ref=f14e630]
+              - cell "Discovery" [ref=f14e631]
+              - cell "Unavailable" [ref=f14e632]
+              - cell "Apr 30, 2024" [ref=f14e633]
+              - cell "Not booked" [ref=f14e634]
+              - cell "Unavailable" [ref=f14e636]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e639]
+              - cell [ref=f14e641]:
+                - button "Review / edit" [ref=f14e643] [cursor=pointer]
+            - row [ref=f14e644]:
+              - cell "CitiBank" [ref=f14e645]
+              - cell "Bayan Hasan" [ref=f14e646]
+              - cell "Parked" [ref=f14e647]
+              - cell "Unavailable" [ref=f14e648]
+              - cell "Aug 8, 2024" [ref=f14e649]
+              - cell "Not booked" [ref=f14e650]
+              - cell "Unavailable" [ref=f14e652]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e655]
+              - cell [ref=f14e657]:
+                - button "Review / edit" [ref=f14e659] [cursor=pointer]
+            - row [ref=f14e660]:
+              - cell "Kuwait Bourse" [ref=f14e661]
+              - cell "Maram Alaali" [ref=f14e662]
+              - cell "Closed Won" [ref=f14e663]
+              - cell "$65,000" [ref=f14e664]
+              - cell "Aug 8, 2024" [ref=f14e665]
+              - cell "Booked" [ref=f14e666]
+              - cell "Not recognised" [ref=f14e668]
+              - cell "—" [ref=f14e671]
+              - cell [ref=f14e672]:
+                - generic [ref=f14e673]:
+                  - button "Review / edit" [ref=f14e674] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e675] [cursor=pointer]
+            - row [ref=f14e676]:
+              - cell "SPE KSA" [ref=f14e677]
+              - cell "Bayan Hasan" [ref=f14e678]
+              - cell "Negotiation" [ref=f14e679]
+              - cell "$35,000" [ref=f14e680]
+              - cell "Apr 30, 2024" [ref=f14e681]
+              - cell "Not booked" [ref=f14e682]
+              - cell "Not recognised" [ref=f14e684]
+              - cell "—" [ref=f14e687]
+              - cell [ref=f14e688]:
+                - generic [ref=f14e689]:
+                  - button "Review / edit" [ref=f14e690] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e691] [cursor=pointer]
+            - row [ref=f14e692]:
+              - cell "Quantum - Omar Malaikah" [ref=f14e693]
+              - cell "Bayan Hasan" [ref=f14e694]
+              - cell "Proposal" [ref=f14e695]
+              - cell "$15,000" [ref=f14e696]
+              - cell "May 31, 2024" [ref=f14e697]
+              - cell "Not booked" [ref=f14e698]
+              - cell "Not recognised" [ref=f14e700]
+              - cell "—" [ref=f14e703]
+              - cell [ref=f14e704]:
+                - generic [ref=f14e705]:
+                  - button "Review / edit" [ref=f14e706] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e707] [cursor=pointer]
+            - row [ref=f14e708]:
+              - cell "DAB - Dana Buheji" [ref=f14e709]
+              - cell "Bayan Hasan" [ref=f14e710]
+              - cell "Discovery" [ref=f14e711]
+              - cell "Unavailable" [ref=f14e712]
+              - cell "May 28, 2024" [ref=f14e713]
+              - cell "Not booked" [ref=f14e714]
+              - cell "Unavailable" [ref=f14e716]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e719]
+              - cell [ref=f14e721]:
+                - button "Review / edit" [ref=f14e723] [cursor=pointer]
+            - row [ref=f14e724]:
+              - cell "STC Kuwait" [ref=f14e725]
+              - cell "Bayan Hasan" [ref=f14e726]
+              - cell "Discovery" [ref=f14e727]
+              - cell "Unavailable" [ref=f14e728]
+              - cell "Apr 30, 2024" [ref=f14e729]
+              - cell "Not booked" [ref=f14e730]
+              - cell "Unavailable" [ref=f14e732]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e735]
+              - cell [ref=f14e737]:
+                - button "Review / edit" [ref=f14e739] [cursor=pointer]
+            - row [ref=f14e740]:
+              - cell "Flow Ventures" [ref=f14e741]
+              - cell "Habiba Almosawi" [ref=f14e742]
+              - cell "Negotiation" [ref=f14e743]
+              - cell "$50,000" [ref=f14e744]
+              - cell "Apr 30, 2024" [ref=f14e745]
+              - cell "Not booked" [ref=f14e746]
+              - cell "Not recognised" [ref=f14e748]
+              - cell "—" [ref=f14e751]
+              - cell [ref=f14e752]:
+                - generic [ref=f14e753]:
+                  - button "Review / edit" [ref=f14e754] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e755] [cursor=pointer]
+            - row [ref=f14e756]:
+              - cell "PSA BDP" [ref=f14e757]
+              - cell "Habiba Almosawi" [ref=f14e758]
+              - cell "Qualified" [ref=f14e759]
+              - cell "$30,000" [ref=f14e760]
+              - cell "Apr 30, 2024" [ref=f14e761]
+              - cell "Not booked" [ref=f14e762]
+              - cell "Not recognised" [ref=f14e764]
+              - cell "—" [ref=f14e767]
+              - cell [ref=f14e768]:
+                - generic [ref=f14e769]:
+                  - button "Review / edit" [ref=f14e770] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e771] [cursor=pointer]
+            - row [ref=f14e772]:
+              - cell "Naqel Express" [ref=f14e773]
+              - cell "Habiba Almosawi" [ref=f14e774]
+              - cell "Qualified" [ref=f14e775]
+              - cell "$10,000" [ref=f14e776]
+              - cell "Apr 30, 2024" [ref=f14e777]
+              - cell "Not booked" [ref=f14e778]
+              - cell "Not recognised" [ref=f14e780]
+              - cell "—" [ref=f14e783]
+              - cell [ref=f14e784]:
+                - generic [ref=f14e785]:
+                  - button "Review / edit" [ref=f14e786] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e787] [cursor=pointer]
+            - row [ref=f14e788]:
+              - cell "MDL BEAST" [ref=f14e789]
+              - cell "Maram Alaali" [ref=f14e790]
+              - cell "Closed Lost" [ref=f14e791]
+              - cell "$90,000" [ref=f14e792]
+              - cell "Aug 8, 2024" [ref=f14e793]
+              - cell "Not booked" [ref=f14e794]
+              - cell "Not recognised" [ref=f14e796]
+              - cell "—" [ref=f14e799]
+              - cell [ref=f14e800]:
+                - generic [ref=f14e801]:
+                  - button "Review / edit" [ref=f14e802] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e803] [cursor=pointer]
+            - row [ref=f14e804]:
+              - cell "Tiktok" [ref=f14e805]
+              - cell "Maram Alaali" [ref=f14e806]
+              - cell "Qualified" [ref=f14e807]
+              - cell "$50,000" [ref=f14e808]
+              - cell "Apr 30, 2024" [ref=f14e809]
+              - cell "Not booked" [ref=f14e810]
+              - cell "Not recognised" [ref=f14e812]
+              - cell "—" [ref=f14e815]
+              - cell [ref=f14e816]:
+                - generic [ref=f14e817]:
+                  - button "Review / edit" [ref=f14e818] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e819] [cursor=pointer]
+            - row [ref=f14e820]:
+              - cell "Baghdad Business School" [ref=f14e821]
+              - cell "Habiba Almosawi" [ref=f14e822]
+              - cell "Closed Won" [ref=f14e823]
+              - cell "$2,500" [ref=f14e824]
+              - cell "May 9, 2024" [ref=f14e825]
+              - cell "Booked" [ref=f14e826]
+              - cell "Not recognised" [ref=f14e828]
+              - cell "—" [ref=f14e831]
+              - cell [ref=f14e832]:
+                - generic [ref=f14e833]:
+                  - button "Review / edit" [ref=f14e834] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e835] [cursor=pointer]
+            - row [ref=f14e836]:
+              - cell "Almoayyed Group" [ref=f14e837]
+              - cell "Bayan Hasan" [ref=f14e838]
+              - cell "Negotiation" [ref=f14e839]
+              - cell "$30,000" [ref=f14e840]
+              - cell "May 31, 2024" [ref=f14e841]
+              - cell "Not booked" [ref=f14e842]
+              - cell "Not recognised" [ref=f14e844]
+              - cell "—" [ref=f14e847]
+              - cell [ref=f14e848]:
+                - generic [ref=f14e849]:
+                  - button "Review / edit" [ref=f14e850] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e851] [cursor=pointer]
+            - row [ref=f14e852]:
+              - cell "SRMG Labs" [ref=f14e853]
+              - cell "Wafa AlObaidat" [ref=f14e854]
+              - cell "Qualified" [ref=f14e855]
+              - cell "$50,000" [ref=f14e856]
+              - cell "Jan 31, 2024" [ref=f14e857]
+              - cell "Not booked" [ref=f14e858]
+              - cell "Not recognised" [ref=f14e860]
+              - cell "—" [ref=f14e863]
+              - cell [ref=f14e864]:
+                - generic [ref=f14e865]:
+                  - button "Review / edit" [ref=f14e866] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e867] [cursor=pointer]
+            - row [ref=f14e868]:
+              - cell "Digify Digital" [ref=f14e869]
+              - cell "Wafa AlObaidat" [ref=f14e870]
+              - cell "Qualified" [ref=f14e871]
+              - cell "$50,000" [ref=f14e872]
+              - cell "Jan 31, 2024" [ref=f14e873]
+              - cell "Not booked" [ref=f14e874]
+              - cell "Not recognised" [ref=f14e876]
+              - cell "—" [ref=f14e879]
+              - cell [ref=f14e880]:
+                - generic [ref=f14e881]:
+                  - button "Review / edit" [ref=f14e882] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e883] [cursor=pointer]
+            - row [ref=f14e884]:
+              - cell "Sico Bank" [ref=f14e885]
+              - cell "Wafa AlObaidat" [ref=f14e886]
+              - cell "Closed Won" [ref=f14e887]
+              - cell "$4,000" [ref=f14e888]
+              - cell "Aug 8, 2024" [ref=f14e889]
+              - cell "Booked" [ref=f14e890]
+              - cell "Not recognised" [ref=f14e892]
+              - cell "—" [ref=f14e895]
+              - cell [ref=f14e896]:
+                - generic [ref=f14e897]:
+                  - button "Review / edit" [ref=f14e898] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e899] [cursor=pointer]
+            - row [ref=f14e900]:
+              - cell "BDB" [ref=f14e901]
+              - cell "Wafa AlObaidat" [ref=f14e902]
+              - cell "Qualified" [ref=f14e903]
+              - cell "$8,910" [ref=f14e904]
+              - cell "Dec 31, 2023" [ref=f14e905]
+              - cell "Not booked" [ref=f14e906]
+              - cell "Not recognised" [ref=f14e908]
+              - cell "—" [ref=f14e911]
+              - cell [ref=f14e912]:
+                - generic [ref=f14e913]:
+                  - button "Review / edit" [ref=f14e914] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e915] [cursor=pointer]
+            - row [ref=f14e916]:
+              - cell "Rafiq Ansari" [ref=f14e917]
+              - cell "Wafa AlObaidat" [ref=f14e918]
+              - cell "Qualified" [ref=f14e919]
+              - cell "Unavailable" [ref=f14e920]
+              - cell "—" [ref=f14e921]
+              - cell "Not booked" [ref=f14e922]
+              - cell "Unavailable" [ref=f14e924]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e927]
+              - cell [ref=f14e929]:
+                - button "Review / edit" [ref=f14e931] [cursor=pointer]
+            - row [ref=f14e932]:
+              - cell "Batelco Workshop" [ref=f14e933]
+              - cell "Wafa AlObaidat" [ref=f14e934]
+              - cell "Proposal" [ref=f14e935]
+              - cell "$6,630.84" [ref=f14e936]
+              - cell "—" [ref=f14e937]
+              - cell "Not booked" [ref=f14e938]
+              - cell "Not recognised" [ref=f14e940]
+              - cell "—" [ref=f14e943]
+              - cell [ref=f14e944]:
+                - generic [ref=f14e945]:
+                  - button "Review / edit" [ref=f14e946] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e947] [cursor=pointer]
+            - row [ref=f14e948]:
+              - cell "Tonomus" [ref=f14e949]
+              - cell "Wafa AlObaidat" [ref=f14e950]
+              - cell "Proposal" [ref=f14e951]
+              - cell "$11,763" [ref=f14e952]
+              - cell "—" [ref=f14e953]
+              - cell "Not booked" [ref=f14e954]
+              - cell "Not recognised" [ref=f14e956]
+              - cell "—" [ref=f14e959]
+              - cell [ref=f14e960]:
+                - generic [ref=f14e961]:
+                  - button "Review / edit" [ref=f14e962] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e963] [cursor=pointer]
+            - row [ref=f14e964]:
+              - cell "TasHeel" [ref=f14e965]
+              - cell "Maryam Mohamed" [ref=f14e966]
+              - cell "Discovery" [ref=f14e967]
+              - cell "$11,763" [ref=f14e968]
+              - cell "—" [ref=f14e969]
+              - cell "Not booked" [ref=f14e970]
+              - cell "Not recognised" [ref=f14e972]
+              - cell "—" [ref=f14e975]
+              - cell [ref=f14e976]:
+                - generic [ref=f14e977]:
+                  - button "Review / edit" [ref=f14e978] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e979] [cursor=pointer]
+            - row [ref=f14e980]:
+              - cell "Banque Misr" [ref=f14e981]
+              - cell "Maryam Mohamed" [ref=f14e982]
+              - cell "Proposal" [ref=f14e983]
+              - cell "$11,763" [ref=f14e984]
+              - cell "—" [ref=f14e985]
+              - cell "Not booked" [ref=f14e986]
+              - cell "Not recognised" [ref=f14e988]
+              - cell "—" [ref=f14e991]
+              - cell [ref=f14e992]:
+                - generic [ref=f14e993]:
+                  - button "Review / edit" [ref=f14e994] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e995] [cursor=pointer]
+            - row [ref=f14e996]:
+              - cell "PDO" [ref=f14e997]
+              - cell "Maryam Mohamed" [ref=f14e998]
+              - cell "Discovery" [ref=f14e999]
+              - cell "$11,763" [ref=f14e1000]
+              - cell "—" [ref=f14e1001]
+              - cell "Not booked" [ref=f14e1002]
+              - cell "Not recognised" [ref=f14e1004]
+              - cell "—" [ref=f14e1007]
+              - cell [ref=f14e1008]:
+                - generic [ref=f14e1009]:
+                  - button "Review / edit" [ref=f14e1010] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1011] [cursor=pointer]
+            - row [ref=f14e1012]:
+              - cell "Markaz Kuwait" [ref=f14e1013]
+              - cell "Maryam Mohamed" [ref=f14e1014]
+              - cell "Discovery" [ref=f14e1015]
+              - cell "$11,763" [ref=f14e1016]
+              - cell "—" [ref=f14e1017]
+              - cell "Not booked" [ref=f14e1018]
+              - cell "Not recognised" [ref=f14e1020]
+              - cell "—" [ref=f14e1023]
+              - cell [ref=f14e1024]:
+                - generic [ref=f14e1025]:
+                  - button "Review / edit" [ref=f14e1026] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1027] [cursor=pointer]
+            - row [ref=f14e1028]:
+              - cell "Petrotech Qatar" [ref=f14e1029]
+              - cell "Maryam Mohamed" [ref=f14e1030]
+              - cell "Discovery" [ref=f14e1031]
+              - cell "$11,763" [ref=f14e1032]
+              - cell "—" [ref=f14e1033]
+              - cell "Not booked" [ref=f14e1034]
+              - cell "Not recognised" [ref=f14e1036]
+              - cell "—" [ref=f14e1039]
+              - cell [ref=f14e1040]:
+                - generic [ref=f14e1041]:
+                  - button "Review / edit" [ref=f14e1042] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1043] [cursor=pointer]
+            - row [ref=f14e1044]:
+              - cell "Takamol Holding" [ref=f14e1045]
+              - cell "Maryam Mohamed" [ref=f14e1046]
+              - cell "Discovery" [ref=f14e1047]
+              - cell "$11,763" [ref=f14e1048]
+              - cell "—" [ref=f14e1049]
+              - cell "Not booked" [ref=f14e1050]
+              - cell "Not recognised" [ref=f14e1052]
+              - cell "—" [ref=f14e1055]
+              - cell [ref=f14e1056]:
+                - generic [ref=f14e1057]:
+                  - button "Review / edit" [ref=f14e1058] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1059] [cursor=pointer]
+            - row [ref=f14e1060]:
+              - cell "Khimji Ramdas" [ref=f14e1061]
+              - cell "Maryam Mohamed" [ref=f14e1062]
+              - cell "Discovery" [ref=f14e1063]
+              - cell "$11,763" [ref=f14e1064]
+              - cell "—" [ref=f14e1065]
+              - cell "Not booked" [ref=f14e1066]
+              - cell "Not recognised" [ref=f14e1068]
+              - cell "—" [ref=f14e1071]
+              - cell [ref=f14e1072]:
+                - generic [ref=f14e1073]:
+                  - button "Review / edit" [ref=f14e1074] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1075] [cursor=pointer]
+            - row [ref=f14e1076]:
+              - cell "Eni Energies and Services" [ref=f14e1077]
+              - cell "Maryam Mohamed" [ref=f14e1078]
+              - cell "Discovery" [ref=f14e1079]
+              - cell "$11,763" [ref=f14e1080]
+              - cell "—" [ref=f14e1081]
+              - cell "Not booked" [ref=f14e1082]
+              - cell "Not recognised" [ref=f14e1084]
+              - cell "—" [ref=f14e1087]
+              - cell [ref=f14e1088]:
+                - generic [ref=f14e1089]:
+                  - button "Review / edit" [ref=f14e1090] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1091] [cursor=pointer]
+            - row [ref=f14e1092]:
+              - cell "Qatar Commercial Bank" [ref=f14e1093]
+              - cell "Maryam Mohamed" [ref=f14e1094]
+              - cell "Negotiation" [ref=f14e1095]
+              - cell "$11,763" [ref=f14e1096]
+              - cell "—" [ref=f14e1097]
+              - cell "Not booked" [ref=f14e1098]
+              - cell "Not recognised" [ref=f14e1100]
+              - cell "—" [ref=f14e1103]
+              - cell [ref=f14e1104]:
+                - generic [ref=f14e1105]:
+                  - button "Review / edit" [ref=f14e1106] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1107] [cursor=pointer]
+            - row [ref=f14e1108]:
+              - cell "Rain" [ref=f14e1109]
+              - cell "Maryam Mohamed" [ref=f14e1110]
+              - cell "Qualified" [ref=f14e1111]
+              - cell "$11,763" [ref=f14e1112]
+              - cell "—" [ref=f14e1113]
+              - cell "Not booked" [ref=f14e1114]
+              - cell "Not recognised" [ref=f14e1116]
+              - cell "Possible duplicate" [ref=f14e1119]
+              - cell [ref=f14e1123]:
+                - button "Review / edit" [ref=f14e1125] [cursor=pointer]
+            - row [ref=f14e1126]:
+              - cell "Rain" [ref=f14e1127]
+              - cell "Wafa AlObaidat" [ref=f14e1128]
+              - cell "Qualified" [ref=f14e1129]
+              - cell "$11,763" [ref=f14e1130]
+              - cell "—" [ref=f14e1131]
+              - cell "Not booked" [ref=f14e1132]
+              - cell "Not recognised" [ref=f14e1134]
+              - cell "Possible duplicate" [ref=f14e1137]
+              - cell [ref=f14e1141]:
+                - button "Review / edit" [ref=f14e1143] [cursor=pointer]
+            - row [ref=f14e1144]:
+              - cell "North Oil Company" [ref=f14e1145]
+              - cell "Maryam Mohamed" [ref=f14e1146]
+              - cell "Discovery" [ref=f14e1147]
+              - cell "$11,763" [ref=f14e1148]
+              - cell "—" [ref=f14e1149]
+              - cell "Not booked" [ref=f14e1150]
+              - cell "Not recognised" [ref=f14e1152]
+              - cell "—" [ref=f14e1155]
+              - cell [ref=f14e1156]:
+                - generic [ref=f14e1157]:
+                  - button "Review / edit" [ref=f14e1158] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1159] [cursor=pointer]
+            - row [ref=f14e1160]:
+              - cell "Deloitte Qatar" [ref=f14e1161]
+              - cell "Maryam Mohamed" [ref=f14e1162]
+              - cell "Discovery" [ref=f14e1163]
+              - cell "$11,763" [ref=f14e1164]
+              - cell "—" [ref=f14e1165]
+              - cell "Not booked" [ref=f14e1166]
+              - cell "Not recognised" [ref=f14e1168]
+              - cell "—" [ref=f14e1171]
+              - cell [ref=f14e1172]:
+                - generic [ref=f14e1173]:
+                  - button "Review / edit" [ref=f14e1174] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1175] [cursor=pointer]
+            - row [ref=f14e1176]:
+              - cell "Majid Al Futtaim" [ref=f14e1177]
+              - cell "Maryam Al Fahad" [ref=f14e1178]
+              - cell "Qualified" [ref=f14e1179]
+              - cell "$11,763" [ref=f14e1180]
+              - cell "—" [ref=f14e1181]
+              - cell "Not booked" [ref=f14e1182]
+              - cell "Not recognised" [ref=f14e1184]
+              - cell "—" [ref=f14e1187]
+              - cell [ref=f14e1188]:
+                - generic [ref=f14e1189]:
+                  - button "Review / edit" [ref=f14e1190] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1191] [cursor=pointer]
+            - row [ref=f14e1192]:
+              - cell "MBC Group" [ref=f14e1193]
+              - cell "Maryam Al Fahad" [ref=f14e1194]
+              - cell "Qualified" [ref=f14e1195]
+              - cell "$11,763" [ref=f14e1196]
+              - cell "—" [ref=f14e1197]
+              - cell "Not booked" [ref=f14e1198]
+              - cell "Not recognised" [ref=f14e1200]
+              - cell "—" [ref=f14e1203]
+              - cell [ref=f14e1204]:
+                - generic [ref=f14e1205]:
+                  - button "Review / edit" [ref=f14e1206] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1207] [cursor=pointer]
+            - row [ref=f14e1208]:
+              - cell "Samsung SGE" [ref=f14e1209]
+              - cell "Maryam Al Fahad" [ref=f14e1210]
+              - cell "Qualified" [ref=f14e1211]
+              - cell "$11,763" [ref=f14e1212]
+              - cell "—" [ref=f14e1213]
+              - cell "Not booked" [ref=f14e1214]
+              - cell "Not recognised" [ref=f14e1216]
+              - cell "—" [ref=f14e1219]
+              - cell [ref=f14e1220]:
+                - generic [ref=f14e1221]:
+                  - button "Review / edit" [ref=f14e1222] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1223] [cursor=pointer]
+            - row [ref=f14e1224]:
+              - cell "Nama Women" [ref=f14e1225]
+              - cell "Maryam Al Fahad" [ref=f14e1226]
+              - cell "Qualified" [ref=f14e1227]
+              - cell "$11,763" [ref=f14e1228]
+              - cell "—" [ref=f14e1229]
+              - cell "Not booked" [ref=f14e1230]
+              - cell "Not recognised" [ref=f14e1232]
+              - cell "—" [ref=f14e1235]
+              - cell [ref=f14e1236]:
+                - generic [ref=f14e1237]:
+                  - button "Review / edit" [ref=f14e1238] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1239] [cursor=pointer]
+            - row [ref=f14e1240]:
+              - cell "Nikhil Judge" [ref=f14e1241]
+              - cell "Maryam Al Fahad" [ref=f14e1242]
+              - cell "Qualified" [ref=f14e1243]
+              - cell "$11,763" [ref=f14e1244]
+              - cell "—" [ref=f14e1245]
+              - cell "Not booked" [ref=f14e1246]
+              - cell "Not recognised" [ref=f14e1248]
+              - cell "—" [ref=f14e1251]
+              - cell [ref=f14e1252]:
+                - generic [ref=f14e1253]:
+                  - button "Review / edit" [ref=f14e1254] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1255] [cursor=pointer]
+            - row [ref=f14e1256]:
+              - cell "KIPIC" [ref=f14e1257]
+              - cell "Maryam Al Fahad" [ref=f14e1258]
+              - cell "Negotiation" [ref=f14e1259]
+              - cell "$11,763" [ref=f14e1260]
+              - cell "—" [ref=f14e1261]
+              - cell "Not booked" [ref=f14e1262]
+              - cell "Not recognised" [ref=f14e1264]
+              - cell "—" [ref=f14e1267]
+              - cell [ref=f14e1268]:
+                - generic [ref=f14e1269]:
+                  - button "Review / edit" [ref=f14e1270] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1271] [cursor=pointer]
+            - row [ref=f14e1272]:
+              - cell "Telecom Review" [ref=f14e1273]
+              - cell "Maryam Al Fahad" [ref=f14e1274]
+              - cell "Negotiation" [ref=f14e1275]
+              - cell "$11,763" [ref=f14e1276]
+              - cell "—" [ref=f14e1277]
+              - cell "Not booked" [ref=f14e1278]
+              - cell "Not recognised" [ref=f14e1280]
+              - cell "—" [ref=f14e1283]
+              - cell [ref=f14e1284]:
+                - generic [ref=f14e1285]:
+                  - button "Review / edit" [ref=f14e1286] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1287] [cursor=pointer]
+            - row [ref=f14e1288]:
+              - cell "Imam Abdulrahman Bin Faisal University" [ref=f14e1289]
+              - cell "Maryam Al Fahad" [ref=f14e1290]
+              - cell "Qualified" [ref=f14e1291]
+              - cell "$11,763" [ref=f14e1292]
+              - cell "—" [ref=f14e1293]
+              - cell "Not booked" [ref=f14e1294]
+              - cell "Not recognised" [ref=f14e1296]
+              - cell "—" [ref=f14e1299]
+              - cell [ref=f14e1300]:
+                - generic [ref=f14e1301]:
+                  - button "Review / edit" [ref=f14e1302] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1303] [cursor=pointer]
+            - row [ref=f14e1304]:
+              - cell "Shiraa" [ref=f14e1305]
+              - cell "Maryam Al Fahad" [ref=f14e1306]
+              - cell "Qualified" [ref=f14e1307]
+              - cell "$11,763" [ref=f14e1308]
+              - cell "—" [ref=f14e1309]
+              - cell "Not booked" [ref=f14e1310]
+              - cell "Not recognised" [ref=f14e1312]
+              - cell "—" [ref=f14e1315]
+              - cell [ref=f14e1316]:
+                - generic [ref=f14e1317]:
+                  - button "Review / edit" [ref=f14e1318] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1319] [cursor=pointer]
+            - row [ref=f14e1320]:
+              - cell "AlGurg" [ref=f14e1321]
+              - cell "Maryam Al Fahad" [ref=f14e1322]
+              - cell "Qualified" [ref=f14e1323]
+              - cell "$11,763" [ref=f14e1324]
+              - cell "—" [ref=f14e1325]
+              - cell "Not booked" [ref=f14e1326]
+              - cell "Not recognised" [ref=f14e1328]
+              - cell "—" [ref=f14e1331]
+              - cell [ref=f14e1332]:
+                - generic [ref=f14e1333]:
+                  - button "Review / edit" [ref=f14e1334] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1335] [cursor=pointer]
+            - row [ref=f14e1336]:
+              - cell "Tonomus" [ref=f14e1337]
+              - cell "Maryam Al Fahad" [ref=f14e1338]
+              - cell "Negotiation" [ref=f14e1339]
+              - cell "$11,763" [ref=f14e1340]
+              - cell "—" [ref=f14e1341]
+              - cell "Not booked" [ref=f14e1342]
+              - cell "Not recognised" [ref=f14e1344]
+              - cell "—" [ref=f14e1347]
+              - cell [ref=f14e1348]:
+                - generic [ref=f14e1349]:
+                  - button "Review / edit" [ref=f14e1350] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1351] [cursor=pointer]
+            - row [ref=f14e1352]:
+              - cell "Al-Futtaim Group" [ref=f14e1353]
+              - cell "Maryam Al Fahad" [ref=f14e1354]
+              - cell "Qualified" [ref=f14e1355]
+              - cell "$11,763" [ref=f14e1356]
+              - cell "—" [ref=f14e1357]
+              - cell "Not booked" [ref=f14e1358]
+              - cell "Not recognised" [ref=f14e1360]
+              - cell "—" [ref=f14e1363]
+              - cell [ref=f14e1364]:
+                - generic [ref=f14e1365]:
+                  - button "Review / edit" [ref=f14e1366] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1367] [cursor=pointer]
+            - row [ref=f14e1368]:
+              - cell "KFH" [ref=f14e1369]
+              - cell "Maryam Al Fahad" [ref=f14e1370]
+              - cell "Discovery" [ref=f14e1371]
+              - cell "$11,763" [ref=f14e1372]
+              - cell "—" [ref=f14e1373]
+              - cell "Not booked" [ref=f14e1374]
+              - cell "Not recognised" [ref=f14e1376]
+              - cell "—" [ref=f14e1379]
+              - cell [ref=f14e1380]:
+                - generic [ref=f14e1381]:
+                  - button "Review / edit" [ref=f14e1382] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1383] [cursor=pointer]
+            - row [ref=f14e1384]:
+              - cell "National Holding" [ref=f14e1385]
+              - cell "Maryam Al Fahad" [ref=f14e1386]
+              - cell "Qualified" [ref=f14e1387]
+              - cell "$11,763" [ref=f14e1388]
+              - cell "—" [ref=f14e1389]
+              - cell "Not booked" [ref=f14e1390]
+              - cell "Not recognised" [ref=f14e1392]
+              - cell "—" [ref=f14e1395]
+              - cell [ref=f14e1396]:
+                - generic [ref=f14e1397]:
+                  - button "Review / edit" [ref=f14e1398] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1399] [cursor=pointer]
+            - row [ref=f14e1400]:
+              - cell "KDIPA" [ref=f14e1401]
+              - cell "Maryam Al Fahad" [ref=f14e1402]
+              - cell "Closed Lost" [ref=f14e1403]
+              - cell "Unavailable" [ref=f14e1404]
+              - cell "Sep 21, 2023" [ref=f14e1405]
+              - cell "Not booked" [ref=f14e1406]
+              - cell "Unavailable" [ref=f14e1408]
+              - cell "HubSpot deal was imported with no amount. It is excluded from financial totals and requires an Admin correction." [ref=f14e1411]
+              - cell [ref=f14e1413]:
+                - button "Review / edit" [ref=f14e1415] [cursor=pointer]
+            - row [ref=f14e1416]:
+              - cell "The Bureau" [ref=f14e1417]
+              - cell "Maryam Al Fahad" [ref=f14e1418]
+              - cell "Closed Lost" [ref=f14e1419]
+              - cell "$11,763" [ref=f14e1420]
+              - cell "Sep 21, 2023" [ref=f14e1421]
+              - cell "Not booked" [ref=f14e1422]
+              - cell "Not recognised" [ref=f14e1424]
+              - cell "—" [ref=f14e1427]
+              - cell [ref=f14e1428]:
+                - generic [ref=f14e1429]:
+                  - button "Review / edit" [ref=f14e1430] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1431] [cursor=pointer]
+            - row [ref=f14e1432]:
+              - cell "UAE Gender Balance Council" [ref=f14e1433]
+              - cell "Maryam Al Fahad" [ref=f14e1434]
+              - cell "Qualified" [ref=f14e1435]
+              - cell "$11,763" [ref=f14e1436]
+              - cell "—" [ref=f14e1437]
+              - cell "Not booked" [ref=f14e1438]
+              - cell "Not recognised" [ref=f14e1440]
+              - cell "—" [ref=f14e1443]
+              - cell [ref=f14e1444]:
+                - generic [ref=f14e1445]:
+                  - button "Review / edit" [ref=f14e1446] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1447] [cursor=pointer]
+            - row [ref=f14e1448]:
+              - cell "Alshaya" [ref=f14e1449]
+              - cell "Maryam Al Fahad" [ref=f14e1450]
+              - cell "Qualified" [ref=f14e1451]
+              - cell "$11,763" [ref=f14e1452]
+              - cell "—" [ref=f14e1453]
+              - cell "Not booked" [ref=f14e1454]
+              - cell "Not recognised" [ref=f14e1456]
+              - cell "—" [ref=f14e1459]
+              - cell [ref=f14e1460]:
+                - generic [ref=f14e1461]:
+                  - button "Review / edit" [ref=f14e1462] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1463] [cursor=pointer]
+            - row [ref=f14e1464]:
+              - cell "Amex" [ref=f14e1465]
+              - cell "Bayan Hasan" [ref=f14e1466]
+              - cell "Qualified" [ref=f14e1467]
+              - cell "$11,763" [ref=f14e1468]
+              - cell "—" [ref=f14e1469]
+              - cell "Not booked" [ref=f14e1470]
+              - cell "Not recognised" [ref=f14e1472]
+              - cell "—" [ref=f14e1475]
+              - cell [ref=f14e1476]:
+                - generic [ref=f14e1477]:
+                  - button "Review / edit" [ref=f14e1478] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1479] [cursor=pointer]
+            - row [ref=f14e1480]:
+              - cell "Gulf bank/Kuwait" [ref=f14e1481]
+              - cell "Maryam Al Fahad" [ref=f14e1482]
+              - cell "Qualified" [ref=f14e1483]
+              - cell "$11,763" [ref=f14e1484]
+              - cell "—" [ref=f14e1485]
+              - cell "Not booked" [ref=f14e1486]
+              - cell "Not recognised" [ref=f14e1488]
+              - cell "—" [ref=f14e1491]
+              - cell [ref=f14e1492]:
+                - generic [ref=f14e1493]:
+                  - button "Review / edit" [ref=f14e1494] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1495] [cursor=pointer]
+            - row [ref=f14e1496]:
+              - cell "Arabian Centre" [ref=f14e1497]
+              - cell "Shreya Rammohan" [ref=f14e1498]
+              - cell "Qualified" [ref=f14e1499]
+              - cell "$11,763" [ref=f14e1500]
+              - cell "—" [ref=f14e1501]
+              - cell "Not booked" [ref=f14e1502]
+              - cell "Not recognised" [ref=f14e1504]
+              - cell "—" [ref=f14e1507]
+              - cell [ref=f14e1508]:
+                - generic [ref=f14e1509]:
+                  - button "Review / edit" [ref=f14e1510] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1511] [cursor=pointer]
+            - row [ref=f14e1512]:
+              - cell "FutureX" [ref=f14e1513]
+              - cell "Wafa AlObaidat" [ref=f14e1514]
+              - cell "Proposal" [ref=f14e1515]
+              - cell "$54,000" [ref=f14e1516]
+              - cell "—" [ref=f14e1517]
+              - cell "Not booked" [ref=f14e1518]
+              - cell "Not recognised" [ref=f14e1520]
+              - cell "—" [ref=f14e1523]
+              - cell [ref=f14e1524]:
+                - generic [ref=f14e1525]:
+                  - button "Review / edit" [ref=f14e1526] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1527] [cursor=pointer]
+            - row [ref=f14e1528]:
+              - cell "Reboot" [ref=f14e1529]
+              - cell "Wafa AlObaidat" [ref=f14e1530]
+              - cell "Qualified" [ref=f14e1531]
+              - cell "$11,763" [ref=f14e1532]
+              - cell "—" [ref=f14e1533]
+              - cell "Not booked" [ref=f14e1534]
+              - cell "Not recognised" [ref=f14e1536]
+              - cell "—" [ref=f14e1539]
+              - cell [ref=f14e1540]:
+                - generic [ref=f14e1541]:
+                  - button "Review / edit" [ref=f14e1542] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1543] [cursor=pointer]
+            - row [ref=f14e1544]:
+              - cell "Thrive" [ref=f14e1545]
+              - cell "Wafa AlObaidat" [ref=f14e1546]
+              - cell "Qualified" [ref=f14e1547]
+              - cell "$11,763" [ref=f14e1548]
+              - cell "—" [ref=f14e1549]
+              - cell "Not booked" [ref=f14e1550]
+              - cell "Not recognised" [ref=f14e1552]
+              - cell "—" [ref=f14e1555]
+              - cell [ref=f14e1556]:
+                - generic [ref=f14e1557]:
+                  - button "Review / edit" [ref=f14e1558] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1559] [cursor=pointer]
+            - row [ref=f14e1560]:
+              - cell "American School" [ref=f14e1561]
+              - cell "Wafa AlObaidat" [ref=f14e1562]
+              - cell "Qualified" [ref=f14e1563]
+              - cell "$11,763" [ref=f14e1564]
+              - cell "—" [ref=f14e1565]
+              - cell "Not booked" [ref=f14e1566]
+              - cell "Not recognised" [ref=f14e1568]
+              - cell "—" [ref=f14e1571]
+              - cell [ref=f14e1572]:
+                - generic [ref=f14e1573]:
+                  - button "Review / edit" [ref=f14e1574] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1575] [cursor=pointer]
+            - row [ref=f14e1576]:
+              - cell "Muzn Podcast" [ref=f14e1577]
+              - cell "Wafa AlObaidat" [ref=f14e1578]
+              - cell "Qualified" [ref=f14e1579]
+              - cell "$11,763" [ref=f14e1580]
+              - cell "—" [ref=f14e1581]
+              - cell "Not booked" [ref=f14e1582]
+              - cell "Not recognised" [ref=f14e1584]
+              - cell "—" [ref=f14e1587]
+              - cell [ref=f14e1588]:
+                - generic [ref=f14e1589]:
+                  - button "Review / edit" [ref=f14e1590] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1591] [cursor=pointer]
+            - row [ref=f14e1592]:
+              - cell "BNP Paribas" [ref=f14e1593]
+              - cell "Wafa AlObaidat" [ref=f14e1594]
+              - cell "Qualified" [ref=f14e1595]
+              - cell "$13,734" [ref=f14e1596]
+              - cell "—" [ref=f14e1597]
+              - cell "Not booked" [ref=f14e1598]
+              - cell "Not recognised" [ref=f14e1600]
+              - cell "—" [ref=f14e1603]
+              - cell [ref=f14e1604]:
+                - generic [ref=f14e1605]:
+                  - button "Review / edit" [ref=f14e1606] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1607] [cursor=pointer]
+            - row [ref=f14e1608]:
+              - cell "DIFC Courts" [ref=f14e1609]
+              - cell "Wafa AlObaidat" [ref=f14e1610]
+              - cell "Proposal" [ref=f14e1611]
+              - cell "$3,150" [ref=f14e1612]
+              - cell "—" [ref=f14e1613]
+              - cell "Not booked" [ref=f14e1614]
+              - cell "Not recognised" [ref=f14e1616]
+              - cell "—" [ref=f14e1619]
+              - cell [ref=f14e1620]:
+                - generic [ref=f14e1621]:
+                  - button "Review / edit" [ref=f14e1622] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1623] [cursor=pointer]
+            - row [ref=f14e1624]:
+              - cell "EMAAR" [ref=f14e1625]
+              - cell "Wafa AlObaidat" [ref=f14e1626]
+              - cell "Qualified" [ref=f14e1627]
+              - cell "$900" [ref=f14e1628]
+              - cell "—" [ref=f14e1629]
+              - cell "Not booked" [ref=f14e1630]
+              - cell "Not recognised" [ref=f14e1632]
+              - cell "—" [ref=f14e1635]
+              - cell [ref=f14e1636]:
+                - generic [ref=f14e1637]:
+                  - button "Review / edit" [ref=f14e1638] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1639] [cursor=pointer]
+            - row [ref=f14e1640]:
+              - cell "Outliers" [ref=f14e1641]
+              - cell "Wafa AlObaidat" [ref=f14e1642]
+              - cell "Qualified" [ref=f14e1643]
+              - cell "$630" [ref=f14e1644]
+              - cell "—" [ref=f14e1645]
+              - cell "Not booked" [ref=f14e1646]
+              - cell "Not recognised" [ref=f14e1648]
+              - cell "—" [ref=f14e1651]
+              - cell [ref=f14e1652]:
+                - generic [ref=f14e1653]:
+                  - button "Review / edit" [ref=f14e1654] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1655] [cursor=pointer]
+            - row [ref=f14e1656]:
+              - cell "Bahrain Airport services BAS" [ref=f14e1657]
+              - cell "Wafa AlObaidat" [ref=f14e1658]
+              - cell "Qualified" [ref=f14e1659]
+              - cell "$360" [ref=f14e1660]
+              - cell "—" [ref=f14e1661]
+              - cell "Not booked" [ref=f14e1662]
+              - cell "Not recognised" [ref=f14e1664]
+              - cell "—" [ref=f14e1667]
+              - cell [ref=f14e1668]:
+                - generic [ref=f14e1669]:
+                  - button "Review / edit" [ref=f14e1670] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1671] [cursor=pointer]
+            - row [ref=f14e1672]:
+              - cell "GIB" [ref=f14e1673]
+              - cell "Wafa AlObaidat" [ref=f14e1674]
+              - cell "Negotiation" [ref=f14e1675]
+              - cell "$49,410" [ref=f14e1676]
+              - cell "—" [ref=f14e1677]
+              - cell "Not booked" [ref=f14e1678]
+              - cell "Not recognised" [ref=f14e1680]
+              - cell "—" [ref=f14e1683]
+              - cell [ref=f14e1684]:
+                - generic [ref=f14e1685]:
+                  - button "Review / edit" [ref=f14e1686] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1687] [cursor=pointer]
+            - row [ref=f14e1688]:
+              - cell "SABB" [ref=f14e1689]
+              - cell "Wafa AlObaidat" [ref=f14e1690]
+              - cell "Qualified" [ref=f14e1691]
+              - cell "$11,763" [ref=f14e1692]
+              - cell "—" [ref=f14e1693]
+              - cell "Not booked" [ref=f14e1694]
+              - cell "Not recognised" [ref=f14e1696]
+              - cell "—" [ref=f14e1699]
+              - cell [ref=f14e1700]:
+                - generic [ref=f14e1701]:
+                  - button "Review / edit" [ref=f14e1702] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1703] [cursor=pointer]
+            - row [ref=f14e1704]:
+              - cell "Tarjama" [ref=f14e1705]
+              - cell "Wafa AlObaidat" [ref=f14e1706]
+              - cell "Qualified" [ref=f14e1707]
+              - cell "$2,250" [ref=f14e1708]
+              - cell "—" [ref=f14e1709]
+              - cell "Not booked" [ref=f14e1710]
+              - cell "Not recognised" [ref=f14e1712]
+              - cell "—" [ref=f14e1715]
+              - cell [ref=f14e1716]:
+                - generic [ref=f14e1717]:
+                  - button "Review / edit" [ref=f14e1718] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1719] [cursor=pointer]
+            - row [ref=f14e1720]:
+              - cell "Aurora50" [ref=f14e1721]
+              - cell "Wafa AlObaidat" [ref=f14e1722]
+              - cell "Proposal" [ref=f14e1723]
+              - cell "$11,763" [ref=f14e1724]
+              - cell "—" [ref=f14e1725]
+              - cell "Not booked" [ref=f14e1726]
+              - cell "Not recognised" [ref=f14e1728]
+              - cell "—" [ref=f14e1731]
+              - cell [ref=f14e1732]:
+                - generic [ref=f14e1733]:
+                  - button "Review / edit" [ref=f14e1734] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1735] [cursor=pointer]
+            - row [ref=f14e1736]:
+              - cell "BCFC" [ref=f14e1737]
+              - cell "Wafa AlObaidat" [ref=f14e1738]
+              - cell "Qualified" [ref=f14e1739]
+              - cell "$11,763" [ref=f14e1740]
+              - cell "—" [ref=f14e1741]
+              - cell "Not booked" [ref=f14e1742]
+              - cell "Not recognised" [ref=f14e1744]
+              - cell "—" [ref=f14e1747]
+              - cell [ref=f14e1748]:
+                - generic [ref=f14e1749]:
+                  - button "Review / edit" [ref=f14e1750] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1751] [cursor=pointer]
+            - row [ref=f14e1752]:
+              - cell "Ooredoo" [ref=f14e1753]
+              - cell "Wafa AlObaidat" [ref=f14e1754]
+              - cell "Qualified" [ref=f14e1755]
+              - cell "$900" [ref=f14e1756]
+              - cell "—" [ref=f14e1757]
+              - cell "Not booked" [ref=f14e1758]
+              - cell "Not recognised" [ref=f14e1760]
+              - cell "—" [ref=f14e1763]
+              - cell [ref=f14e1764]:
+                - generic [ref=f14e1765]:
+                  - button "Review / edit" [ref=f14e1766] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1767] [cursor=pointer]
+            - row [ref=f14e1768]:
+              - cell "Ooreedo Oman" [ref=f14e1769]
+              - cell "Wafa AlObaidat" [ref=f14e1770]
+              - cell "Qualified" [ref=f14e1771]
+              - cell "$11,763" [ref=f14e1772]
+              - cell "—" [ref=f14e1773]
+              - cell "Not booked" [ref=f14e1774]
+              - cell "Not recognised" [ref=f14e1776]
+              - cell "—" [ref=f14e1779]
+              - cell [ref=f14e1780]:
+                - generic [ref=f14e1781]:
+                  - button "Review / edit" [ref=f14e1782] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1783] [cursor=pointer]
+            - row [ref=f14e1784]:
+              - cell "Kirby / Alghanim Industries" [ref=f14e1785]
+              - cell "Wafa AlObaidat" [ref=f14e1786]
+              - cell "Qualified" [ref=f14e1787]
+              - cell "$2,160" [ref=f14e1788]
+              - cell "—" [ref=f14e1789]
+              - cell "Not booked" [ref=f14e1790]
+              - cell "Not recognised" [ref=f14e1792]
+              - cell "—" [ref=f14e1795]
+              - cell [ref=f14e1796]:
+                - generic [ref=f14e1797]:
+                  - button "Review / edit" [ref=f14e1798] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1799] [cursor=pointer]
+            - row [ref=f14e1800]:
+              - cell "BIT OASIS" [ref=f14e1801]
+              - cell "Wafa AlObaidat" [ref=f14e1802]
+              - cell "Qualified" [ref=f14e1803]
+              - cell "$11,763" [ref=f14e1804]
+              - cell "—" [ref=f14e1805]
+              - cell "Not booked" [ref=f14e1806]
+              - cell "Not recognised" [ref=f14e1808]
+              - cell "—" [ref=f14e1811]
+              - cell [ref=f14e1812]:
+                - generic [ref=f14e1813]:
+                  - button "Review / edit" [ref=f14e1814] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1815] [cursor=pointer]
+            - row [ref=f14e1816]:
+              - cell "AHOY" [ref=f14e1817]
+              - cell "Wafa AlObaidat" [ref=f14e1818]
+              - cell "Qualified" [ref=f14e1819]
+              - cell "$432" [ref=f14e1820]
+              - cell "—" [ref=f14e1821]
+              - cell "Not booked" [ref=f14e1822]
+              - cell "Not recognised" [ref=f14e1824]
+              - cell "—" [ref=f14e1827]
+              - cell [ref=f14e1828]:
+                - generic [ref=f14e1829]:
+                  - button "Review / edit" [ref=f14e1830] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1831] [cursor=pointer]
+            - row [ref=f14e1832]:
+              - cell "Queen Mode" [ref=f14e1833]
+              - cell "Wafa AlObaidat" [ref=f14e1834]
+              - cell "Closed Won" [ref=f14e1835]
+              - cell "$9,000" [ref=f14e1836]
+              - cell "May 9, 2024" [ref=f14e1837]
+              - cell "Booked" [ref=f14e1838]
+              - cell "Not recognised" [ref=f14e1840]
+              - cell "—" [ref=f14e1843]
+              - cell [ref=f14e1844]:
+                - generic [ref=f14e1845]:
+                  - button "Review / edit" [ref=f14e1846] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1847] [cursor=pointer]
+            - row [ref=f14e1848]:
+              - cell "Eman Almannaei" [ref=f14e1849]
+              - cell "Wafa AlObaidat" [ref=f14e1850]
+              - cell "Qualified" [ref=f14e1851]
+              - cell "$11,763" [ref=f14e1852]
+              - cell "—" [ref=f14e1853]
+              - cell "Not booked" [ref=f14e1854]
+              - cell "Not recognised" [ref=f14e1856]
+              - cell "—" [ref=f14e1859]
+              - cell [ref=f14e1860]:
+                - generic [ref=f14e1861]:
+                  - button "Review / edit" [ref=f14e1862] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1863] [cursor=pointer]
+            - row [ref=f14e1864]:
+              - cell "Tap Payments" [ref=f14e1865]
+              - cell "Wafa AlObaidat" [ref=f14e1866]
+              - cell "Qualified" [ref=f14e1867]
+              - cell "$11,763" [ref=f14e1868]
+              - cell "—" [ref=f14e1869]
+              - cell "Not booked" [ref=f14e1870]
+              - cell "Not recognised" [ref=f14e1872]
+              - cell "—" [ref=f14e1875]
+              - cell [ref=f14e1876]:
+                - generic [ref=f14e1877]:
+                  - button "Review / edit" [ref=f14e1878] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1879] [cursor=pointer]
+            - row [ref=f14e1880]:
+              - cell "Crescent Enterprises" [ref=f14e1881]
+              - cell "Wafa AlObaidat" [ref=f14e1882]
+              - cell "Closed Won" [ref=f14e1883]
+              - cell "$3,591" [ref=f14e1884]
+              - cell "May 9, 2024" [ref=f14e1885]
+              - cell "Booked" [ref=f14e1886]
+              - cell "Not recognised" [ref=f14e1888]
+              - cell "—" [ref=f14e1891]
+              - cell [ref=f14e1892]:
+                - generic [ref=f14e1893]:
+                  - button "Review / edit" [ref=f14e1894] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1895] [cursor=pointer]
+            - row [ref=f14e1896]:
+              - cell "Mubtakarat Industries" [ref=f14e1897]
+              - cell "Habiba Almosawi" [ref=f14e1898]
+              - cell "Qualified" [ref=f14e1899]
+              - cell "$11,763" [ref=f14e1900]
+              - cell "—" [ref=f14e1901]
+              - cell "Not booked" [ref=f14e1902]
+              - cell "Not recognised" [ref=f14e1904]
+              - cell "—" [ref=f14e1907]
+              - cell [ref=f14e1908]:
+                - generic [ref=f14e1909]:
+                  - button "Review / edit" [ref=f14e1910] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1911] [cursor=pointer]
+            - row [ref=f14e1912]:
+              - cell "Baker Hughes" [ref=f14e1913]
+              - cell "Habiba Almosawi" [ref=f14e1914]
+              - cell "Qualified" [ref=f14e1915]
+              - cell "$11,763" [ref=f14e1916]
+              - cell "—" [ref=f14e1917]
+              - cell "Not booked" [ref=f14e1918]
+              - cell "Not recognised" [ref=f14e1920]
+              - cell "—" [ref=f14e1923]
+              - cell [ref=f14e1924]:
+                - generic [ref=f14e1925]:
+                  - button "Review / edit" [ref=f14e1926] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1927] [cursor=pointer]
+            - row [ref=f14e1928]:
+              - cell "Alinma Bank" [ref=f14e1929]
+              - cell "Habiba Almosawi" [ref=f14e1930]
+              - cell "Proposal" [ref=f14e1931]
+              - cell "$108,000" [ref=f14e1932]
+              - cell "—" [ref=f14e1933]
+              - cell "Not booked" [ref=f14e1934]
+              - cell "Not recognised" [ref=f14e1936]
+              - cell "—" [ref=f14e1939]
+              - cell [ref=f14e1940]:
+                - generic [ref=f14e1941]:
+                  - button "Review / edit" [ref=f14e1942] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1943] [cursor=pointer]
+            - row [ref=f14e1944]:
+              - cell "BISB" [ref=f14e1945]
+              - cell "Habiba Almosawi" [ref=f14e1946]
+              - cell "Qualified" [ref=f14e1947]
+              - cell "$11,763" [ref=f14e1948]
+              - cell "—" [ref=f14e1949]
+              - cell "Not booked" [ref=f14e1950]
+              - cell "Not recognised" [ref=f14e1952]
+              - cell "—" [ref=f14e1955]
+              - cell [ref=f14e1956]:
+                - generic [ref=f14e1957]:
+                  - button "Review / edit" [ref=f14e1958] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1959] [cursor=pointer]
+            - row [ref=f14e1960]:
+              - cell "GFH Bahrain" [ref=f14e1961]
+              - cell "Habiba Almosawi" [ref=f14e1962]
+              - cell "Qualified" [ref=f14e1963]
+              - cell "$11,763" [ref=f14e1964]
+              - cell "—" [ref=f14e1965]
+              - cell "Not booked" [ref=f14e1966]
+              - cell "Not recognised" [ref=f14e1968]
+              - cell "—" [ref=f14e1971]
+              - cell [ref=f14e1972]:
+                - generic [ref=f14e1973]:
+                  - button "Review / edit" [ref=f14e1974] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1975] [cursor=pointer]
+            - row [ref=f14e1976]:
+              - cell "KFH Bahrain" [ref=f14e1977]
+              - cell "Habiba Almosawi" [ref=f14e1978]
+              - cell "Qualified" [ref=f14e1979]
+              - cell "$11,763" [ref=f14e1980]
+              - cell "—" [ref=f14e1981]
+              - cell "Not booked" [ref=f14e1982]
+              - cell "Not recognised" [ref=f14e1984]
+              - cell "—" [ref=f14e1987]
+              - cell [ref=f14e1988]:
+                - generic [ref=f14e1989]:
+                  - button "Review / edit" [ref=f14e1990] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e1991] [cursor=pointer]
+            - row [ref=f14e1992]:
+              - cell "BDB" [ref=f14e1993]
+              - cell "Wafa AlObaidat" [ref=f14e1994]
+              - cell "Qualified" [ref=f14e1995]
+              - cell "$11,763" [ref=f14e1996]
+              - cell "—" [ref=f14e1997]
+              - cell "Not booked" [ref=f14e1998]
+              - cell "Not recognised" [ref=f14e2000]
+              - cell "—" [ref=f14e2003]
+              - cell [ref=f14e2004]:
+                - generic [ref=f14e2005]:
+                  - button "Review / edit" [ref=f14e2006] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2007] [cursor=pointer]
+            - row [ref=f14e2008]:
+              - cell "GIG" [ref=f14e2009]
+              - cell "Wafa AlObaidat" [ref=f14e2010]
+              - cell "Qualified" [ref=f14e2011]
+              - cell "$11,763" [ref=f14e2012]
+              - cell "—" [ref=f14e2013]
+              - cell "Not booked" [ref=f14e2014]
+              - cell "Not recognised" [ref=f14e2016]
+              - cell "—" [ref=f14e2019]
+              - cell [ref=f14e2020]:
+                - generic [ref=f14e2021]:
+                  - button "Review / edit" [ref=f14e2022] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2023] [cursor=pointer]
+            - row [ref=f14e2024]:
+              - cell "BFC Group Holding" [ref=f14e2025]
+              - cell "Wafa AlObaidat" [ref=f14e2026]
+              - cell "Qualified" [ref=f14e2027]
+              - cell "$11,763" [ref=f14e2028]
+              - cell "—" [ref=f14e2029]
+              - cell "Not booked" [ref=f14e2030]
+              - cell "Not recognised" [ref=f14e2032]
+              - cell "—" [ref=f14e2035]
+              - cell [ref=f14e2036]:
+                - generic [ref=f14e2037]:
+                  - button "Review / edit" [ref=f14e2038] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2039] [cursor=pointer]
+            - row [ref=f14e2040]:
+              - cell "BMMI" [ref=f14e2041]
+              - cell "Wafa AlObaidat" [ref=f14e2042]
+              - cell "Qualified" [ref=f14e2043]
+              - cell "$11,763" [ref=f14e2044]
+              - cell "—" [ref=f14e2045]
+              - cell "Not booked" [ref=f14e2046]
+              - cell "Not recognised" [ref=f14e2048]
+              - cell "—" [ref=f14e2051]
+              - cell [ref=f14e2052]:
+                - generic [ref=f14e2053]:
+                  - button "Review / edit" [ref=f14e2054] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2055] [cursor=pointer]
+            - row [ref=f14e2056]:
+              - cell "Edamah" [ref=f14e2057]
+              - cell "Wafa AlObaidat" [ref=f14e2058]
+              - cell "Qualified" [ref=f14e2059]
+              - cell "$11,763" [ref=f14e2060]
+              - cell "—" [ref=f14e2061]
+              - cell "Not booked" [ref=f14e2062]
+              - cell "Not recognised" [ref=f14e2064]
+              - cell "—" [ref=f14e2067]
+              - cell [ref=f14e2068]:
+                - generic [ref=f14e2069]:
+                  - button "Review / edit" [ref=f14e2070] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2071] [cursor=pointer]
+            - row [ref=f14e2072]:
+              - cell "Huwawei" [ref=f14e2073]
+              - cell "Habiba Almosawi" [ref=f14e2074]
+              - cell "Qualified" [ref=f14e2075]
+              - cell "$11,763" [ref=f14e2076]
+              - cell "—" [ref=f14e2077]
+              - cell "Not booked" [ref=f14e2078]
+              - cell "Not recognised" [ref=f14e2080]
+              - cell "—" [ref=f14e2083]
+              - cell [ref=f14e2084]:
+                - generic [ref=f14e2085]:
+                  - button "Review / edit" [ref=f14e2086] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2087] [cursor=pointer]
+            - row [ref=f14e2088]:
+              - cell "Standard Chartered" [ref=f14e2089]
+              - cell "Wafa AlObaidat" [ref=f14e2090]
+              - cell "Discovery" [ref=f14e2091]
+              - cell "$11,763" [ref=f14e2092]
+              - cell "—" [ref=f14e2093]
+              - cell "Not booked" [ref=f14e2094]
+              - cell "Not recognised" [ref=f14e2096]
+              - cell "—" [ref=f14e2099]
+              - cell [ref=f14e2100]:
+                - generic [ref=f14e2101]:
+                  - button "Review / edit" [ref=f14e2102] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2103] [cursor=pointer]
+            - row [ref=f14e2104]:
+              - cell "Hala Ventures" [ref=f14e2105]
+              - cell "Wafa AlObaidat" [ref=f14e2106]
+              - cell "Proposal" [ref=f14e2107]
+              - cell "$11,763" [ref=f14e2108]
+              - cell "—" [ref=f14e2109]
+              - cell "Not booked" [ref=f14e2110]
+              - cell "Not recognised" [ref=f14e2112]
+              - cell "—" [ref=f14e2115]
+              - cell [ref=f14e2116]:
+                - generic [ref=f14e2117]:
+                  - button "Review / edit" [ref=f14e2118] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2119] [cursor=pointer]
+            - row [ref=f14e2120]:
+              - cell "SACD Design (Sonia Ashoor)" [ref=f14e2121]
+              - cell "Wafa AlObaidat" [ref=f14e2122]
+              - cell "Qualified" [ref=f14e2123]
+              - cell "$11,763" [ref=f14e2124]
+              - cell "—" [ref=f14e2125]
+              - cell "Not booked" [ref=f14e2126]
+              - cell "Not recognised" [ref=f14e2128]
+              - cell "—" [ref=f14e2131]
+              - cell [ref=f14e2132]:
+                - generic [ref=f14e2133]:
+                  - button "Review / edit" [ref=f14e2134] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2135] [cursor=pointer]
+            - row [ref=f14e2136]:
+              - cell "Bahrain National Holding BNH" [ref=f14e2137]
+              - cell "Wafa AlObaidat" [ref=f14e2138]
+              - cell "Proposal" [ref=f14e2139]
+              - cell "$11,939.40" [ref=f14e2140]
+              - cell "—" [ref=f14e2141]
+              - cell "Not booked" [ref=f14e2142]
+              - cell "Not recognised" [ref=f14e2144]
+              - cell "—" [ref=f14e2147]
+              - cell [ref=f14e2148]:
+                - generic [ref=f14e2149]:
+                  - button "Review / edit" [ref=f14e2150] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2151] [cursor=pointer]
+            - row [ref=f14e2152]:
+              - cell "BEYON" [ref=f14e2153]
+              - cell "Habiba Almosawi" [ref=f14e2154]
+              - cell "Discovery" [ref=f14e2155]
+              - cell "$11,763" [ref=f14e2156]
+              - cell "—" [ref=f14e2157]
+              - cell "Not booked" [ref=f14e2158]
+              - cell "Not recognised" [ref=f14e2160]
+              - cell "—" [ref=f14e2163]
+              - cell [ref=f14e2164]:
+                - generic [ref=f14e2165]:
+                  - button "Review / edit" [ref=f14e2166] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2167] [cursor=pointer]
+            - row [ref=f14e2168]:
+              - cell "Arasco" [ref=f14e2169]
+              - cell "Habiba Almosawi" [ref=f14e2170]
+              - cell "Qualified" [ref=f14e2171]
+              - cell "$11,763" [ref=f14e2172]
+              - cell "—" [ref=f14e2173]
+              - cell "Not booked" [ref=f14e2174]
+              - cell "Not recognised" [ref=f14e2176]
+              - cell "—" [ref=f14e2179]
+              - cell [ref=f14e2180]:
+                - generic [ref=f14e2181]:
+                  - button "Review / edit" [ref=f14e2182] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2183] [cursor=pointer]
+            - row [ref=f14e2184]:
+              - cell "Munsha'at" [ref=f14e2185]
+              - cell "Habiba Almosawi" [ref=f14e2186]
+              - cell "Qualified" [ref=f14e2187]
+              - cell "$11,763" [ref=f14e2188]
+              - cell "—" [ref=f14e2189]
+              - cell "Not booked" [ref=f14e2190]
+              - cell "Not recognised" [ref=f14e2192]
+              - cell "—" [ref=f14e2195]
+              - cell [ref=f14e2196]:
+                - generic [ref=f14e2197]:
+                  - button "Review / edit" [ref=f14e2198] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2199] [cursor=pointer]
+            - row [ref=f14e2200]:
+              - cell "I gene" [ref=f14e2201]
+              - cell "Habiba Almosawi" [ref=f14e2202]
+              - cell "Qualified" [ref=f14e2203]
+              - cell "$11,763" [ref=f14e2204]
+              - cell "—" [ref=f14e2205]
+              - cell "Not booked" [ref=f14e2206]
+              - cell "Not recognised" [ref=f14e2208]
+              - cell "—" [ref=f14e2211]
+              - cell [ref=f14e2212]:
+                - generic [ref=f14e2213]:
+                  - button "Review / edit" [ref=f14e2214] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2215] [cursor=pointer]
+            - row [ref=f14e2216]:
+              - cell "BIAC" [ref=f14e2217]
+              - cell "Habiba Almosawi" [ref=f14e2218]
+              - cell "Qualified" [ref=f14e2219]
+              - cell "$11,763" [ref=f14e2220]
+              - cell "—" [ref=f14e2221]
+              - cell "Not booked" [ref=f14e2222]
+              - cell "Not recognised" [ref=f14e2224]
+              - cell "—" [ref=f14e2227]
+              - cell [ref=f14e2228]:
+                - generic [ref=f14e2229]:
+                  - button "Review / edit" [ref=f14e2230] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2231] [cursor=pointer]
+            - row [ref=f14e2232]:
+              - cell "NIDLP KSA GOV" [ref=f14e2233]
+              - cell "Habiba Almosawi" [ref=f14e2234]
+              - cell "Qualified" [ref=f14e2235]
+              - cell "$11,763" [ref=f14e2236]
+              - cell "—" [ref=f14e2237]
+              - cell "Not booked" [ref=f14e2238]
+              - cell "Not recognised" [ref=f14e2240]
+              - cell "—" [ref=f14e2243]
+              - cell [ref=f14e2244]:
+                - generic [ref=f14e2245]:
+                  - button "Review / edit" [ref=f14e2246] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2247] [cursor=pointer]
+            - row [ref=f14e2248]:
+              - cell "Jiff Tech" [ref=f14e2249]
+              - cell "Habiba Almosawi" [ref=f14e2250]
+              - cell "Qualified" [ref=f14e2251]
+              - cell "$11,763" [ref=f14e2252]
+              - cell "—" [ref=f14e2253]
+              - cell "Not booked" [ref=f14e2254]
+              - cell "Not recognised" [ref=f14e2256]
+              - cell "—" [ref=f14e2259]
+              - cell [ref=f14e2260]:
+                - generic [ref=f14e2261]:
+                  - button "Review / edit" [ref=f14e2262] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2263] [cursor=pointer]
+            - row [ref=f14e2264]:
+              - cell "Fair Deal Trading Co" [ref=f14e2265]
+              - cell "Habiba Almosawi" [ref=f14e2266]
+              - cell "Qualified" [ref=f14e2267]
+              - cell "$11,763" [ref=f14e2268]
+              - cell "—" [ref=f14e2269]
+              - cell "Not booked" [ref=f14e2270]
+              - cell "Not recognised" [ref=f14e2272]
+              - cell "—" [ref=f14e2275]
+              - cell [ref=f14e2276]:
+                - generic [ref=f14e2277]:
+                  - button "Review / edit" [ref=f14e2278] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2279] [cursor=pointer]
+            - row [ref=f14e2280]:
+              - cell "Advanced Management Services Co." [ref=f14e2281]
+              - cell "Habiba Almosawi" [ref=f14e2282]
+              - cell "Qualified" [ref=f14e2283]
+              - cell "$11,763" [ref=f14e2284]
+              - cell "—" [ref=f14e2285]
+              - cell "Not booked" [ref=f14e2286]
+              - cell "Not recognised" [ref=f14e2288]
+              - cell "—" [ref=f14e2291]
+              - cell [ref=f14e2292]:
+                - generic [ref=f14e2293]:
+                  - button "Review / edit" [ref=f14e2294] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2295] [cursor=pointer]
+            - row [ref=f14e2296]:
+              - cell "Riyadh Polytechnic Institute" [ref=f14e2297]
+              - cell "Habiba Almosawi" [ref=f14e2298]
+              - cell "Qualified" [ref=f14e2299]
+              - cell "$11,763" [ref=f14e2300]
+              - cell "—" [ref=f14e2301]
+              - cell "Not booked" [ref=f14e2302]
+              - cell "Not recognised" [ref=f14e2304]
+              - cell "—" [ref=f14e2307]
+              - cell [ref=f14e2308]:
+                - generic [ref=f14e2309]:
+                  - button "Review / edit" [ref=f14e2310] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2311] [cursor=pointer]
+            - row [ref=f14e2312]:
+              - cell "Naqel Express" [ref=f14e2313]
+              - cell "Habiba Almosawi" [ref=f14e2314]
+              - cell "Qualified" [ref=f14e2315]
+              - cell "$11,763" [ref=f14e2316]
+              - cell "—" [ref=f14e2317]
+              - cell "Not booked" [ref=f14e2318]
+              - cell "Not recognised" [ref=f14e2320]
+              - cell "—" [ref=f14e2323]
+              - cell [ref=f14e2324]:
+                - generic [ref=f14e2325]:
+                  - button "Review / edit" [ref=f14e2326] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2327] [cursor=pointer]
+            - row [ref=f14e2328]:
+              - cell "Novarabia" [ref=f14e2329]
+              - cell "Habiba Almosawi" [ref=f14e2330]
+              - cell "Qualified" [ref=f14e2331]
+              - cell "$11,763" [ref=f14e2332]
+              - cell "—" [ref=f14e2333]
+              - cell "Not booked" [ref=f14e2334]
+              - cell "Not recognised" [ref=f14e2336]
+              - cell "—" [ref=f14e2339]
+              - cell [ref=f14e2340]:
+                - generic [ref=f14e2341]:
+                  - button "Review / edit" [ref=f14e2342] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2343] [cursor=pointer]
+            - row [ref=f14e2344]:
+              - cell "PBS KSA" [ref=f14e2345]
+              - cell "Wafa AlObaidat" [ref=f14e2346]
+              - cell "Qualified" [ref=f14e2347]
+              - cell "$11,763" [ref=f14e2348]
+              - cell "—" [ref=f14e2349]
+              - cell "Not booked" [ref=f14e2350]
+              - cell "Not recognised" [ref=f14e2352]
+              - cell "—" [ref=f14e2355]
+              - cell [ref=f14e2356]:
+                - generic [ref=f14e2357]:
+                  - button "Review / edit" [ref=f14e2358] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2359] [cursor=pointer]
+            - row [ref=f14e2360]:
+              - cell "The Coca Cola Company" [ref=f14e2361]
+              - cell "Habiba Almosawi" [ref=f14e2362]
+              - cell "Proposal" [ref=f14e2363]
+              - cell "$18,000" [ref=f14e2364]
+              - cell "—" [ref=f14e2365]
+              - cell "Not booked" [ref=f14e2366]
+              - cell "Not recognised" [ref=f14e2368]
+              - cell "—" [ref=f14e2371]
+              - cell [ref=f14e2372]:
+                - generic [ref=f14e2373]:
+                  - button "Review / edit" [ref=f14e2374] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2375] [cursor=pointer]
+            - row [ref=f14e2376]:
+              - cell "Tamimi Markets" [ref=f14e2377]
+              - cell "Habiba Almosawi" [ref=f14e2378]
+              - cell "Qualified" [ref=f14e2379]
+              - cell "$11,763" [ref=f14e2380]
+              - cell "—" [ref=f14e2381]
+              - cell "Not booked" [ref=f14e2382]
+              - cell "Not recognised" [ref=f14e2384]
+              - cell "—" [ref=f14e2387]
+              - cell [ref=f14e2388]:
+                - generic [ref=f14e2389]:
+                  - button "Review / edit" [ref=f14e2390] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2391] [cursor=pointer]
+            - row [ref=f14e2392]:
+              - cell "Emirates Airways" [ref=f14e2393]
+              - cell "Habiba Almosawi" [ref=f14e2394]
+              - cell "Qualified" [ref=f14e2395]
+              - cell "$11,763" [ref=f14e2396]
+              - cell "—" [ref=f14e2397]
+              - cell "Not booked" [ref=f14e2398]
+              - cell "Not recognised" [ref=f14e2400]
+              - cell "—" [ref=f14e2403]
+              - cell [ref=f14e2404]:
+                - generic [ref=f14e2405]:
+                  - button "Review / edit" [ref=f14e2406] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2407] [cursor=pointer]
+            - row [ref=f14e2408]:
+              - cell "Mondelez Bahrain" [ref=f14e2409]
+              - cell "Habiba Almosawi" [ref=f14e2410]
+              - cell "Qualified" [ref=f14e2411]
+              - cell "$11,763" [ref=f14e2412]
+              - cell "—" [ref=f14e2413]
+              - cell "Not booked" [ref=f14e2414]
+              - cell "Not recognised" [ref=f14e2416]
+              - cell "—" [ref=f14e2419]
+              - cell [ref=f14e2420]:
+                - generic [ref=f14e2421]:
+                  - button "Review / edit" [ref=f14e2422] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2423] [cursor=pointer]
+            - row [ref=f14e2424]:
+              - cell "Tatweer Petrolium" [ref=f14e2425]
+              - cell "Wafa AlObaidat" [ref=f14e2426]
+              - cell "Qualified" [ref=f14e2427]
+              - cell "$11,763" [ref=f14e2428]
+              - cell "—" [ref=f14e2429]
+              - cell "Not booked" [ref=f14e2430]
+              - cell "Not recognised" [ref=f14e2432]
+              - cell "—" [ref=f14e2435]
+              - cell [ref=f14e2436]:
+                - generic [ref=f14e2437]:
+                  - button "Review / edit" [ref=f14e2438] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2439] [cursor=pointer]
+            - row [ref=f14e2440]:
+              - cell "Nestle Middle East" [ref=f14e2441]
+              - cell "Habiba Almosawi" [ref=f14e2442]
+              - cell "Qualified" [ref=f14e2443]
+              - cell "$11,763" [ref=f14e2444]
+              - cell "—" [ref=f14e2445]
+              - cell "Not booked" [ref=f14e2446]
+              - cell "Not recognised" [ref=f14e2448]
+              - cell "—" [ref=f14e2451]
+              - cell [ref=f14e2452]:
+                - generic [ref=f14e2453]:
+                  - button "Review / edit" [ref=f14e2454] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2455] [cursor=pointer]
+            - row [ref=f14e2456]:
+              - cell "GulfAir Group" [ref=f14e2457]
+              - cell "Habiba Almosawi" [ref=f14e2458]
+              - cell "Proposal" [ref=f14e2459]
+              - cell "$11,763" [ref=f14e2460]
+              - cell "—" [ref=f14e2461]
+              - cell "Not booked" [ref=f14e2462]
+              - cell "Not recognised" [ref=f14e2464]
+              - cell "—" [ref=f14e2467]
+              - cell [ref=f14e2468]:
+                - generic [ref=f14e2469]:
+                  - button "Review / edit" [ref=f14e2470] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2471] [cursor=pointer]
+            - row [ref=f14e2472]:
+              - cell "Oracle" [ref=f14e2473]
+              - cell "Wafa AlObaidat" [ref=f14e2474]
+              - cell "Discovery" [ref=f14e2475]
+              - cell "$11,763" [ref=f14e2476]
+              - cell "—" [ref=f14e2477]
+              - cell "Not booked" [ref=f14e2478]
+              - cell "Not recognised" [ref=f14e2480]
+              - cell "—" [ref=f14e2483]
+              - cell [ref=f14e2484]:
+                - generic [ref=f14e2485]:
+                  - button "Review / edit" [ref=f14e2486] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2487] [cursor=pointer]
+            - row [ref=f14e2488]:
+              - cell "PepsiCo" [ref=f14e2489]
+              - cell "Wafa AlObaidat" [ref=f14e2490]
+              - cell "Discovery" [ref=f14e2491]
+              - cell "$11,763" [ref=f14e2492]
+              - cell "—" [ref=f14e2493]
+              - cell "Not booked" [ref=f14e2494]
+              - cell "Not recognised" [ref=f14e2496]
+              - cell "—" [ref=f14e2499]
+              - cell [ref=f14e2500]:
+                - generic [ref=f14e2501]:
+                  - button "Review / edit" [ref=f14e2502] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2503] [cursor=pointer]
+            - row [ref=f14e2504]:
+              - cell "Almabarrah Alkhalifia" [ref=f14e2505]
+              - cell "Wafa AlObaidat" [ref=f14e2506]
+              - cell "Qualified" [ref=f14e2507]
+              - cell "$2,700" [ref=f14e2508]
+              - cell "—" [ref=f14e2509]
+              - cell "Not booked" [ref=f14e2510]
+              - cell "Not recognised" [ref=f14e2512]
+              - cell "—" [ref=f14e2515]
+              - cell [ref=f14e2516]:
+                - generic [ref=f14e2517]:
+                  - button "Review / edit" [ref=f14e2518] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2519] [cursor=pointer]
+            - row [ref=f14e2520]:
+              - cell "Bahrain Airport Company BAC" [ref=f14e2521]
+              - cell "Wafa AlObaidat" [ref=f14e2522]
+              - cell "Discovery" [ref=f14e2523]
+              - cell "$11,763" [ref=f14e2524]
+              - cell "—" [ref=f14e2525]
+              - cell "Not booked" [ref=f14e2526]
+              - cell "Not recognised" [ref=f14e2528]
+              - cell "—" [ref=f14e2531]
+              - cell [ref=f14e2532]:
+                - generic [ref=f14e2533]:
+                  - button "Review / edit" [ref=f14e2534] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2535] [cursor=pointer]
+            - row [ref=f14e2536]:
+              - cell "Binance" [ref=f14e2537]
+              - cell "Wafa AlObaidat" [ref=f14e2538]
+              - cell "Proposal" [ref=f14e2539]
+              - cell "$11,763" [ref=f14e2540]
+              - cell "—" [ref=f14e2541]
+              - cell "Not booked" [ref=f14e2542]
+              - cell "Not recognised" [ref=f14e2544]
+              - cell "—" [ref=f14e2547]
+              - cell [ref=f14e2548]:
+                - generic [ref=f14e2549]:
+                  - button "Review / edit" [ref=f14e2550] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2551] [cursor=pointer]
+            - row [ref=f14e2552]:
+              - cell "Batelco" [ref=f14e2553]
+              - cell "Wafa AlObaidat" [ref=f14e2554]
+              - cell "Discovery" [ref=f14e2555]
+              - cell "$11,763" [ref=f14e2556]
+              - cell "—" [ref=f14e2557]
+              - cell "Not booked" [ref=f14e2558]
+              - cell "Not recognised" [ref=f14e2560]
+              - cell "—" [ref=f14e2563]
+              - cell [ref=f14e2564]:
+                - generic [ref=f14e2565]:
+                  - button "Review / edit" [ref=f14e2566] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2567] [cursor=pointer]
+            - row [ref=f14e2568]:
+              - cell "Falak" [ref=f14e2569]
+              - cell "Wafa AlObaidat" [ref=f14e2570]
+              - cell "Proposal" [ref=f14e2571]
+              - cell "$15,000" [ref=f14e2572]
+              - cell "—" [ref=f14e2573]
+              - cell "Not booked" [ref=f14e2574]
+              - cell "Not recognised" [ref=f14e2576]
+              - cell "—" [ref=f14e2579]
+              - cell [ref=f14e2580]:
+                - generic [ref=f14e2581]:
+                  - button "Review / edit" [ref=f14e2582] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2583] [cursor=pointer]
+            - row [ref=f14e2584]:
+              - cell "Pinnacle" [ref=f14e2585]
+              - cell "Wafa AlObaidat" [ref=f14e2586]
+              - cell "Proposal" [ref=f14e2587]
+              - cell "$11,763" [ref=f14e2588]
+              - cell "—" [ref=f14e2589]
+              - cell "Not booked" [ref=f14e2590]
+              - cell "Not recognised" [ref=f14e2592]
+              - cell "—" [ref=f14e2595]
+              - cell [ref=f14e2596]:
+                - generic [ref=f14e2597]:
+                  - button "Review / edit" [ref=f14e2598] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2599] [cursor=pointer]
+            - row [ref=f14e2600]:
+              - cell "Middle Beast" [ref=f14e2601]
+              - cell "Wafa AlObaidat" [ref=f14e2602]
+              - cell "Parked" [ref=f14e2603]
+              - cell "$11,763" [ref=f14e2604]
+              - cell "—" [ref=f14e2605]
+              - cell "Not booked" [ref=f14e2606]
+              - cell "Not recognised" [ref=f14e2608]
+              - cell "—" [ref=f14e2611]
+              - cell [ref=f14e2612]:
+                - generic [ref=f14e2613]:
+                  - button "Review / edit" [ref=f14e2614] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2615] [cursor=pointer]
+            - row [ref=f14e2616]:
+              - cell "Kanoo YBA" [ref=f14e2617]
+              - cell "Wafa AlObaidat" [ref=f14e2618]
+              - cell "Qualified" [ref=f14e2619]
+              - cell "$11,763" [ref=f14e2620]
+              - cell "—" [ref=f14e2621]
+              - cell "Not booked" [ref=f14e2622]
+              - cell "Not recognised" [ref=f14e2624]
+              - cell "—" [ref=f14e2627]
+              - cell [ref=f14e2628]:
+                - generic [ref=f14e2629]:
+                  - button "Review / edit" [ref=f14e2630] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2631] [cursor=pointer]
+            - row [ref=f14e2632]:
+              - cell "Neom" [ref=f14e2633]
+              - cell "Bayan Hasan" [ref=f14e2634]
+              - cell "Proposal" [ref=f14e2635]
+              - cell "$11,763" [ref=f14e2636]
+              - cell "—" [ref=f14e2637]
+              - cell "Not booked" [ref=f14e2638]
+              - cell "Not recognised" [ref=f14e2640]
+              - cell "—" [ref=f14e2643]
+              - cell [ref=f14e2644]:
+                - generic [ref=f14e2645]:
+                  - button "Review / edit" [ref=f14e2646] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2647] [cursor=pointer]
+            - row [ref=f14e2648]:
+              - cell "CBB" [ref=f14e2649]
+              - cell "Wafa AlObaidat" [ref=f14e2650]
+              - cell "Qualified" [ref=f14e2651]
+              - cell "$11,763" [ref=f14e2652]
+              - cell "—" [ref=f14e2653]
+              - cell "Not booked" [ref=f14e2654]
+              - cell "Not recognised" [ref=f14e2656]
+              - cell "—" [ref=f14e2659]
+              - cell [ref=f14e2660]:
+                - generic [ref=f14e2661]:
+                  - button "Review / edit" [ref=f14e2662] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2663] [cursor=pointer]
+            - row [ref=f14e2664]:
+              - cell "EDB" [ref=f14e2665]
+              - cell "Wafa AlObaidat" [ref=f14e2666]
+              - cell "Qualified" [ref=f14e2667]
+              - cell "$11,763" [ref=f14e2668]
+              - cell "Sep 4, 2024" [ref=f14e2669]
+              - cell "Not booked" [ref=f14e2670]
+              - cell "Not recognised" [ref=f14e2672]
+              - cell "—" [ref=f14e2675]
+              - cell [ref=f14e2676]:
+                - generic [ref=f14e2677]:
+                  - button "Review / edit" [ref=f14e2678] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2679] [cursor=pointer]
+            - row [ref=f14e2680]:
+              - cell "Amcham Saudi" [ref=f14e2681]
+              - cell "Wafa AlObaidat" [ref=f14e2682]
+              - cell "Proposal" [ref=f14e2683]
+              - cell "$11,763" [ref=f14e2684]
+              - cell "—" [ref=f14e2685]
+              - cell "Not booked" [ref=f14e2686]
+              - cell "Not recognised" [ref=f14e2688]
+              - cell "—" [ref=f14e2691]
+              - cell [ref=f14e2692]:
+                - generic [ref=f14e2693]:
+                  - button "Review / edit" [ref=f14e2694] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2695] [cursor=pointer]
+            - row [ref=f14e2696]:
+              - cell "DCO" [ref=f14e2697]
+              - cell "Wafa AlObaidat" [ref=f14e2698]
+              - cell "Proposal" [ref=f14e2699]
+              - cell "$12,600" [ref=f14e2700]
+              - cell "—" [ref=f14e2701]
+              - cell "Not booked" [ref=f14e2702]
+              - cell "Not recognised" [ref=f14e2704]
+              - cell "—" [ref=f14e2707]
+              - cell [ref=f14e2708]:
+                - generic [ref=f14e2709]:
+                  - button "Review / edit" [ref=f14e2710] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2711] [cursor=pointer]
+            - row [ref=f14e2712]:
+              - cell "Qatar's Society of Engineers" [ref=f14e2713]
+              - cell "Wafa AlObaidat" [ref=f14e2714]
+              - cell "Proposal" [ref=f14e2715]
+              - cell "$1,800" [ref=f14e2716]
+              - cell "—" [ref=f14e2717]
+              - cell "Not booked" [ref=f14e2718]
+              - cell "Not recognised" [ref=f14e2720]
+              - cell "—" [ref=f14e2723]
+              - cell [ref=f14e2724]:
+                - generic [ref=f14e2725]:
+                  - button "Review / edit" [ref=f14e2726] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2727] [cursor=pointer]
+            - row [ref=f14e2728]:
+              - cell "DLA Piper" [ref=f14e2729]
+              - cell "Wafa AlObaidat" [ref=f14e2730]
+              - cell "Proposal" [ref=f14e2731]
+              - cell "$11,763" [ref=f14e2732]
+              - cell "—" [ref=f14e2733]
+              - cell "Not booked" [ref=f14e2734]
+              - cell "Not recognised" [ref=f14e2736]
+              - cell "—" [ref=f14e2739]
+              - cell [ref=f14e2740]:
+                - generic [ref=f14e2741]:
+                  - button "Review / edit" [ref=f14e2742] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2743] [cursor=pointer]
+            - row [ref=f14e2744]:
+              - cell "TFO (masterclass)" [ref=f14e2745]
+              - cell "Wafa AlObaidat" [ref=f14e2746]
+              - cell "Proposal" [ref=f14e2747]
+              - cell "$11,763" [ref=f14e2748]
+              - cell "—" [ref=f14e2749]
+              - cell "Not booked" [ref=f14e2750]
+              - cell "Not recognised" [ref=f14e2752]
+              - cell "—" [ref=f14e2755]
+              - cell [ref=f14e2756]:
+                - generic [ref=f14e2757]:
+                  - button "Review / edit" [ref=f14e2758] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2759] [cursor=pointer]
+            - row [ref=f14e2760]:
+              - cell "MISK" [ref=f14e2761]
+              - cell "Wafa AlObaidat" [ref=f14e2762]
+              - cell "Closed Won" [ref=f14e2763]
+              - cell "$400,000" [ref=f14e2764]
+              - cell "Sep 1, 2023" [ref=f14e2765]
+              - cell "Booked" [ref=f14e2766]
+              - cell "Not recognised" [ref=f14e2768]
+              - cell "—" [ref=f14e2771]
+              - cell [ref=f14e2772]:
+                - generic [ref=f14e2773]:
+                  - button "Review / edit" [ref=f14e2774] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2775] [cursor=pointer]
+            - row [ref=f14e2776]:
+              - cell "SICO" [ref=f14e2777]
+              - cell "Wafa AlObaidat" [ref=f14e2778]
+              - cell "Parked" [ref=f14e2779]
+              - cell "$4,158" [ref=f14e2780]
+              - cell "Aug 8, 2024" [ref=f14e2781]
+              - cell "Not booked" [ref=f14e2782]
+              - cell "Not recognised" [ref=f14e2784]
+              - cell "—" [ref=f14e2787]
+              - cell [ref=f14e2788]:
+                - generic [ref=f14e2789]:
+                  - button "Review / edit" [ref=f14e2790] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2791] [cursor=pointer]
+            - row [ref=f14e2792]:
+              - cell "Dental Club" [ref=f14e2793]
+              - cell "Wafa AlObaidat" [ref=f14e2794]
+              - cell "Proposal" [ref=f14e2795]
+              - cell "$11,763" [ref=f14e2796]
+              - cell "—" [ref=f14e2797]
+              - cell "Not booked" [ref=f14e2798]
+              - cell "Not recognised" [ref=f14e2800]
+              - cell "—" [ref=f14e2803]
+              - cell [ref=f14e2804]:
+                - generic [ref=f14e2805]:
+                  - button "Review / edit" [ref=f14e2806] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2807] [cursor=pointer]
+            - row [ref=f14e2808]:
+              - cell "Mumtalakat (BMHC)" [ref=f14e2809]
+              - cell "Wafa AlObaidat" [ref=f14e2810]
+              - cell "Negotiation" [ref=f14e2811]
+              - cell "$11,763" [ref=f14e2812]
+              - cell "—" [ref=f14e2813]
+              - cell "Not booked" [ref=f14e2814]
+              - cell "Not recognised" [ref=f14e2816]
+              - cell "—" [ref=f14e2819]
+              - cell [ref=f14e2820]:
+                - generic [ref=f14e2821]:
+                  - button "Review / edit" [ref=f14e2822] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2823] [cursor=pointer]
+            - row [ref=f14e2824]:
+              - cell "BCFC" [ref=f14e2825]
+              - cell "Wafa AlObaidat" [ref=f14e2826]
+              - cell "Discovery" [ref=f14e2827]
+              - cell "$11,763" [ref=f14e2828]
+              - cell "—" [ref=f14e2829]
+              - cell "Not booked" [ref=f14e2830]
+              - cell "Not recognised" [ref=f14e2832]
+              - cell "—" [ref=f14e2835]
+              - cell [ref=f14e2836]:
+                - generic [ref=f14e2837]:
+                  - button "Review / edit" [ref=f14e2838] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2839] [cursor=pointer]
+            - row [ref=f14e2840]:
+              - cell "Brinc" [ref=f14e2841]
+              - cell "Wafa AlObaidat" [ref=f14e2842]
+              - cell "Proposal" [ref=f14e2843]
+              - cell "$720" [ref=f14e2844]
+              - cell "—" [ref=f14e2845]
+              - cell "Not booked" [ref=f14e2846]
+              - cell "Not recognised" [ref=f14e2848]
+              - cell "—" [ref=f14e2851]
+              - cell [ref=f14e2852]:
+                - generic [ref=f14e2853]:
+                  - button "Review / edit" [ref=f14e2854] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2855] [cursor=pointer]
+            - row [ref=f14e2856]:
+              - cell "Ooredoo Qatar" [ref=f14e2857]
+              - cell "Wafa AlObaidat" [ref=f14e2858]
+              - cell "Proposal" [ref=f14e2859]
+              - cell "$2,160" [ref=f14e2860]
+              - cell "—" [ref=f14e2861]
+              - cell "Not booked" [ref=f14e2862]
+              - cell "Not recognised" [ref=f14e2864]
+              - cell "—" [ref=f14e2867]
+              - cell [ref=f14e2868]:
+                - generic [ref=f14e2869]:
+                  - button "Review / edit" [ref=f14e2870] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2871] [cursor=pointer]
+            - row [ref=f14e2872]:
+              - cell "Noga Holding" [ref=f14e2873]
+              - cell "Wafa AlObaidat" [ref=f14e2874]
+              - cell "Proposal" [ref=f14e2875]
+              - cell "$2,160" [ref=f14e2876]
+              - cell "—" [ref=f14e2877]
+              - cell "Not booked" [ref=f14e2878]
+              - cell "Not recognised" [ref=f14e2880]
+              - cell "—" [ref=f14e2883]
+              - cell [ref=f14e2884]:
+                - generic [ref=f14e2885]:
+                  - button "Review / edit" [ref=f14e2886] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2887] [cursor=pointer]
+            - row [ref=f14e2888]:
+              - cell "Visa" [ref=f14e2889]
+              - cell "Wafa AlObaidat" [ref=f14e2890]
+              - cell "Proposal" [ref=f14e2891]
+              - cell "$2,700" [ref=f14e2892]
+              - cell "—" [ref=f14e2893]
+              - cell "Not booked" [ref=f14e2894]
+              - cell "Not recognised" [ref=f14e2896]
+              - cell "—" [ref=f14e2899]
+              - cell [ref=f14e2900]:
+                - generic [ref=f14e2901]:
+                  - button "Review / edit" [ref=f14e2902] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2903] [cursor=pointer]
+            - row [ref=f14e2904]:
+              - cell "Asry" [ref=f14e2905]
+              - cell "Wafa AlObaidat" [ref=f14e2906]
+              - cell "Proposal" [ref=f14e2907]
+              - cell "$11,763" [ref=f14e2908]
+              - cell "—" [ref=f14e2909]
+              - cell "Not booked" [ref=f14e2910]
+              - cell "Not recognised" [ref=f14e2912]
+              - cell "—" [ref=f14e2915]
+              - cell [ref=f14e2916]:
+                - generic [ref=f14e2917]:
+                  - button "Review / edit" [ref=f14e2918] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2919] [cursor=pointer]
+            - row [ref=f14e2920]:
+              - cell "Khaleeji Commercial Bank" [ref=f14e2921]
+              - cell "Wafa AlObaidat" [ref=f14e2922]
+              - cell "Proposal" [ref=f14e2923]
+              - cell "$11,763" [ref=f14e2924]
+              - cell "—" [ref=f14e2925]
+              - cell "Not booked" [ref=f14e2926]
+              - cell "Not recognised" [ref=f14e2928]
+              - cell "—" [ref=f14e2931]
+              - cell [ref=f14e2932]:
+                - generic [ref=f14e2933]:
+                  - button "Review / edit" [ref=f14e2934] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2935] [cursor=pointer]
+            - row [ref=f14e2936]:
+              - cell "Al Salam Bank" [ref=f14e2937]
+              - cell "Wafa AlObaidat" [ref=f14e2938]
+              - cell "Proposal" [ref=f14e2939]
+              - cell "$11,763" [ref=f14e2940]
+              - cell "—" [ref=f14e2941]
+              - cell "Not booked" [ref=f14e2942]
+              - cell "Not recognised" [ref=f14e2944]
+              - cell "—" [ref=f14e2947]
+              - cell [ref=f14e2948]:
+                - generic [ref=f14e2949]:
+                  - button "Review / edit" [ref=f14e2950] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2951] [cursor=pointer]
+            - row [ref=f14e2952]:
+              - cell "Tamkeen" [ref=f14e2953]
+              - cell "Wafa AlObaidat" [ref=f14e2954]
+              - cell "Discovery" [ref=f14e2955]
+              - cell "$11,763" [ref=f14e2956]
+              - cell "—" [ref=f14e2957]
+              - cell "Not booked" [ref=f14e2958]
+              - cell "Not recognised" [ref=f14e2960]
+              - cell "—" [ref=f14e2963]
+              - cell [ref=f14e2964]:
+                - generic [ref=f14e2965]:
+                  - button "Review / edit" [ref=f14e2966] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2967] [cursor=pointer]
+            - row [ref=f14e2968]:
+              - cell "Tamkeen (Riyadat Program - Female Founders)" [ref=f14e2969]
+              - cell "Wafa AlObaidat" [ref=f14e2970]
+              - cell "Closed Won" [ref=f14e2971]
+              - cell "$26,525" [ref=f14e2972]
+              - cell "May 9, 2024" [ref=f14e2973]
+              - cell "Booked" [ref=f14e2974]
+              - cell "Not recognised" [ref=f14e2976]
+              - cell "—" [ref=f14e2979]
+              - cell [ref=f14e2980]:
+                - generic [ref=f14e2981]:
+                  - button "Review / edit" [ref=f14e2982] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2983] [cursor=pointer]
+            - row [ref=f14e2984]:
+              - cell "Elm" [ref=f14e2985]
+              - cell "Wafa AlObaidat" [ref=f14e2986]
+              - cell "Proposal" [ref=f14e2987]
+              - cell "$11,763" [ref=f14e2988]
+              - cell "—" [ref=f14e2989]
+              - cell "Not booked" [ref=f14e2990]
+              - cell "Not recognised" [ref=f14e2992]
+              - cell "—" [ref=f14e2995]
+              - cell [ref=f14e2996]:
+                - generic [ref=f14e2997]:
+                  - button "Review / edit" [ref=f14e2998] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e2999] [cursor=pointer]
+            - row [ref=f14e3000]:
+              - cell "Bahrain Polytechnic" [ref=f14e3001]
+              - cell "Wafa AlObaidat" [ref=f14e3002]
+              - cell "Proposal" [ref=f14e3003]
+              - cell "$11,763" [ref=f14e3004]
+              - cell "—" [ref=f14e3005]
+              - cell "Not booked" [ref=f14e3006]
+              - cell "Not recognised" [ref=f14e3008]
+              - cell "—" [ref=f14e3011]
+              - cell [ref=f14e3012]:
+                - generic [ref=f14e3013]:
+                  - button "Review / edit" [ref=f14e3014] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3015] [cursor=pointer]
+            - row [ref=f14e3016]:
+              - cell "BIBF" [ref=f14e3017]
+              - cell "Wafa AlObaidat" [ref=f14e3018]
+              - cell "Proposal" [ref=f14e3019]
+              - cell "$11,763" [ref=f14e3020]
+              - cell "—" [ref=f14e3021]
+              - cell "Not booked" [ref=f14e3022]
+              - cell "Not recognised" [ref=f14e3024]
+              - cell "—" [ref=f14e3027]
+              - cell [ref=f14e3028]:
+                - generic [ref=f14e3029]:
+                  - button "Review / edit" [ref=f14e3030] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3031] [cursor=pointer]
+            - row [ref=f14e3032]:
+              - cell "Du Telecom" [ref=f14e3033]
+              - cell "Maryam Al Fahad" [ref=f14e3034]
+              - cell "Negotiation" [ref=f14e3035]
+              - cell "$32,340" [ref=f14e3036]
+              - cell "May 16, 2024" [ref=f14e3037]
+              - cell "Not booked" [ref=f14e3038]
+              - cell "Not recognised" [ref=f14e3040]
+              - cell "—" [ref=f14e3043]
+              - cell [ref=f14e3044]:
+                - generic [ref=f14e3045]:
+                  - button "Review / edit" [ref=f14e3046] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3047] [cursor=pointer]
+            - row [ref=f14e3048]:
+              - cell "Dubai Islamic Bank" [ref=f14e3049]
+              - cell "Maryam Al Fahad" [ref=f14e3050]
+              - cell "Closed Won" [ref=f14e3051]
+              - cell "$28,000" [ref=f14e3052]
+              - cell "Sep 21, 2023" [ref=f14e3053]
+              - cell "Booked" [ref=f14e3054]
+              - cell "Not recognised" [ref=f14e3056]
+              - cell "—" [ref=f14e3059]
+              - cell [ref=f14e3060]:
+                - generic [ref=f14e3061]:
+                  - button "Review / edit" [ref=f14e3062] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3063] [cursor=pointer]
+            - row [ref=f14e3064]:
+              - cell "Cenomi" [ref=f14e3065]
+              - cell "Shreya Rammohan" [ref=f14e3066]
+              - cell "Closed Won" [ref=f14e3067]
+              - cell "$64,800" [ref=f14e3068]
+              - cell "May 9, 2024" [ref=f14e3069]
+              - cell "Booked" [ref=f14e3070]
+              - cell "Not recognised" [ref=f14e3072]
+              - cell "—" [ref=f14e3075]
+              - cell [ref=f14e3076]:
+                - generic [ref=f14e3077]:
+                  - button "Review / edit" [ref=f14e3078] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3079] [cursor=pointer]
+            - row [ref=f14e3080]:
+              - cell "GIB KSA" [ref=f14e3081]
+              - cell "Wafa AlObaidat" [ref=f14e3082]
+              - cell "Closed Won" [ref=f14e3083]
+              - cell "$46,800" [ref=f14e3084]
+              - cell "Jul 6, 2023" [ref=f14e3085]
+              - cell "Booked" [ref=f14e3086]
+              - cell "Not recognised" [ref=f14e3088]
+              - cell "—" [ref=f14e3091]
+              - cell [ref=f14e3092]:
+                - generic [ref=f14e3093]:
+                  - button "Review / edit" [ref=f14e3094] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3095] [cursor=pointer]
+            - row [ref=f14e3096]:
+              - cell "GIB" [ref=f14e3097]
+              - cell "Wafa AlObaidat" [ref=f14e3098]
+              - cell "Closed Won" [ref=f14e3099]
+              - cell "$27,000" [ref=f14e3100]
+              - cell "Jun 16, 2023" [ref=f14e3101]
+              - cell "Booked" [ref=f14e3102]
+              - cell "Not recognised" [ref=f14e3104]
+              - cell "—" [ref=f14e3107]
+              - cell [ref=f14e3108]:
+                - generic [ref=f14e3109]:
+                  - button "Review / edit" [ref=f14e3110] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3111] [cursor=pointer]
+            - row [ref=f14e3112]:
+              - cell "Crescent Enterprises" [ref=f14e3113]
+              - cell "Maryam Al Fahad" [ref=f14e3114]
+              - cell "Closed Won" [ref=f14e3115]
+              - cell "$3,591" [ref=f14e3116]
+              - cell "—" [ref=f14e3117]
+              - cell "Not booked" [ref=f14e3118]
+              - cell "Not recognised" [ref=f14e3120]
+              - cell "Needs close date" [ref=f14e3123]
+              - cell [ref=f14e3127]:
+                - button "Review / edit" [ref=f14e3129] [cursor=pointer]
+            - row [ref=f14e3130]:
+              - cell "AUB Kuwait" [ref=f14e3131]
+              - cell "Maryam Al Fahad" [ref=f14e3132]
+              - cell "Closed Won" [ref=f14e3133]
+              - cell "$360" [ref=f14e3134]
+              - cell "—" [ref=f14e3135]
+              - cell "Not booked" [ref=f14e3136]
+              - cell "Not recognised" [ref=f14e3138]
+              - cell "Needs close date" [ref=f14e3141]
+              - cell [ref=f14e3145]:
+                - button "Review / edit" [ref=f14e3147] [cursor=pointer]
+            - row [ref=f14e3148]:
+              - cell "Benefit" [ref=f14e3149]
+              - cell "Wafa AlObaidat" [ref=f14e3150]
+              - cell "Closed Won" [ref=f14e3151]
+              - cell "$1,435" [ref=f14e3152]
+              - cell "—" [ref=f14e3153]
+              - cell "Not booked" [ref=f14e3154]
+              - cell "Not recognised" [ref=f14e3156]
+              - cell "Needs close date" [ref=f14e3159]
+              - cell [ref=f14e3163]:
+                - button "Review / edit" [ref=f14e3165] [cursor=pointer]
+            - row [ref=f14e3166]:
+              - cell "Masafi Co" [ref=f14e3167]
+              - cell "Habiba Almosawi" [ref=f14e3168]
+              - cell "Closed Won" [ref=f14e3169]
+              - cell "$900" [ref=f14e3170]
+              - cell "Feb 21, 2023" [ref=f14e3171]
+              - cell "Booked" [ref=f14e3172]
+              - cell "Not recognised" [ref=f14e3174]
+              - cell "—" [ref=f14e3177]
+              - cell [ref=f14e3178]:
+                - generic [ref=f14e3179]:
+                  - button "Review / edit" [ref=f14e3180] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3181] [cursor=pointer]
+            - row [ref=f14e3182]:
+              - cell "Masafi Co" [ref=f14e3183]
+              - cell "Habiba Almosawi" [ref=f14e3184]
+              - cell "Closed Won" [ref=f14e3185]
+              - cell "$500" [ref=f14e3186]
+              - cell "Mar 21, 2023" [ref=f14e3187]
+              - cell "Booked" [ref=f14e3188]
+              - cell "Not recognised" [ref=f14e3190]
+              - cell "—" [ref=f14e3193]
+              - cell [ref=f14e3194]:
+                - generic [ref=f14e3195]:
+                  - button "Review / edit" [ref=f14e3196] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3197] [cursor=pointer]
+            - row [ref=f14e3198]:
+              - cell "MENA Moon" [ref=f14e3199]
+              - cell "Wafa AlObaidat" [ref=f14e3200]
+              - cell "Closed Won" [ref=f14e3201]
+              - cell "$500" [ref=f14e3202]
+              - cell "Feb 16, 2023" [ref=f14e3203]
+              - cell "Booked" [ref=f14e3204]
+              - cell "Not recognised" [ref=f14e3206]
+              - cell "—" [ref=f14e3209]
+              - cell [ref=f14e3210]:
+                - generic [ref=f14e3211]:
+                  - button "Review / edit" [ref=f14e3212] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3213] [cursor=pointer]
+            - row [ref=f14e3214]:
+              - cell "MENA Moon" [ref=f14e3215]
+              - cell "Wafa AlObaidat" [ref=f14e3216]
+              - cell "Closed Won" [ref=f14e3217]
+              - cell "$396" [ref=f14e3218]
+              - cell "Feb 15, 2023" [ref=f14e3219]
+              - cell "Booked" [ref=f14e3220]
+              - cell "Not recognised" [ref=f14e3222]
+              - cell "—" [ref=f14e3225]
+              - cell [ref=f14e3226]:
+                - generic [ref=f14e3227]:
+                  - button "Review / edit" [ref=f14e3228] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3229] [cursor=pointer]
+            - row [ref=f14e3230]:
+              - cell "Export Bahrain" [ref=f14e3231]
+              - cell "Wafa AlObaidat" [ref=f14e3232]
+              - cell "Qualified" [ref=f14e3233]
+              - cell "$11,763" [ref=f14e3234]
+              - cell "Jan 11, 2023" [ref=f14e3235]
+              - cell "Not booked" [ref=f14e3236]
+              - cell "Not recognised" [ref=f14e3238]
+              - cell "—" [ref=f14e3241]
+              - cell [ref=f14e3242]:
+                - generic [ref=f14e3243]:
+                  - button "Review / edit" [ref=f14e3244] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3245] [cursor=pointer]
+            - row [ref=f14e3246]:
+              - cell "NYU Abu Dhabi" [ref=f14e3247]
+              - cell "Wafa AlObaidat" [ref=f14e3248]
+              - cell "Closed Won" [ref=f14e3249]
+              - cell "$2,376" [ref=f14e3250]
+              - cell "Dec 7, 2022" [ref=f14e3251]
+              - cell "Booked" [ref=f14e3252]
+              - cell "Not recognised" [ref=f14e3254]
+              - cell "—" [ref=f14e3257]
+              - cell [ref=f14e3258]:
+                - generic [ref=f14e3259]:
+                  - button "Review / edit" [ref=f14e3260] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3261] [cursor=pointer]
+            - row [ref=f14e3262]:
+              - cell "BNL" [ref=f14e3263]
+              - cell "Wafa AlObaidat" [ref=f14e3264]
+              - cell "Closed Won" [ref=f14e3265]
+              - cell "$11,763" [ref=f14e3266]
+              - cell "—" [ref=f14e3267]
+              - cell "Not booked" [ref=f14e3268]
+              - cell "Not recognised" [ref=f14e3270]
+              - cell "Needs close date" [ref=f14e3273]
+              - cell [ref=f14e3277]:
+                - button "Review / edit" [ref=f14e3279] [cursor=pointer]
+            - row [ref=f14e3280]:
+              - cell "Talabat" [ref=f14e3281]
+              - cell "Wafa AlObaidat" [ref=f14e3282]
+              - cell "Closed Won" [ref=f14e3283]
+              - cell "$1,800" [ref=f14e3284]
+              - cell "Dec 8, 2022" [ref=f14e3285]
+              - cell "Booked" [ref=f14e3286]
+              - cell "Not recognised" [ref=f14e3288]
+              - cell "—" [ref=f14e3291]
+              - cell [ref=f14e3292]:
+                - generic [ref=f14e3293]:
+                  - button "Review / edit" [ref=f14e3294] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3295] [cursor=pointer]
+            - row [ref=f14e3296]:
+              - cell "Bapco" [ref=f14e3297]
+              - cell "Wafa AlObaidat" [ref=f14e3298]
+              - cell "Closed Won" [ref=f14e3299]
+              - cell "$44,189.29" [ref=f14e3300]
+              - cell "Nov 30, 2022" [ref=f14e3301]
+              - cell "Booked" [ref=f14e3302]
+              - cell "Not recognised" [ref=f14e3304]
+              - cell "—" [ref=f14e3307]
+              - cell [ref=f14e3308]:
+                - generic [ref=f14e3309]:
+                  - button "Review / edit" [ref=f14e3310] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3311] [cursor=pointer]
+            - row [ref=f14e3312]:
+              - cell "Diva Salon" [ref=f14e3313]
+              - cell "Wafa AlObaidat" [ref=f14e3314]
+              - cell "Closed Won" [ref=f14e3315]
+              - cell "$500" [ref=f14e3316]
+              - cell "Nov 2, 2022" [ref=f14e3317]
+              - cell "Booked" [ref=f14e3318]
+              - cell "Not recognised" [ref=f14e3320]
+              - cell "—" [ref=f14e3323]
+              - cell [ref=f14e3324]:
+                - generic [ref=f14e3325]:
+                  - button "Review / edit" [ref=f14e3326] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3327] [cursor=pointer]
+            - row [ref=f14e3328]:
+              - cell "Tuhoon" [ref=f14e3329]
+              - cell "Wafa AlObaidat" [ref=f14e3330]
+              - cell "Closed Won" [ref=f14e3331]
+              - cell "$180" [ref=f14e3332]
+              - cell "Oct 17, 2022" [ref=f14e3333]
+              - cell "Booked" [ref=f14e3334]
+              - cell "Not recognised" [ref=f14e3336]
+              - cell "—" [ref=f14e3339]
+              - cell [ref=f14e3340]:
+                - generic [ref=f14e3341]:
+                  - button "Review / edit" [ref=f14e3342] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3343] [cursor=pointer]
+            - row [ref=f14e3344]:
+              - cell "Gulf Hotel" [ref=f14e3345]
+              - cell "Wafa AlObaidat" [ref=f14e3346]
+              - cell "Closed Won" [ref=f14e3347]
+              - cell "$180" [ref=f14e3348]
+              - cell "Oct 3, 2022" [ref=f14e3349]
+              - cell "Booked" [ref=f14e3350]
+              - cell "Not recognised" [ref=f14e3352]
+              - cell "—" [ref=f14e3355]
+              - cell [ref=f14e3356]:
+                - generic [ref=f14e3357]:
+                  - button "Review / edit" [ref=f14e3358] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3359] [cursor=pointer]
+            - row [ref=f14e3360]:
+              - cell "Nuqtah" [ref=f14e3361]
+              - cell "Wafa AlObaidat" [ref=f14e3362]
+              - cell "Closed Won" [ref=f14e3363]
+              - cell "$8,990.46" [ref=f14e3364]
+              - cell "May 9, 2022" [ref=f14e3365]
+              - cell "Booked" [ref=f14e3366]
+              - cell "Not recognised" [ref=f14e3368]
+              - cell "—" [ref=f14e3371]
+              - cell [ref=f14e3372]:
+                - generic [ref=f14e3373]:
+                  - button "Review / edit" [ref=f14e3374] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3375] [cursor=pointer]
+            - row [ref=f14e3376]:
+              - cell "Investcorp" [ref=f14e3377]
+              - cell "Wafa AlObaidat" [ref=f14e3378]
+              - cell "Closed Won" [ref=f14e3379]
+              - cell "$500" [ref=f14e3380]
+              - cell "May 19, 2022" [ref=f14e3381]
+              - cell "Booked" [ref=f14e3382]
+              - cell "Not recognised" [ref=f14e3384]
+              - cell "—" [ref=f14e3387]
+              - cell [ref=f14e3388]:
+                - generic [ref=f14e3389]:
+                  - button "Review / edit" [ref=f14e3390] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3391] [cursor=pointer]
+            - row [ref=f14e3392]:
+              - cell "Investcorp" [ref=f14e3393]
+              - cell "Wafa AlObaidat" [ref=f14e3394]
+              - cell "Closed Won" [ref=f14e3395]
+              - cell "$4,500" [ref=f14e3396]
+              - cell "May 19, 2022" [ref=f14e3397]
+              - cell "Booked" [ref=f14e3398]
+              - cell "Not recognised" [ref=f14e3400]
+              - cell "—" [ref=f14e3403]
+              - cell [ref=f14e3404]:
+                - generic [ref=f14e3405]:
+                  - button "Review / edit" [ref=f14e3406] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3407] [cursor=pointer]
+            - row [ref=f14e3408]:
+              - cell "Watar Partners" [ref=f14e3409]
+              - cell "Wafa AlObaidat" [ref=f14e3410]
+              - cell "Closed Won" [ref=f14e3411]
+              - cell "$1,800" [ref=f14e3412]
+              - cell "May 24, 2022" [ref=f14e3413]
+              - cell "Booked" [ref=f14e3414]
+              - cell "Not recognised" [ref=f14e3416]
+              - cell "—" [ref=f14e3419]
+              - cell [ref=f14e3420]:
+                - generic [ref=f14e3421]:
+                  - button "Review / edit" [ref=f14e3422] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3423] [cursor=pointer]
+            - row [ref=f14e3424]:
+              - cell "National Bank of Bahrain" [ref=f14e3425]
+              - cell "Wafa AlObaidat" [ref=f14e3426]
+              - cell "Closed Won" [ref=f14e3427]
+              - cell "$1,800" [ref=f14e3428]
+              - cell "Aug 24, 2022" [ref=f14e3429]
+              - cell "Booked" [ref=f14e3430]
+              - cell "Not recognised" [ref=f14e3432]
+              - cell "—" [ref=f14e3435]
+              - cell [ref=f14e3436]:
+                - generic [ref=f14e3437]:
+                  - button "Review / edit" [ref=f14e3438] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3439] [cursor=pointer]
+            - row [ref=f14e3440]:
+              - cell "NYBL" [ref=f14e3441]
+              - cell "Wafa AlObaidat" [ref=f14e3442]
+              - cell "Closed Won" [ref=f14e3443]
+              - cell "$4,500" [ref=f14e3444]
+              - cell "Sep 19, 2023" [ref=f14e3445]
+              - cell "Booked" [ref=f14e3446]
+              - cell "Not recognised" [ref=f14e3448]
+              - cell "—" [ref=f14e3451]
+              - cell [ref=f14e3452]:
+                - generic [ref=f14e3453]:
+                  - button "Review / edit" [ref=f14e3454] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3455] [cursor=pointer]
+            - row [ref=f14e3456]:
+              - cell "Zain Bahrain" [ref=f14e3457]
+              - cell "Wafa AlObaidat" [ref=f14e3458]
+              - cell "Closed Won" [ref=f14e3459]
+              - cell "$19,800" [ref=f14e3460]
+              - cell "Jun 5, 2022" [ref=f14e3461]
+              - cell "Booked" [ref=f14e3462]
+              - cell "Not recognised" [ref=f14e3464]
+              - cell "—" [ref=f14e3467]
+              - cell [ref=f14e3468]:
+                - generic [ref=f14e3469]:
+                  - button "Review / edit" [ref=f14e3470] [cursor=pointer]
+                  - button "Record recognised sale" [ref=f14e3471] [cursor=pointer]

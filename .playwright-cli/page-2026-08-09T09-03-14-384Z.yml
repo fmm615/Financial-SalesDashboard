@@ -1,0 +1,166 @@
+- generic [ref=f11e2]:
+  - link "Skip to main content" [ref=f11e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary [ref=f11e4]:
+    - navigation "Main navigation" [ref=f11e5]:
+      - link "PLAYBOOK FOS" [ref=f11e6] [cursor=pointer]:
+        - /url: /executive
+        - generic [ref=f11e7]: PLAYBOOK
+        - generic [ref=f11e8]: FOS
+      - generic [ref=f11e9]:
+        - generic [ref=f11e10]:
+          - paragraph [ref=f11e11]: Overview
+          - link "Executive" [ref=f11e12] [cursor=pointer]:
+            - /url: /executive
+        - generic [ref=f11e18]:
+          - paragraph [ref=f11e19]: Operations
+          - link "B2C operations" [ref=f11e20] [cursor=pointer]:
+            - /url: /operations/b2c
+        - link "B2B operations" [ref=f11e26] [cursor=pointer]:
+          - /url: /operations/b2b
+        - link "Finance" [ref=f11e32] [cursor=pointer]:
+          - /url: /finance
+        - generic [ref=f11e37]:
+          - paragraph [ref=f11e38]: Governance
+          - link "Reports" [ref=f11e39] [cursor=pointer]:
+            - /url: /reports
+        - link "Review queue" [ref=f11e44] [cursor=pointer]:
+          - /url: /review-queue
+        - link "Audit log" [ref=f11e49] [cursor=pointer]:
+          - /url: /audit-log
+        - link "Administration" [ref=f11e54] [cursor=pointer]:
+          - /url: /admin
+      - generic [ref=f11e58]:
+        - generic [ref=f11e59]: Admin workspace
+        - paragraph [ref=f11e61]: Changes are recorded in the audit log.
+  - banner [ref=f11e62]:
+    - generic [ref=f11e63]:
+      - paragraph [ref=f11e64]: Financial workspace
+      - paragraph [ref=f11e65]: Controlled reporting & traceable operations
+    - generic [ref=f11e66]:
+      - generic [ref=f11e67]: admin
+      - button "Notifications" [ref=f11e68] [cursor=pointer]
+      - button "Sign out" [ref=f11e73] [cursor=pointer]
+  - main [ref=f11e77]:
+    - generic [ref=f11e78]:
+      - generic [ref=f11e79]:
+        - paragraph [ref=f11e80]: PLAYBOOK Financial Operating System
+        - heading "Finance" [level=1] [ref=f11e81]
+        - paragraph [ref=f11e82]: A controlled view of cash, recognised revenue, expenses, and Summit performance. B2B bookings remain separate from recognised sales.
+      - button "Select reporting date range" [ref=f11e84] [cursor=pointer]: 1–31 August 2026
+    - generic [ref=f11e87]:
+      - generic [ref=f11e88]:
+        - article [ref=f11e89]:
+          - paragraph [ref=f11e91]: Cash position
+          - paragraph [ref=f11e92]: $1.24m
+          - paragraph [ref=f11e93]: As of 2 August
+        - article [ref=f11e94]:
+          - paragraph [ref=f11e96]: Runway
+          - paragraph [ref=f11e97]: 16.8 months
+          - paragraph [ref=f11e98]: Based on trailing 3 months
+        - article [ref=f11e99]:
+          - paragraph [ref=f11e101]: Revenue
+          - paragraph [ref=f11e102]: $184,200
+          - paragraph [ref=f11e103]: Recognised this month
+        - article [ref=f11e104]:
+          - paragraph [ref=f11e106]: Expenses
+          - paragraph [ref=f11e107]: $71,600
+          - paragraph [ref=f11e108]: Approved and paid
+        - article [ref=f11e109]:
+          - paragraph [ref=f11e111]: Net operating result
+          - paragraph [ref=f11e112]: $112,600
+          - paragraph [ref=f11e113]: Before tax
+      - generic [ref=f11e114]:
+        - generic [ref=f11e115]:
+          - generic [ref=f11e117]:
+            - heading "Expense breakdown" [level=2] [ref=f11e118]
+            - paragraph [ref=f11e119]: Approved and paid expenses for the selected period
+          - 'img "Breakdown chart: People 39000, Events 14800, Marketing 9100, Platform 5400, Other 3300" [ref=f11e121]'
+        - generic [ref=f11e123]:
+          - generic [ref=f11e125]:
+            - heading "Revenue separation" [level=2] [ref=f11e126]
+            - paragraph [ref=f11e127]: These concepts must never be added together as the same measure
+          - generic [ref=f11e128]:
+            - generic [ref=f11e129]:
+              - generic [ref=f11e130]:
+                - term [ref=f11e131]: B2C recognised sales
+                - definition [ref=f11e132]: $96,800
+              - generic [ref=f11e133]:
+                - term [ref=f11e134]: B2B recognised sales
+                - definition [ref=f11e135]: $87,400
+              - generic [ref=f11e136]:
+                - term [ref=f11e137]: B2B bookings
+                - definition [ref=f11e138]: $126,000
+            - paragraph [ref=f11e139]: Bookings are commitments; they are not recognised sales or cash received.
+      - generic [ref=f11e140]:
+        - generic [ref=f11e141]:
+          - generic [ref=f11e143]:
+            - heading "Summit progress" [level=2] [ref=f11e144]
+            - paragraph [ref=f11e145]: Targets are illustrative until approved Finance sources are connected
+          - generic [ref=f11e147]:
+            - generic [ref=f11e148]:
+              - generic [ref=f11e149]:
+                - generic [ref=f11e150]: Tickets
+                - generic [ref=f11e151]: $84,000
+              - progressbar "Tickets progress" [ref=f11e152]
+              - paragraph [ref=f11e154]: Target $100,000 · 84%
+            - generic [ref=f11e155]:
+              - generic [ref=f11e156]:
+                - generic [ref=f11e157]: Sponsors
+                - generic [ref=f11e158]: $126,000
+              - progressbar "Sponsors progress" [ref=f11e159]
+              - paragraph [ref=f11e161]: Target $180,000 · 70%
+            - generic [ref=f11e162]:
+              - generic [ref=f11e163]:
+                - generic [ref=f11e164]: Booths
+                - generic [ref=f11e165]: $42,000
+              - progressbar "Booths progress" [ref=f11e166]
+              - paragraph [ref=f11e168]: Target $60,000 · 70%
+            - generic [ref=f11e169]:
+              - generic [ref=f11e170]:
+                - generic [ref=f11e171]: Costs
+                - generic [ref=f11e172]: $58,000
+              - progressbar "Costs progress" [ref=f11e173]
+              - paragraph [ref=f11e175]: Target $80,000 · 73%
+        - generic [ref=f11e179]:
+          - paragraph [ref=f11e180]: Cash trend not loaded
+          - paragraph [ref=f11e181]: No historical cash series is available in the UI foundation. It must not be displayed as $0.
+      - generic [ref=f11e182]:
+        - generic [ref=f11e183]:
+          - generic [ref=f11e184]:
+            - heading "Financial entries" [level=2] [ref=f11e185]
+            - paragraph [ref=f11e186]: Illustrative ledger rows preserve the distinction between bookings, recognised sales, and expenses.
+          - generic [ref=f11e188]:
+            - textbox "Search records" [ref=f11e190]
+            - button "Date" [ref=f11e191] [cursor=pointer]
+            - button "Area" [ref=f11e194] [cursor=pointer]
+            - button "Status" [ref=f11e197] [cursor=pointer]
+            - button "More filters" [ref=f11e200] [cursor=pointer]
+        - table [ref=f11e204]:
+          - caption [ref=f11e205]: Financial entries
+          - rowgroup [ref=f11e206]:
+            - row [ref=f11e207]:
+              - columnheader "Date" [ref=f11e208]
+              - columnheader "Description" [ref=f11e209]
+              - columnheader "Area" [ref=f11e210]
+              - columnheader "Amount" [ref=f11e211]
+              - columnheader "Status" [ref=f11e212]
+          - rowgroup [ref=f11e213]:
+            - row [ref=f11e214]:
+              - cell "Aug 2, 2026" [ref=f11e215]
+              - cell "B2C memberships" [ref=f11e216]
+              - cell "B2C" [ref=f11e217]
+              - cell "$4,820" [ref=f11e218]
+              - cell "Recognised" [ref=f11e219]
+            - row [ref=f11e221]:
+              - cell "Aug 1, 2026" [ref=f11e222]
+              - cell "Saha Holdings booking" [ref=f11e223]
+              - cell "B2B" [ref=f11e224]
+              - cell "$126,000" [ref=f11e225]
+              - cell "Booked" [ref=f11e226]
+            - row [ref=f11e228]:
+              - cell "Aug 1, 2026" [ref=f11e229]
+              - cell "Event venue deposit" [ref=f11e230]
+              - cell "Expense" [ref=f11e231]
+              - cell "$14,800" [ref=f11e232]
+              - cell "Paid" [ref=f11e233]

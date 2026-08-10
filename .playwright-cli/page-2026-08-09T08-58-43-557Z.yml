@@ -1,0 +1,12 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - paragraph [ref=e4]: PLAYBOOKFOS
+      - heading "Financial Operating System" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Only approved PLAYBOOK users can access the dashboard. Sign in with your individual Google account.
+      - button "Continue with Google" [ref=e7] [cursor=pointer]
+      - paragraph [ref=e8]: Your role and allowlist status are verified server-side after Google returns.
+      - link "View access-denied state →" [ref=e9] [cursor=pointer]:
+        - /url: /access-denied
+  - button "Open Next.js Dev Tools" [ref=e15] [cursor=pointer]
+  - alert [ref=e19]

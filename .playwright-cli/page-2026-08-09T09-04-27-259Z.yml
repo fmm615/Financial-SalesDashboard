@@ -1,0 +1,372 @@
+- generic [ref=f12e2]:
+  - link "Skip to main content" [ref=f12e3] [cursor=pointer]:
+    - /url: "#main-content"
+  - complementary [ref=f12e4]:
+    - navigation "Main navigation" [ref=f12e5]:
+      - link "PLAYBOOK FOS" [ref=f12e6] [cursor=pointer]:
+        - /url: /executive
+        - generic [ref=f12e7]: PLAYBOOK
+        - generic [ref=f12e8]: FOS
+      - generic [ref=f12e9]:
+        - generic [ref=f12e10]:
+          - paragraph [ref=f12e11]: Overview
+          - link "Executive" [ref=f12e12] [cursor=pointer]:
+            - /url: /executive
+        - generic [ref=f12e18]:
+          - paragraph [ref=f12e19]: Operations
+          - link "B2C operations" [ref=f12e20] [cursor=pointer]:
+            - /url: /operations/b2c
+        - link "B2B operations" [ref=f12e28] [cursor=pointer]:
+          - /url: /operations/b2b
+        - link "Finance" [ref=f12e34] [cursor=pointer]:
+          - /url: /finance
+        - generic [ref=f12e37]:
+          - paragraph [ref=f12e38]: Governance
+          - link "Reports" [ref=f12e39] [cursor=pointer]:
+            - /url: /reports
+        - link "Review queue" [ref=f12e44] [cursor=pointer]:
+          - /url: /review-queue
+        - link "Audit log" [ref=f12e49] [cursor=pointer]:
+          - /url: /audit-log
+        - link "Administration" [ref=f12e54] [cursor=pointer]:
+          - /url: /admin
+      - generic [ref=f12e58]:
+        - generic [ref=f12e59]: Admin workspace
+        - paragraph [ref=f12e61]: Changes are recorded in the audit log.
+  - banner [ref=f12e62]:
+    - generic [ref=f12e63]:
+      - paragraph [ref=f12e64]: Financial workspace
+      - paragraph [ref=f12e65]: Controlled reporting & traceable operations
+    - generic [ref=f12e66]:
+      - generic [ref=f12e67]: admin
+      - button "Notifications" [ref=f12e68] [cursor=pointer]
+      - button "Sign out" [ref=f12e73] [cursor=pointer]
+  - main [ref=f12e77]:
+    - generic [ref=f12e78]:
+      - generic [ref=f12e79]:
+        - paragraph [ref=f12e80]: PLAYBOOK Financial Operating System
+        - heading "B2C operations" [level=1] [ref=f12e81]
+        - paragraph [ref=f12e82]: Stripe and other B2C payments are kept separate from B2B. Only completed, verified, non-duplicate payments contribute to totals; a Finance exception is clearly labelled and fully audited. Refunds remain separate source records.
+      - combobox "B2C reporting period" [ref=f12e85] [cursor=pointer]:
+        - option "All time"
+        - option "December 2026"
+        - option "November 2026"
+        - option "October 2026"
+        - option "September 2026"
+        - option "August 2026" [selected]
+        - option "July 2026"
+        - option "June 2026"
+        - option "May 2026"
+        - option "April 2026"
+        - option "March 2026"
+        - option "February 2026"
+        - option "January 2026"
+        - option "December 2025"
+        - option "November 2025"
+        - option "October 2025"
+        - option "September 2025"
+        - option "August 2025"
+        - option "July 2025"
+        - option "June 2025"
+        - option "May 2025"
+        - option "April 2025"
+        - option "March 2025"
+        - option "February 2025"
+        - option "January 2025"
+        - option "December 2024"
+        - option "November 2024"
+        - option "October 2024"
+        - option "September 2024"
+        - option "August 2024"
+        - option "July 2024"
+        - option "June 2024"
+        - option "May 2024"
+        - option "April 2024"
+        - option "March 2024"
+        - option "February 2024"
+        - option "January 2024"
+        - option "December 2023"
+        - option "November 2023"
+        - option "October 2023"
+        - option "September 2023"
+        - option "August 2023"
+        - option "July 2023"
+        - option "June 2023"
+        - option "May 2023"
+        - option "April 2023"
+        - option "March 2023"
+        - option "February 2023"
+        - option "January 2023"
+        - option "December 2022"
+        - option "November 2022"
+        - option "October 2022"
+        - option "September 2022"
+        - option "August 2022"
+        - option "July 2022"
+        - option "June 2022"
+        - option "May 2022"
+        - option "April 2022"
+        - option "March 2022"
+        - option "February 2022"
+        - option "January 2022"
+    - generic [ref=f12e86]:
+      - status [ref=f12e87]:
+        - paragraph [ref=f12e88]: Historical B2C import completed with exceptions
+        - paragraph [ref=f12e89]: 36 source records could not be loaded across Stripe. Resolve or retry them before treating B2C totals as complete. Source data is current through Aug 5, 2026, 12:59 PM Bahrain time.
+      - generic [ref=f12e90]:
+        - article [ref=f12e91]:
+          - paragraph [ref=f12e93]: Reportable B2C payments · August 2026
+          - paragraph [ref=f12e94]: Not fully loaded
+          - paragraph [ref=f12e95]: Withheld until the Stripe history is complete
+        - article [ref=f12e96]:
+          - paragraph [ref=f12e98]: Linked succeeded refunds · August 2026
+          - paragraph [ref=f12e99]: Not fully loaded
+          - paragraph [ref=f12e100]: Withheld until the Stripe history is complete
+        - article [ref=f12e101]:
+          - paragraph [ref=f12e103]: Net B2C cash received · August 2026
+          - paragraph [ref=f12e104]: Not fully loaded
+          - paragraph [ref=f12e105]: Withheld until the Stripe history is complete
+        - article [ref=f12e106]:
+          - paragraph [ref=f12e108]: Retrieved completed source payments · August 2026
+          - paragraph [ref=f12e109]: $2,176.00
+          - paragraph [ref=f12e110]: Operational source volume only; never a financial total
+        - article [ref=f12e111]:
+          - paragraph [ref=f12e113]: Open review flags
+          - paragraph [ref=f12e114]: "1004"
+          - paragraph [ref=f12e115]: Flag count; one source record can have more than one
+      - generic [ref=f12e116]:
+        - generic [ref=f12e118]:
+          - heading "B2C reporting reconciliation" [level=2] [ref=f12e119]
+          - paragraph [ref=f12e120]: This bridge explains exactly why source activity and reportable cash differ. A completed source payment is counted only after verification and duplicate checks, unless an Admin records a clearly labelled, audited Finance exception.
+        - generic [ref=f12e121]:
+          - generic [ref=f12e122]:
+            - generic [ref=f12e123]:
+              - term [ref=f12e124]: Completed source payments
+              - definition [ref=f12e125]: $2,176.00
+              - paragraph [ref=f12e126]: 7 payments before review
+            - generic [ref=f12e127]:
+              - term [ref=f12e128]: Excluded pending review
+              - definition [ref=f12e129]: $2,176.00
+              - paragraph [ref=f12e130]: 7 completed payments
+            - generic [ref=f12e131]:
+              - term [ref=f12e132]: Reportable B2C payments
+              - definition [ref=f12e133]: Not fully loaded
+              - paragraph [ref=f12e134]: Not published while source coverage is incomplete
+            - generic [ref=f12e135]:
+              - term [ref=f12e136]: Succeeded source refunds
+              - definition [ref=f12e137]: $0.00
+              - paragraph [ref=f12e138]: 0 source refunds; financial deduction withheld
+          - paragraph [ref=f12e139]: "Current exclusions: 7 unmapped products, 5 missing customer emails, 0 possible duplicates, 0 other review items, and 2 failed or pending payments. 0 payments are included by a Finance exception. Categories can overlap, so these reason counts do not add up to the excluded-payment count."
+      - generic [ref=f12e140]:
+        - generic [ref=f12e142]:
+          - heading "B2C source ledger · August 2026" [level=2] [ref=f12e143]
+          - paragraph [ref=f12e144]: Provider IDs are retained for traceability. Use the filters to inspect source records; filtering does not alter reporting totals or Stripe data.
+        - generic [ref=f12e145]:
+          - generic [ref=f12e146]:
+            - generic [ref=f12e147]:
+              - generic [ref=f12e148]:
+                - text: Search
+                - textbox "Search" [ref=f12e149]:
+                  - /placeholder: Name, email, mobile, or ID
+              - generic [ref=f12e150]:
+                - text: Date from
+                - textbox "Date from" [ref=f12e151]
+              - generic [ref=f12e152]:
+                - text: Date to
+                - textbox "Date to" [ref=f12e153]
+              - generic [ref=f12e154]:
+                - text: Minimum USD
+                - spinbutton "Minimum USD" [ref=f12e155]
+              - generic [ref=f12e156]:
+                - text: Maximum USD
+                - spinbutton "Maximum USD" [ref=f12e157]
+              - generic [ref=f12e158]:
+                - text: Payment status
+                - combobox "Payment status" [ref=f12e159]:
+                  - option "All statuses" [selected]
+                  - option "Completed"
+                  - option "Failed"
+                  - option "Pending"
+                  - option "Refunded"
+              - generic [ref=f12e160]:
+                - text: Source
+                - combobox "Source" [ref=f12e161]:
+                  - option "All sources" [selected]
+                  - option "Stripe"
+              - generic [ref=f12e162]:
+                - text: PLAYBOOK category
+                - combobox "PLAYBOOK category" [ref=f12e163]:
+                  - option "All categories" [selected]
+                  - option "Unmapped"
+                  - option "membership"
+              - generic [ref=f12e164]:
+                - text: Issue
+                - combobox "Issue" [ref=f12e165]:
+                  - option "All issues" [selected]
+                  - option "No issue"
+                  - option "Missing customer email"
+                  - option "Unmapped product"
+            - generic [ref=f12e166]:
+              - generic [ref=f12e167]: Showing 9 of 9 records
+              - button "Clear filters" [disabled] [ref=f12e168]
+          - table [ref=f12e170]:
+            - caption [ref=f12e171]: B2C source ledger
+            - rowgroup [ref=f12e172]:
+              - row [ref=f12e173]:
+                - columnheader "Name" [ref=f12e174]
+                - columnheader "Email" [ref=f12e175]
+                - columnheader "Mobile" [ref=f12e176]
+                - columnheader "Record" [ref=f12e177]
+                - columnheader [ref=f12e178]:
+                  - button "Sort by Date, currently descending" [ref=f12e179] [cursor=pointer]:
+                    - text: Date
+                    - generic [ref=f12e180]: ↓
+                - columnheader [ref=f12e181]:
+                  - button "Sort by Amount, currently descending" [ref=f12e182] [cursor=pointer]:
+                    - text: Amount
+                    - generic [ref=f12e183]: ↕
+                - columnheader "PLAYBOOK category" [ref=f12e184]
+                - columnheader "Plan / tier" [ref=f12e185]
+                - columnheader "Source" [ref=f12e186]
+                - columnheader "Payment" [ref=f12e187]
+                - columnheader "Issue" [ref=f12e188]
+                - columnheader "Provider ID" [ref=f12e189]
+                - columnheader "Admin action" [ref=f12e190]
+            - rowgroup [ref=f12e192]:
+              - row [ref=f12e193]:
+                - cell "—" [ref=f12e194]
+                - cell "—" [ref=f12e195]
+                - cell "—" [ref=f12e196]
+                - cell "Payment" [ref=f12e197]
+                - cell "Aug 4, 2026" [ref=f12e198]
+                - cell "$50.42" [ref=f12e199]
+                - cell "Unmapped" [ref=f12e200]
+                - cell "—" [ref=f12e201]
+                - cell "Stripe" [ref=f12e202]
+                - cell "Completed" [ref=f12e203]
+                - cell "Missing customer email" [ref=f12e208]
+                - cell "ch_3U0lpVRVgEqHIlMD18jdoRrZ" [ref=f12e212]
+                - cell [ref=f12e213]:
+                  - button "Edit locally" [ref=f12e214] [cursor=pointer]
+              - row [ref=f12e215]:
+                - cell "Tester" [ref=f12e216]
+                - cell "test@test.com" [ref=f12e217]
+                - cell "+973 33223322" [ref=f12e218]
+                - cell "Payment" [ref=f12e219]
+                - cell "Aug 4, 2026 Locally corrected" [ref=f12e220]:
+                  - text: Aug 4, 2026
+                  - generic [ref=f12e221]: Locally corrected
+                - cell "$50.42" [ref=f12e222]
+                - cell "membership" [ref=f12e223]
+                - cell "premium" [ref=f12e224]
+                - cell "Stripe" [ref=f12e225]
+                - cell "Completed" [ref=f12e226]
+                - cell "Missing customer email" [ref=f12e231]
+                - cell "ch_3U0cbTRVgEqHIlMD05JjKM35" [ref=f12e235]
+                - cell [ref=f12e236]:
+                  - button "Edit locally" [ref=f12e237] [cursor=pointer]
+              - row [ref=f12e238]:
+                - cell "Rawdat Capital" [ref=f12e239]
+                - cell "dalia@rawdatcapital.com" [ref=f12e240]
+                - cell "+97477775775" [ref=f12e241]
+                - cell "Payment" [ref=f12e242]
+                - cell "Aug 3, 2026" [ref=f12e243]
+                - cell "$273.90" [ref=f12e244]
+                - cell "Unmapped" [ref=f12e245]
+                - cell "—" [ref=f12e246]
+                - cell "Stripe" [ref=f12e247]
+                - cell "Completed" [ref=f12e248]
+                - cell "Unmapped product" [ref=f12e253]
+                - cell "ch_3U0OJhRVgEqHIlMD0RgqzLaj" [ref=f12e255]
+                - cell [ref=f12e256]:
+                  - button "Edit locally" [ref=f12e257] [cursor=pointer]
+              - row [ref=f12e258]:
+                - cell "Rawdat Capital" [ref=f12e259]
+                - cell "dalia@rawdatcapital.com" [ref=f12e260]
+                - cell "+97477775775" [ref=f12e261]
+                - cell "Payment" [ref=f12e262]
+                - cell "Aug 3, 2026" [ref=f12e263]
+                - cell "$273.90" [ref=f12e264]
+                - cell "Unmapped" [ref=f12e265]
+                - cell "—" [ref=f12e266]
+                - cell "Stripe" [ref=f12e267]
+                - cell "Failed" [ref=f12e268]
+                - cell "Unmapped product" [ref=f12e272]
+                - cell "ch_3U0OJhRVgEqHIlMD0lcWcahT" [ref=f12e274]
+                - cell [ref=f12e275]:
+                  - button "Edit locally" [ref=f12e276] [cursor=pointer]
+              - row [ref=f12e277]:
+                - cell "—" [ref=f12e278]
+                - cell "—" [ref=f12e279]
+                - cell "—" [ref=f12e280]
+                - cell "Payment" [ref=f12e281]
+                - cell "Aug 3, 2026" [ref=f12e282]
+                - cell "$1,650.00" [ref=f12e283]
+                - cell "Unmapped" [ref=f12e284]
+                - cell "—" [ref=f12e285]
+                - cell "Stripe" [ref=f12e286]
+                - cell "Completed" [ref=f12e287]
+                - cell "Missing customer email" [ref=f12e292]
+                - cell "ch_3U0IuXRVgEqHIlMD0VJq5hJt" [ref=f12e296]
+                - cell [ref=f12e297]:
+                  - button "Edit locally" [ref=f12e298] [cursor=pointer]
+              - row [ref=f12e299]:
+                - cell "—" [ref=f12e300]
+                - cell "—" [ref=f12e301]
+                - cell "—" [ref=f12e302]
+                - cell "Payment" [ref=f12e303]
+                - cell "Aug 2, 2026" [ref=f12e304]
+                - cell "$50.42" [ref=f12e305]
+                - cell "Unmapped" [ref=f12e306]
+                - cell "—" [ref=f12e307]
+                - cell "Stripe" [ref=f12e308]
+                - cell "Completed" [ref=f12e309]
+                - cell "Missing customer email" [ref=f12e314]
+                - cell "ch_3U06D2RVgEqHIlMD1avXIQeX" [ref=f12e318]
+                - cell [ref=f12e319]:
+                  - button "Edit locally" [ref=f12e320] [cursor=pointer]
+              - row [ref=f12e321]:
+                - cell "—" [ref=f12e322]
+                - cell "—" [ref=f12e323]
+                - cell "—" [ref=f12e324]
+                - cell "Payment" [ref=f12e325]
+                - cell "Aug 2, 2026" [ref=f12e326]
+                - cell "$50.42" [ref=f12e327]
+                - cell "Unmapped" [ref=f12e328]
+                - cell "—" [ref=f12e329]
+                - cell "Stripe" [ref=f12e330]
+                - cell "Completed" [ref=f12e331]
+                - cell "Missing customer email" [ref=f12e336]
+                - cell "ch_3TzxWNRVgEqHIlMD1ZghNBcI" [ref=f12e340]
+                - cell [ref=f12e341]:
+                  - button "Edit locally" [ref=f12e342] [cursor=pointer]
+              - row [ref=f12e343]:
+                - cell "Eman Hamza" [ref=f12e344]
+                - cell "—" [ref=f12e345]
+                - cell "—" [ref=f12e346]
+                - cell "Payment" [ref=f12e347]
+                - cell "Aug 1, 2026" [ref=f12e348]
+                - cell "$50.42" [ref=f12e349]
+                - cell "Unmapped" [ref=f12e350]
+                - cell "—" [ref=f12e351]
+                - cell "Stripe" [ref=f12e352]
+                - cell "Failed" [ref=f12e353]
+                - cell "Missing customer email" [ref=f12e357]
+                - cell "ch_3Tyr5jRVgEqHIlMD08o3dSIC" [ref=f12e361]
+                - cell [ref=f12e362]:
+                  - button "Edit locally" [ref=f12e363] [cursor=pointer]
+              - row [ref=f12e364]:
+                - cell "Sarah Al Sabah" [ref=f12e365]
+                - cell "—" [ref=f12e366]
+                - cell "—" [ref=f12e367]
+                - cell "Payment" [ref=f12e368]
+                - cell "Aug 1, 2026" [ref=f12e369]
+                - cell "$50.42" [ref=f12e370]
+                - cell "Unmapped" [ref=f12e371]
+                - cell "—" [ref=f12e372]
+                - cell "Stripe" [ref=f12e373]
+                - cell "Completed" [ref=f12e374]
+                - cell "Missing customer email" [ref=f12e379]
+                - cell "ch_3TzYhERVgEqHIlMD0Em4U2r4" [ref=f12e383]
+                - cell [ref=f12e384]:
+                  - button "Edit locally" [ref=f12e385] [cursor=pointer]
