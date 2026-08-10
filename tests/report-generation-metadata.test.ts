@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDraftReportJob, processDraftReportJob } from "@/server/services/process-draft-report";
+import { createDraftReportJob, getDraftReportArchive, processDraftReportJob } from "@/server/services/process-draft-report";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 const reportJobId = "11111111-1111-4111-8111-111111111111";
@@ -132,5 +132,67 @@ describe("report generation metadata", () => {
       readiness_status: "draft_fixture_only",
     });
     expect(jobUpdates).toContainEqual(expect.objectContaining({ status: "completed" }));
+  });
+
+  it("labels partial source coverage as incomplete instead of not loaded", async () => {
+    const client = {
+      from(table: string) {
+        if (table === "report_jobs") {
+          return {
+            select() {
+              return {
+                order() {
+                  return {
+                    limit: async () => ({
+                      data: [{
+                        id: reportJobId,
+                        report_type: "monthly",
+                        period_start: "2026-08-01",
+                        period_end: "2026-08-31",
+                        status: "completed",
+                        requested_at: "2026-08-31T09:00:00.000Z",
+                        requested_by: userId,
+                        safe_error_summary: null,
+                      }],
+                      error: null,
+                    }),
+                  };
+                },
+              };
+            },
+          };
+        }
+        if (table === "reports") {
+          return {
+            select() {
+              return {
+                in: async () => ({
+                  data: [{
+                    id: "report-1",
+                    job_id: reportJobId,
+                    snapshot_version: "1",
+                    readiness_status: "draft_fixture_only",
+                    summary_snapshot: { coverage: [{ area: "b2c", status: "partial" }] },
+                  }],
+                  error: null,
+                }),
+              };
+            },
+          };
+        }
+        if (table === "report_files") {
+          return {
+            select() {
+              return { in: async () => ({ data: [], error: null }) };
+            },
+          };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      },
+    } as unknown as DatabaseClient;
+
+    const [archiveItem] = await getDraftReportArchive(client);
+
+    expect(archiveItem.coverageSummary).toBe("B2C is incomplete or unavailable.");
   });
 });

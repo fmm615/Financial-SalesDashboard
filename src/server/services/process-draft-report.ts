@@ -1,6 +1,7 @@
 import { createDraftReportContent } from "@/lib/reports/draft-report-content";
 import { createDraftReportSnapshot } from "@/lib/reports/report-data";
 import { createSimplePdf } from "@/lib/reports/simple-pdf";
+import type { Json } from "@/types/database.generated";
 import type { ReportRequestInput } from "@/lib/validation/financial-contracts";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
@@ -104,9 +105,36 @@ export type DraftReportArchiveItem = {
   requestedAt: string;
   requestedBy: string | null;
   safeErrorSummary: string | null;
+  readinessStatus: "draft_fixture_only" | "financial_ready" | null;
+  snapshotVersion: string | null;
+  coverageSummary: string | null;
   hasPdf: boolean;
   hasCsv: boolean;
 };
+
+function formatCoverageAreas(areas: string[]): string {
+  if (areas.length === 1) return areas[0];
+  if (areas.length === 2) return `${areas[0]} and ${areas[1]}`;
+  return `${areas.slice(0, -1).join(", ")}, and ${areas.at(-1)}`;
+}
+
+function getCoverageSummary(snapshot: Json): string | null {
+  if (!snapshot || Array.isArray(snapshot) || typeof snapshot !== "object") return null;
+  const coverage = snapshot.coverage;
+  if (!Array.isArray(coverage)) return null;
+  const incompleteCoverage = coverage.flatMap((entry) => {
+    if (!entry || Array.isArray(entry) || typeof entry !== "object") return [];
+    const { area, status } = entry;
+    if (typeof area !== "string" || typeof status !== "string" || status === "available") return [];
+    return [{ area: area === "b2c" || area === "b2b" ? area.toUpperCase() : area, status }];
+  });
+  if (incompleteCoverage.length === 0) return null;
+  const areas = incompleteCoverage.map((entry) => entry.area);
+  const verb = areas.length === 1 ? "is" : "are";
+  return incompleteCoverage.every((entry) => entry.status === "not_loaded")
+    ? `${formatCoverageAreas(areas)} ${verb} not loaded.`
+    : `${formatCoverageAreas(areas)} ${verb} incomplete or unavailable.`;
+}
 
 export async function getDraftReportArchive(client: DatabaseClient): Promise<DraftReportArchiveItem[]> {
   const { data: jobs, error: jobsError } = await client.from("report_jobs")
@@ -115,7 +143,7 @@ export async function getDraftReportArchive(client: DatabaseClient): Promise<Dra
   if (jobsError) throw new Error("Could not load the report archive.");
   const jobIds = (jobs ?? []).map((job) => job.id);
   const { data: reports, error: reportsError } = jobIds.length
-    ? await client.from("reports").select("id,job_id").in("job_id", jobIds)
+    ? await client.from("reports").select("id,job_id,snapshot_version,readiness_status,summary_snapshot").in("job_id", jobIds)
     : { data: [], error: null };
   if (reportsError) throw new Error("Could not load the report archive.");
   const reportIds = (reports ?? []).map((report) => report.id);
@@ -123,7 +151,7 @@ export async function getDraftReportArchive(client: DatabaseClient): Promise<Dra
     ? await client.from("report_files").select("report_id,file_kind").in("report_id", reportIds)
     : { data: [], error: null };
   if (filesError) throw new Error("Could not load the report archive.");
-  const reportByJobId = new Map((reports ?? []).map((report) => [report.job_id, report.id]));
+  const reportByJobId = new Map((reports ?? []).map((report) => [report.job_id, report]));
   const fileKindsByReportId = new Map<string, Set<string>>();
   for (const file of files ?? []) {
     const kinds = fileKindsByReportId.get(file.report_id) ?? new Set<string>();
@@ -131,8 +159,8 @@ export async function getDraftReportArchive(client: DatabaseClient): Promise<Dra
     fileKindsByReportId.set(file.report_id, kinds);
   }
   return (jobs ?? []).map((job) => {
-    const reportId = reportByJobId.get(job.id);
-    const fileKinds = reportId ? fileKindsByReportId.get(reportId) : undefined;
+    const report = reportByJobId.get(job.id);
+    const fileKinds = report ? fileKindsByReportId.get(report.id) : undefined;
     return {
       id: job.id,
       reportType: job.report_type,
@@ -142,6 +170,9 @@ export async function getDraftReportArchive(client: DatabaseClient): Promise<Dra
       requestedAt: job.requested_at,
       requestedBy: job.requested_by,
       safeErrorSummary: job.safe_error_summary,
+      readinessStatus: report?.readiness_status ?? null,
+      snapshotVersion: report?.snapshot_version ?? null,
+      coverageSummary: report ? getCoverageSummary(report.summary_snapshot) : null,
       hasPdf: fileKinds?.has("pdf") ?? false,
       hasCsv: fileKinds?.has("csv_bundle") ?? false,
     };

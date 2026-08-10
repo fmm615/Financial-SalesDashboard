@@ -101,4 +101,36 @@ describe("UI foundation", () => {
     expect(screen.getByRole("combobox", { name: "Report type" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Generate report" })).toBeInTheDocument();
   });
+
+  it("discloses when an archived report has no financial data loaded", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        reports: [{
+          id: "11111111-1111-4111-8111-111111111111",
+          reportType: "monthly",
+          periodStart: "2026-08-01",
+          periodEnd: "2026-08-31",
+          status: "completed",
+          requestedAt: "2026-08-31T09:00:00.000Z",
+          safeErrorSummary: null,
+          hasPdf: true,
+          hasCsv: true,
+          readinessStatus: "draft_fixture_only",
+          snapshotVersion: "1",
+          coverageSummary: "B2C, B2B, targets, and pipeline are not loaded.",
+        }],
+      }),
+    }));
+
+    try {
+      render(<ReportsPage />);
+
+      expect(await screen.findByText("Draft — financial data not loaded")).toBeInTheDocument();
+      expect(screen.getByText("B2C, B2B, targets, and pipeline are not loaded.")).toBeInTheDocument();
+      expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
