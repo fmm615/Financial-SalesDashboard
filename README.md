@@ -64,7 +64,7 @@ Run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` before 
 
 ## Database foundation (Phase 2)
 
-Supabase migrations, RLS, fake local seed data, validation contracts, repository boundaries, and a raw database-type snapshot now live in this repository. The UI remains mock-driven while provider data access is introduced feature by feature. Google Sign-In is connected. HubSpot has a server-only, validated webhook and reconciliation foundation; it must be configured and verified against the real portal before it supplies dashboard data. Report generation, email, and scheduled execution remain unconnected.
+Supabase migrations, RLS, fake local seed data, validation contracts, repository boundaries, and a raw database-type snapshot now live in this repository. The UI remains mock-driven while provider data access is introduced feature by feature. Google Sign-In is connected. HubSpot has a server-only, validated webhook and reconciliation foundation; it must be configured and verified against the real portal before it supplies dashboard data. The Reports page can queue an explicitly labelled draft-fixture PDF and CSV archive to validate durable jobs, storage, and downloads. It intentionally includes no B2C/B2B financial figures while Finance resolves source data. The protected worker endpoint is `/api/internal/reports/process` and requires `REPORT_JOB_CRON_SECRET`; email and production scheduling remain disabled until financial reports are proven reliable.
 
 Read [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) before changing the schema. The two roles are `admin` and `viewer`; every user-initiated write is Admin-only and audited.
 

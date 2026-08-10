@@ -1,13 +1,93 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
-import { CalendarDays, FileText, Mail, Search, SlidersHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { FileText, Search } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { DataTable, SectionCard, StatusBadge, TableCell, TableHead, TableHeader } from "@/components/ui";
-import { sectionReveal } from "@/lib/motion";
-import { reports } from "@/mocks/reports";
 import { useCanManage } from "@/lib/auth/role-context";
 
-function ArchiveToolbar() { return <div className="flex min-w-0 flex-wrap items-center gap-2"><label className="relative min-w-[180px] flex-1 sm:flex-none"><Search size={16} className="pointer-events-none absolute left-3 top-3 text-text-muted" /><input aria-label="Search report archive" placeholder="Search archive" className="h-11 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-text-primary placeholder:text-text-muted sm:w-48" /></label><button type="button" className="inline-flex h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-text-secondary hover:bg-surface-muted">Type</button><button type="button" className="inline-flex h-11 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-medium text-text-secondary hover:bg-surface-muted">Status</button><button type="button" className="inline-flex h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-brand-accent hover:bg-surface-accent"><SlidersHorizontal size={16} />More filters</button></div>; }
+type ArchiveItem = {
+  id: string;
+  reportType: "monthly" | "quarterly" | "annual" | "ad_hoc";
+  periodStart: string;
+  periodEnd: string;
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled";
+  requestedAt: string;
+  safeErrorSummary: string | null;
+  hasPdf: boolean;
+  hasCsv: boolean;
+};
 
-export function ReportsPage() { const reducedMotion = useReducedMotion(); const canManage = useCanManage(); return <AppShell title="Reports" description="Generate, deliver, and retain financial reports. Report generation remains a UI-only preview in this phase.">{canManage && <motion.section variants={reducedMotion ? undefined : sectionReveal} initial={reducedMotion ? false : "initial"} animate={reducedMotion ? undefined : "animate"} className="rounded-card border border-border bg-surface p-5 shadow-card sm:p-6"><div><h2 className="text-base font-semibold tracking-[-0.01em] text-text-primary">Generate a report</h2><p className="mt-1 text-sm leading-6 text-text-muted">Create an on-demand financial report for a selected period.</p></div><div className="mt-5 grid items-end gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(320px,1.2fr)_auto]"><label className="block min-w-0 text-sm font-medium text-text-secondary">Reporting period<button type="button" className="mt-2 flex h-11 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-surface px-3 text-left text-sm font-medium text-text-primary hover:border-brand-accent/35"><CalendarDays size={16} className="shrink-0 text-brand-accent" /><span className="truncate">1–31 August 2026</span></button></label><label className="block min-w-0 text-sm font-medium text-text-secondary">Report type<select aria-label="Report type" className="mt-2 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text-primary"><option>Monthly financial report</option><option>Quarterly management report</option><option>Annual report</option><option>Ad-hoc report</option></select></label><fieldset className="min-w-0"><legend className="text-sm font-medium text-text-secondary">Delivery options</legend><div className="mt-2 flex min-h-11 flex-col justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2"><label className="inline-flex w-fit whitespace-nowrap items-center gap-2 text-sm text-text-secondary"><input type="checkbox" /> Download when complete</label><label className="inline-flex w-fit whitespace-nowrap items-center gap-2 text-sm text-text-secondary"><input type="checkbox" /> Email when approved</label></div></fieldset><button type="button" className="inline-flex h-11 min-w-[154px] items-center justify-center gap-2 rounded-md bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-accent"><FileText size={16} />Generate report</button></div><p className="mt-4 text-xs leading-5 text-text-muted">Scheduled delivery remains disabled until report accuracy is verified.</p></motion.section>}<SectionCard title="Generated report archive" description="Archive status uses representative mock records." action={<ArchiveToolbar />} className="mt-5"><DataTable caption="Generated report archive"><TableHead><TableHeader>Report</TableHeader><TableHeader>Period</TableHeader><TableHeader>Type</TableHeader><TableHeader>Requested by</TableHeader><TableHeader>Created</TableHeader><TableHeader>Status</TableHeader><TableHeader>PDF</TableHeader><TableHeader>CSV</TableHeader>{canManage && <TableHeader>Email</TableHeader>}</TableHead><tbody className="divide-y divide-border">{reports.map((report) => <tr key={report.name}><TableCell className="font-medium text-text-primary">{report.name}</TableCell><TableCell>{report.period}</TableCell><TableCell>{report.type}</TableCell><TableCell>{report.requestedBy}</TableCell><TableCell>{report.createdAt}</TableCell><TableCell><StatusBadge status={report.status} /></TableCell><TableCell><button type="button" className="rounded-md px-1.5 py-1 font-semibold text-brand-accent hover:bg-surface-accent disabled:text-text-muted disabled:hover:bg-transparent" disabled={report.status !== "Completed"}>PDF</button></TableCell><TableCell><button type="button" className="rounded-md px-1.5 py-1 font-semibold text-brand-accent hover:bg-surface-accent disabled:text-text-muted disabled:hover:bg-transparent" disabled={report.status !== "Completed"}>CSV</button></TableCell>{canManage && <TableCell><button type="button" aria-label={`Email ${report.name}`} className="rounded-md p-1.5 text-brand-accent hover:bg-surface-accent disabled:text-text-muted disabled:hover:bg-transparent" disabled={report.status !== "Completed"}><Mail size={17} /></button></TableCell>}</tr>)}</tbody></DataTable></SectionCard></AppShell>; }
+const today = new Date().toISOString().slice(0, 10);
+const monthStart = `${today.slice(0, 7)}-01`;
+const typeLabels: Record<ArchiveItem["reportType"], string> = { monthly: "Monthly", quarterly: "Quarterly", annual: "Annual", ad_hoc: "Ad-hoc" };
+
+export function ReportsPage() {
+  const canManage = useCanManage();
+  const [items, setItems] = useState<ArchiveItem[]>([]);
+  const [periodStart, setPeriodStart] = useState(monthStart);
+  const [periodEnd, setPeriodEnd] = useState(today);
+  const [reportType, setReportType] = useState<ArchiveItem["reportType"]>("ad_hoc");
+  const [search, setSearch] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function loadArchive() {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/reports", { cache: "no-store" });
+      const body = await response.json().catch(() => null) as { reports?: ArchiveItem[]; error?: string } | null;
+      if (response.ok && body?.reports) setItems(body.reports);
+      else setMessage(body?.error ?? "The report archive could not be loaded.");
+    } catch {
+      setMessage("The report archive could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { void loadArchive(); }, []);
+
+  async function generate() {
+    setSubmitting(true);
+    setMessage(null);
+    const queued = await fetch("/api/reports", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reportType, periodStart, periodEnd, deliveryRequested: false }),
+    });
+    const queueBody = await queued.json().catch(() => null) as { jobId?: string; error?: string } | null;
+    if (!queued.ok || !queueBody?.jobId) {
+      setMessage(queueBody?.error ?? "The draft report could not be queued."); setSubmitting(false); return;
+    }
+    setMessage("Draft report queued. The protected worker can archive it without using B2C or B2B financial data once it is configured and run.");
+    await loadArchive();
+    setSubmitting(false);
+  }
+
+  async function retry(id: string) {
+    setMessage(null);
+    const response = await fetch(`/api/reports/${id}/retry`, { method: "POST" });
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    setMessage(response.ok ? "Draft report requeued for the protected worker." : body?.error ?? "The draft report could not be requeued.");
+    await loadArchive();
+  }
+
+  const visibleItems = useMemo(() => items.filter((item) => `${item.reportType} ${item.periodStart} ${item.periodEnd} ${item.status}`.toLowerCase().includes(search.toLowerCase())), [items, search]);
+
+  return <AppShell title="Reports" description="Draft report archive and download workflow. Financial reporting remains disabled until B2C and B2B data is approved.">
+    {canManage && <SectionCard title="Generate a draft report" description="This validates jobs, PDF/CSV archives, and downloads only. It deliberately contains no financial totals.">
+      <div className="grid items-end gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <label className="text-sm font-medium text-text-secondary">Start date<input aria-label="Report start date" type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm" /></label>
+        <label className="text-sm font-medium text-text-secondary">End date<input aria-label="Report end date" type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm" /></label>
+        <label className="text-sm font-medium text-text-secondary">Report type<select aria-label="Report type" value={reportType} onChange={(event) => setReportType(event.target.value as ArchiveItem["reportType"])} className="mt-2 h-11 w-full rounded-md border border-border bg-surface px-3 text-sm"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option><option value="ad_hoc">Ad-hoc</option></select></label>
+        <button type="button" onClick={() => void generate()} disabled={submitting} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand-primary px-4 text-sm font-semibold text-white disabled:opacity-60"><FileText size={16} />{submitting ? "Archiving…" : "Generate report"}</button>
+      </div>
+      <p className="mt-4 text-xs leading-5 text-text-muted">Email delivery and scheduled reports are intentionally disabled until real financial totals pass Finance review.</p>
+    </SectionCard>}
+    {message && <p role="status" className="mt-4 rounded-md border border-border bg-surface-muted px-4 py-3 text-sm text-text-secondary">{message}</p>}
+    <SectionCard title="Generated report archive" description="Only draft fixture reports are currently available." className="mt-5" action={<label className="relative"><Search size={16} className="pointer-events-none absolute left-3 top-3 text-text-muted" /><input aria-label="Search report archive" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search archive" className="h-11 rounded-md border border-border bg-surface pl-9 pr-3 text-sm" /></label>}>
+      <DataTable caption="Generated report archive"><TableHead><TableHeader>Report</TableHeader><TableHeader>Period</TableHeader><TableHeader>Created</TableHeader><TableHeader>Status</TableHeader><TableHeader>PDF</TableHeader><TableHeader>CSV</TableHeader>{canManage && <TableHeader>Retry</TableHeader>}</TableHead><tbody className="divide-y divide-border">{loading ? <tr><TableCell colSpan={canManage ? 7 : 6}>Loading archive…</TableCell></tr> : visibleItems.length === 0 ? <tr><TableCell colSpan={canManage ? 7 : 6}>No draft reports yet. Generate one to validate the archive and download path without publishing financial data.</TableCell></tr> : visibleItems.map((item) => <tr key={item.id}><TableCell className="font-medium">{typeLabels[item.reportType]} draft</TableCell><TableCell>{item.periodStart} – {item.periodEnd}</TableCell><TableCell>{new Date(item.requestedAt).toLocaleString()}</TableCell><TableCell><StatusBadge status={item.status} />{item.safeErrorSummary && <span className="mt-1 block text-xs text-danger">{item.safeErrorSummary}</span>}</TableCell><TableCell>{item.hasPdf ? <a className="font-semibold text-brand-accent" href={`/api/reports/${item.id}/files/pdf`}>PDF</a> : "—"}</TableCell><TableCell>{item.hasCsv ? <a className="font-semibold text-brand-accent" href={`/api/reports/${item.id}/files/csv_bundle`}>CSV</a> : "—"}</TableCell>{canManage && <TableCell>{item.status === "failed" ? <button type="button" onClick={() => void retry(item.id)} className="font-semibold text-brand-accent">Retry</button> : "—"}</TableCell>}</tr>)}</tbody></DataTable>
+    </SectionCard>
+  </AppShell>;
+}

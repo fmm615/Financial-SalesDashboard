@@ -14,6 +14,8 @@ Test:
 - classification rules
 - currency/conversion logic where implemented
 - status transitions
+- draft-report content must remain explicitly non-financial until Finance approves provider totals
+- generated draft PDFs and CSVs must carry the same draft/coverage status
 
 ### Integration tests
 
@@ -25,6 +27,7 @@ Test:
 - database writes
 - authorization boundaries
 - report data preparation
+- report job failure, stale-job recovery, retry, private archive, and download authorization
 
 Use provider sample/test payloads where possible.
 
