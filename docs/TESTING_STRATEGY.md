@@ -16,6 +16,7 @@ Test:
 - status transitions
 - draft-report content must remain explicitly non-financial until Finance approves provider totals
 - generated draft PDFs and CSVs must carry the same draft/coverage status
+- disabled report delivery must return a safe disabled result and must not contact an email provider
 
 ### Integration tests
 
@@ -28,6 +29,7 @@ Test:
 - authorization boundaries
 - report data preparation
 - report job failure, stale-job recovery, retry, private archive, and download authorization
+- draft job generation/readiness boundaries and the rule that no delivery attempt is recorded while email is disabled
 
 Use provider sample/test payloads where possible.
 

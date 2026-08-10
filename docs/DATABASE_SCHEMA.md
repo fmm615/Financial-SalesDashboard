@@ -50,7 +50,7 @@ erDiagram
 | Review | `review_flags`, `review_flag_resolutions`, `review_notes` | Open/resolved/dismissed review history without deletion. |
 | Audit | `audit_events` | Database-triggered before/after snapshots for every Admin-write table. |
 | Integration | `integration_sync_runs`, `integration_events`, `integration_errors`, `reconciliation_runs` | Idempotency, safe error state, and 48-hour reconciliation foundations only. |
-| Reports | `report_jobs`, `reports`, `report_files`, `report_delivery_attempts` | Persistent job/archive structures plus an isolated draft-fixture PDF/CSV workflow. The protected worker endpoint processes pending jobs without B2C/B2B financial data and marks jobs stale after 15 minutes as failed; email and production scheduling remain disabled. |
+| Reports | `report_jobs`, `reports`, `report_files`, `report_delivery_attempts` | Persistent job/archive structures plus an isolated draft-fixture PDF/CSV workflow. The protected worker processes only `draft_fixture` jobs, records snapshot readiness/version, and marks stale draft jobs after 15 minutes as failed. The `report_delivery_attempts` table is reserved for a future approved integration: the current disabled provider creates no rows, recipients, HTTP requests, or email credentials. |
 
 ## Financial history and traceability
 

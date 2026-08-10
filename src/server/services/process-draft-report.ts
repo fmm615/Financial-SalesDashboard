@@ -1,4 +1,5 @@
 import { createDraftReportContent } from "@/lib/reports/draft-report-content";
+import { DisabledReportDeliveryProvider, type ReportDeliveryProvider } from "@/lib/reports/delivery";
 import { createDraftReportSnapshot } from "@/lib/reports/report-data";
 import { createSimplePdf } from "@/lib/reports/simple-pdf";
 import type { Json } from "@/types/database.generated";
@@ -6,6 +7,7 @@ import type { ReportRequestInput } from "@/lib/validation/financial-contracts";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 const reportBucket = "report-archives";
+const reportDeliveryProvider: ReportDeliveryProvider = new DisabledReportDeliveryProvider();
 
 function safeErrorSummary(error: unknown): string {
   return error instanceof Error && error.message ? error.message.slice(0, 500) : "Draft report processing failed.";
@@ -31,6 +33,10 @@ export async function processDraftReportJob(client: DatabaseClient, jobId: strin
     .eq("id", jobId).maybeSingle();
   if (jobError || !job) throw new Error("Report job was not found.");
   if (job.generation_mode !== "draft_fixture") throw new Error("Financial report jobs are not enabled.");
+  if (job.delivery_requested) {
+    const result = await reportDeliveryProvider.requestDelivery({ reportId: job.id, readiness: "draft_fixture_only" });
+    throw new Error(result.reason);
+  }
   if (job.status === "completed") return;
   if (job.status === "processing") throw new Error("Report job is already processing.");
 
