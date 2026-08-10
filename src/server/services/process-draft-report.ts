@@ -18,6 +18,7 @@ export async function createDraftReportJob(client: DatabaseClient, request: Repo
     period_end: request.periodEnd,
     requested_by: userId,
     delivery_requested: false,
+    generation_mode: "draft_fixture",
   }).select("id").single();
   if (error || !data) throw new Error("Could not queue the draft report.");
   return data.id;
@@ -25,9 +26,10 @@ export async function createDraftReportJob(client: DatabaseClient, request: Repo
 
 export async function processDraftReportJob(client: DatabaseClient, jobId: string): Promise<void> {
   const { data: job, error: jobError } = await client.from("report_jobs")
-    .select("id,report_type,period_start,period_end,status,retry_count,delivery_requested")
+    .select("id,report_type,period_start,period_end,status,retry_count,delivery_requested,generation_mode")
     .eq("id", jobId).maybeSingle();
   if (jobError || !job) throw new Error("Report job was not found.");
+  if (job.generation_mode !== "draft_fixture") throw new Error("Financial report jobs are not enabled.");
   if (job.status === "completed") return;
   if (job.status === "processing") throw new Error("Report job is already processing.");
 
@@ -53,7 +55,12 @@ export async function processDraftReportJob(client: DatabaseClient, jobId: strin
     if (uploads.some(({ error }) => error)) throw new Error("Could not archive draft report files.");
 
     const { data: report, error: reportError } = await client.from("reports")
-      .upsert({ job_id: job.id, summary_snapshot: content.summarySnapshot }, { onConflict: "job_id" })
+      .upsert({
+        job_id: job.id,
+        summary_snapshot: content.summarySnapshot,
+        snapshot_version: content.summarySnapshot.version,
+        readiness_status: content.summarySnapshot.readiness,
+      }, { onConflict: "job_id" })
       .select("id").single();
     if (reportError || !report) throw new Error("Could not save the draft report archive.");
     const fileResult = await client.from("report_files").upsert([
@@ -78,10 +85,10 @@ export async function processNextDraftReportJob(client: DatabaseClient): Promise
     status: "failed",
     failed_at: new Date().toISOString(),
     safe_error_summary: "Draft report processing exceeded the 15-minute worker limit. Requeue it after review.",
-  }).eq("status", "processing").lt("started_at", staleBefore);
+  }).eq("status", "processing").eq("generation_mode", "draft_fixture").lt("started_at", staleBefore);
   if (staleError) throw new Error("Could not recover stale draft report jobs.");
   const { data: job, error } = await client.from("report_jobs")
-    .select("id").eq("status", "pending").order("requested_at", { ascending: true }).limit(1).maybeSingle();
+    .select("id").eq("status", "pending").eq("generation_mode", "draft_fixture").order("requested_at", { ascending: true }).limit(1).maybeSingle();
   if (error) throw new Error("Could not find a pending draft report.");
   if (!job) return null;
   await processDraftReportJob(client, job.id);

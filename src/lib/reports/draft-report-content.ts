@@ -1,12 +1,21 @@
 import type { ReportCoverage, ReportDataSnapshot } from "@/lib/reports/report-data";
 
+export type DraftReportSummarySnapshot = {
+  readiness: ReportDataSnapshot["readiness"];
+  version: ReportDataSnapshot["version"];
+  financial_data_included: boolean;
+  period_start: string;
+  period_end: string;
+  coverage: ReportCoverage[];
+};
+
 export type DraftReportContent = {
   title: string;
   periodLabel: string;
   disclaimer: string;
   csv: string;
   pdfLines: string[];
-  summarySnapshot: Record<string, string | boolean | ReportCoverage[]>;
+  summarySnapshot: DraftReportSummarySnapshot;
 };
 
 function formatPeriod(periodStart: string, periodEnd: string): string {
