@@ -202,4 +202,12 @@ describe("Phase 2 database migration contracts", () => {
     expect(manualEntry).not.toContain("insert into public.b2b_recognised_sales");
     expect(manualEntry).not.toContain("delete from public.b2b_deals");
   });
+
+  it("keeps possible B2C duplicates outside the generic flag-resolution path", () => {
+    const reviewQueueSafety = migration("20260810120000_review_queue_duplicate_safety.sql");
+
+    expect(reviewQueueSafety).toContain("flag_type = 'possible_duplicate'");
+    expect(reviewQueueSafety).toContain("Possible duplicates must be decided through the dedicated duplicate workflow");
+    expect(reviewQueueSafety).toContain("create or replace function public.resolve_b2c_review_flag");
+  });
 });
