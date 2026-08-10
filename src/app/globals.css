@@ -11,14 +11,14 @@
   --color-brand-accent-hover: 105 33 224;
   --color-brand-lime: 199 255 0;
   --color-brand-lime-hover: 179 230 0;
-  --color-canvas: 248 247 251;
+  --color-canvas: 247 247 250;
   --color-surface: 255 255 255;
-  --color-surface-muted: 244 242 249;
-  --color-surface-accent: 243 238 255;
+  --color-surface-muted: 241 241 247;
+  --color-surface-accent: 240 235 255;
   --color-text-primary: 10 10 15;
   --color-text-secondary: 75 78 92;
   --color-text-muted: 107 114 128;
-  --color-border: 227 225 235;
+  --color-border: 225 225 235;
   --color-success: 20 126 90;
   --color-warning: 175 103 18;
   --color-danger: 190 47 75;
@@ -28,8 +28,8 @@
   --color-chart-pipeline: 35 99 164;
   --color-chart-other: 148 163 184;
   --color-focus: 123 47 247;
-  --shadow-card: 0 1px 2px rgb(13 11 36 / 0.04), 0 8px 22px rgb(13 11 36 / 0.035);
-  --shadow-elevated: 0 18px 48px rgb(13 11 36 / 0.14);
+  --shadow-card: 0 1px 2px rgb(13 11 36 / 0.035), 0 10px 30px rgb(13 11 36 / 0.04);
+  --shadow-elevated: 0 20px 55px rgb(13 11 36 / 0.16);
   --shadow-cta: 0 8px 20px rgb(199 255 0 / 0.28);
   --radius-sm: 0.5rem;
   --radius-md: 0.875rem;
@@ -41,8 +41,17 @@
 html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 body { margin: 0; background: rgb(var(--color-canvas)); color: rgb(var(--color-text-primary)); font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
 button, input, select, textarea { font: inherit; }
+button, a, select { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), a { cursor: pointer; }
+input, select, textarea { transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease; }
+input:not([type="checkbox"]):not([type="radio"]), select, textarea { border-color: rgb(var(--color-border)); }
+input:not([type="checkbox"]):not([type="radio"]):hover, select:hover, textarea:hover { border-color: rgb(var(--color-brand-accent) / 0.35); }
+input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus { border-color: rgb(var(--color-brand-accent)); box-shadow: 0 0 0 3px rgb(var(--color-brand-accent) / 0.12); outline: 0; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgb(var(--color-focus) / 0.32); outline-offset: 2px; }
 ::selection { background: rgb(var(--color-brand-accent) / 0.16); color: rgb(var(--color-text-primary)); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 9999px; background: rgb(var(--color-text-muted) / 0.35); background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
