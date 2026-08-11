@@ -23,6 +23,7 @@ Suggested structure:
 │   │   ├── b2c/
 │   │   ├── b2b/
 │   │   ├── finance/
+│   │   ├── targets/
 │   │   ├── reports/
 │   │   ├── admin/
 │   │   ├── review-queue/
@@ -66,6 +67,10 @@ Business/application operations. Keep API routes thin.
 ### `server/repositories/`
 
 Database access patterns where a repository abstraction is useful.
+
+The target-management repository and services own operational progress reads
+and writes. Target-definition revisions remain database RPCs so archiving the
+old version and creating the successor are one atomic, audited operation.
 
 ### `lib/supabase/` and `lib/validation/`
 

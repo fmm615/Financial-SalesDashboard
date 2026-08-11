@@ -17,6 +17,10 @@ Test:
 - draft-report content must remain explicitly non-financial until Finance approves provider totals
 - generated draft PDFs and CSVs must carry the same draft/coverage status
 - disabled report delivery must return a safe disabled result and must not contact an email provider
+- target contracts: approved financial metric codes, valid date periods, and
+  quantity-unit rules
+- target-management services: operational progress only for an active
+  operational target, with a dated evidence note
 
 ### Integration tests
 
@@ -34,6 +38,11 @@ Test:
   Viewer/Admin note presentation states
 - the rule that a queue note refreshes retained history only after a successful
   server response and that no browser-only action changes a flag status
+- target writes: Admin-only target creation, financial/operational revision,
+  and operational-progress authorization
+- target UI: financial actuals remain explicitly unavailable while source
+  history is incomplete, and operational revisions are submitted to the server
+  before the UI refreshes
 
 Use provider sample/test payloads where possible.
 
@@ -48,6 +57,11 @@ a generic resolution must not clear the flag or make the payment reportable.
 ### Database foundation tests
 
 Phase 2 keeps database assertions in `supabase/tests/database_foundation.test.sql` and contract tests in `tests/database-foundation.test.ts`. After applying migrations manually to a local Supabase instance, run `npm run supabase:test` to exercise the pgTAP assertions. They cover provider-ID duplication, Stripe/B2B separation, linked partial refunds, booking versus recognised-sales separation, audit attribution, retained review history, backfill state, and RLS enablement.
+
+Target database assertions additionally cover quantity-unit constraints,
+append-only operational evidence, and atomic operational revisions that archive
+the former active target before creating its replacement. The revision functions
+also require an authenticated Admin.
 
 ### End-to-end tests
 

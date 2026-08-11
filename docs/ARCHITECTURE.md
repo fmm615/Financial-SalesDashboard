@@ -92,6 +92,23 @@ until Finance defines an explicit audited keep/exclude workflow. The generic
 B2C resolution RPC rejects an open possible-duplicate flag so an ordinary
 queue action cannot accidentally make a payment reportable.
 
+## Targets boundary
+
+The Targets feature keeps approved financial goals distinct from operational
+goals and their manually entered progress. Financial target actuals are not
+stored or entered by an Admin: they will be calculated only from verified,
+reconciled B2B and B2C source records. Until that source history is complete,
+the UI states `Actuals not fully loaded` rather than treating missing data as
+zero.
+
+Operational targets may be a USD money goal or a quantity with a unit. Their
+progress entries are append-only, require an effective date and evidence note,
+and never feed financial totals, reports, or financial-performance charts.
+Admin target writes use a request-scoped authenticated client, RLS, actor and
+audit triggers. A target revision is an atomic database action that archives
+the active definition and creates its successor in the same lineage; an active
+target cannot be overwritten in place.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

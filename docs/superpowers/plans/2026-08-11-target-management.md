@@ -379,11 +379,11 @@ git commit -m "feat(targets): add auditable target management UI"
 
 - Documents the Task 1–4 boundary and marks task checkboxes only after corresponding verification passes.
 
-- [ ] **Step 1: Update documentation**
+- [x] **Step 1: Update documentation**
 
 Document that approved financial targets have no manual actuals, custom operational targets are separate, and manual operational progress is append-only/audited. Add the targets feature/repository paths and target validation/RLS/revision tests.
 
-- [ ] **Step 2: Run focused verification**
+- [x] **Step 2: Run focused verification**
 
 ```bash
 npm run test -- tests/target-management.test.ts
@@ -394,7 +394,7 @@ npm run lint
 
 Expected: every command exits `0`.
 
-- [ ] **Step 3: Run final verification**
+- [x] **Step 3: Run final verification**
 
 ```bash
 npm run test
@@ -411,4 +411,3 @@ Expected: tests/build exit `0`, diff check is empty, and only intended docs are 
 git add docs/ARCHITECTURE.md docs/PROJECT_STRUCTURE.md docs/TESTING_STRATEGY.md docs/superpowers/plans/2026-08-11-target-management.md
 git commit -m "docs(targets): document target management boundary"
 ```
-
