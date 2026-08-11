@@ -20,7 +20,7 @@ alter table public.financial_targets enable trigger assign_financial_target_acto
 alter table public.financial_targets alter column target_lineage_id set not null;
 alter table public.financial_targets alter column target_lineage_id set default gen_random_uuid();
 alter table public.financial_targets
-  add constraint financial_targets_metric_code_check
+  add constraint financial_targets_approved_metric_check
   check (metric_code in ('b2c_cash_received', 'b2b_bookings', 'b2b_recognised_sales', 'total_recognised_sales')) not valid;
 alter table public.financial_targets
   drop constraint financial_targets_metric_code_period_start_period_end_key;
