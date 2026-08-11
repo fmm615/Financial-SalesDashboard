@@ -1,6 +1,6 @@
 begin;
 
-select plan(14);
+select plan(16);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -31,6 +31,33 @@ insert into public.operational_targets (
 ) values (
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Tickets', 'quantity', 100.000000, 'tickets',
   '2026-01-01', '2026-12-31', 'active', 'Summit plan', 'Approved operational target'
+);
+
+select is(
+  public.revise_operational_target(
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    'Revised ticket target',
+    'quantity',
+    125.000000,
+    'tickets',
+    '2026-01-01',
+    '2026-12-31',
+    'Updated Summit plan',
+    'Finance approved revised target'
+  ) is not null,
+  true,
+  'operational target revision creates a successor'
+);
+
+select ok(
+  (select status = 'archived' and archived_at is not null
+    from public.operational_targets
+    where id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
+  and
+  (select revision_number = 2 and status = 'active' and target_value = 125.000000::numeric
+    from public.operational_targets
+    where display_name = 'Revised ticket target'),
+  'operational revision archives the prior target and retains an active successor'
 );
 
 select throws_ok(

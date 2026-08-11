@@ -193,6 +193,7 @@ export interface Database {
     };
     Functions: {
       revise_financial_target: { Args: { p_target_id: Uuid; p_metric_code: string; p_period_start: string; p_period_end: string; p_target_amount_usd: Decimal; p_finance_reference: string; p_revision_reason: string }; Returns: Uuid };
+      revise_operational_target: { Args: { p_target_id: Uuid; p_display_name: string; p_value_kind: "money_usd" | "quantity"; p_target_value: Decimal; p_unit_label: string | null; p_period_start: string; p_period_end: string; p_finance_reference: string; p_revision_reason: string }; Returns: Uuid };
       apply_hubspot_deal_financial_correction: {
         Args: { p_deal_id: Uuid; p_amount: Decimal; p_currency: string; p_exchange_rate_to_usd: Decimal; p_reason: string };
         Returns: undefined;
