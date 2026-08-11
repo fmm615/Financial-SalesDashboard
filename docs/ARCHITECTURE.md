@@ -76,6 +76,22 @@ The system must never rely on an open browser request to keep a long-running rep
 
 Database access now enters through `src/server/repositories/` and validation contracts in `src/lib/validation/`. UI components remain independent from Supabase rows and SQL. User-initiated Admin actions must use a request-scoped authenticated Supabase client so RLS and audit triggers have the individual actor; the service-role client is reserved for future trusted jobs.
 
+## Review Queue boundary
+
+The Review Queue reads retained `review_flags`, `review_flag_resolutions`, and
+`review_notes` through a request-scoped repository, a UI-safe service model,
+and authenticated API routes. The browser never reads raw provider payloads or
+decides whether a financial record is reportable. Approved users may view
+flags, notes, and resolution history; only an Admin may add an append-only,
+audited note. The queue has no generic browser-side "resolve" action and does
+not calculate or alter B2B/B2C financial values.
+
+Suggested actions are source-aware: B2B possible duplicates link to their
+existing duplicate-review workflow, while B2C possible duplicates remain open
+until Finance defines an explicit audited keep/exclude workflow. The generic
+B2C resolution RPC rejects an open possible-duplicate flag so an ordinary
+queue action cannot accidentally make a payment reportable.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

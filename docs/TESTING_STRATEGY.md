@@ -30,12 +30,20 @@ Test:
 - report data preparation
 - report job failure, stale-job recovery, retry, private archive, and download authorization
 - draft job generation/readiness boundaries and the rule that no delivery attempt is recorded while email is disabled
+- live Review Queue loading, empty, error, filter, detail-history, and
+  Viewer/Admin note presentation states
+- the rule that a queue note refreshes retained history only after a successful
+  server response and that no browser-only action changes a flag status
 
 Use provider sample/test payloads where possible.
 
 HubSpot tests must also cover v3 request-signature rejection, unknown-stage rejection, non-USD FX validation, webhook-event idempotency, 48-hour reconciliation, and the rule that imported bookings never create recognised sales.
 
 HubSpot Admin workflow tests must cover incomplete-deal correction, required correction/resolution reasons, Admin-only access, audit attribution, review-flag resolution, and the absence of HubSpot write operations.
+
+Review Queue tests must cover Admin-only note writes, retained resolution/note
+history, source-aware suggested actions, and the B2C possible-duplicate rule:
+a generic resolution must not clear the flag or make the payment reportable.
 
 ### Database foundation tests
 

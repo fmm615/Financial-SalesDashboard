@@ -66,6 +66,21 @@ Payments, refunds, bookings, invoices, receipts, recognised sales, expenses, cor
 
 `b2c_payments` has a partial unique provider-ID index on `(source_system, provider_transaction_id)` and a 64-character deterministic content fingerprint index. Its direct source name, email, and phone fields are nullable so incomplete provider records remain traceable rather than disappearing. `customer_name` and `customer_phone` are stored only when the financial provider supplied them directly; absent values remain absent rather than being inferred. A missing source email creates an isolated provider-ID fingerprint and an open review flag. A verified Admin local email/category correction is a separate overlay, closes only the corresponding missing-data flag, and performs the same 48-hour duplicate check before it can be counted. Later ingestion normalizes `lower(trim(email))`, a canonical six-decimal amount, category identifier, and Bahrain business date before comparing matching fingerprints across the preceding 48 hours. A resolution note alone cannot make a payment reportable.
 
+Open B2C `possible_duplicate` flags are also protected at the database
+boundary: `resolve_b2c_review_flag` rejects them. Their future decision must be
+a dedicated, audited keep/exclude workflow, not a generic review resolution.
+B2B duplicate groups already use their separate audited Admin decision flow.
+
+## Review queue history
+
+`review_flags` retains the operational status and source reference;
+`review_flag_resolutions` retains the recorded resolution decision; and `review_notes`
+retains append-only reviewer context. Audit triggers record the authenticated
+Admin actor for permitted writes. The live queue reads this history through
+RLS and exposes only safe source labels, flag metadata, and source-specific
+next actions. It does not expose provider payloads, secret values, or money
+amounts.
+
 `data_coverage` stores source/domain date ranges with `not_started`, `partial`, `complete`, or `unavailable`. A complete range with `source_record_count = 0` means a known zero; an unavailable range does not.
 
 ## RLS overview

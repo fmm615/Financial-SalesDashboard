@@ -6,10 +6,49 @@ import { B2bOperations } from "@/features/b2b/b2b-operations";
 import { ReportsPage } from "@/features/reports/reports-page";
 import { ReviewQueuePage } from "@/features/review-queue/review-queue-page";
 import { EmptyState, LoadingSkeleton, NotBackfilledState, TableCell } from "@/components/ui";
+import type { ReviewQueueDetail, ReviewQueueItem } from "@/server/services/review-queue";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/executive", useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/components/charts", () => ({ SalesTrendChart: () => <div aria-label="Sales trend chart" />, BreakdownChart: () => <div aria-label="Breakdown chart" /> }));
+
+const REVIEW_FLAG_ID = "11111111-1111-4111-8111-111111111111";
+
+const duplicateReviewItem: ReviewQueueItem = {
+  id: REVIEW_FLAG_ID,
+  sourceArea: "b2c_payment",
+  sourceRecordId: REVIEW_FLAG_ID,
+  flagType: "possible_duplicate",
+  status: "open",
+  priority: 1,
+  reason: "Matched source records require an explicit Finance decision.",
+  assignedTo: null,
+  createdAt: "2026-08-10T09:00:00.000Z",
+  resolvedAt: null,
+  flagLabel: "Possible duplicate",
+  sourceLabel: `B2C payment · ${REVIEW_FLAG_ID}`,
+  nextAction: { kind: "note_only", label: "Duplicate decision required" },
+};
+
+const failedReviewItem: ReviewQueueItem = {
+  ...duplicateReviewItem,
+  id: "22222222-2222-4222-8222-222222222222",
+  sourceRecordId: "22222222-2222-4222-8222-222222222222",
+  flagType: "failed",
+  flagLabel: "Failed",
+  sourceLabel: "B2C payment · 22222222-2222-4222-8222-222222222222",
+  priority: 3,
+  reason: "The provider reported a failed payment.",
+  nextAction: { kind: "navigate", href: "/operations/b2c", label: "Open B2C Operations" },
+};
+
+function reviewQueueResponse(body: unknown, ok = true) {
+  return { ok, json: async () => body };
+}
+
+function reviewQueueDetail(notes: ReviewQueueDetail["notes"] = []): ReviewQueueDetail {
+  return { item: duplicateReviewItem, resolutions: [], notes };
+}
 
 describe("UI foundation", () => {
   it("renders scalable main navigation and executive essentials", () => {
@@ -35,12 +74,140 @@ describe("UI foundation", () => {
     expect(screen.getByText("Loading archive")).toHaveAttribute("colspan", "2");
   });
 
-  it("opens a review detail drawer and shows duplicate records side by side", () => {
-    render(<ReviewQueuePage />);
-    fireEvent.click(screen.getByText("Potential repeated membership payment"));
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("Related records")).toBeInTheDocument();
-    expect(screen.getByText(/Stripe pi_3NC/)).toBeInTheDocument();
+  it("loads a live B2C duplicate and keeps its decision outside the browser", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes(`/api/review-queue/${REVIEW_FLAG_ID}`)) {
+        return reviewQueueResponse({ item: reviewQueueDetail() });
+      }
+      return reviewQueueResponse({
+        items: [duplicateReviewItem],
+        metrics: { openCount: 1, resolvedThisMonthCount: 0, highPriorityOpenCount: 1 },
+      });
+    }));
+
+    try {
+      render(<ReviewQueuePage />);
+
+      expect(screen.getByText("Loading review queue")).toBeInTheDocument();
+      expect(await screen.findByText(`B2C payment · ${REVIEW_FLAG_ID}`)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Possible duplicate.*B2C payment/ }));
+
+      const reviewDetail = await screen.findByRole("dialog");
+      expect(reviewDetail).toBeInTheDocument();
+      expect(within(reviewDetail).getByText("Duplicate decision required")).toBeInTheDocument();
+      expect(within(reviewDetail).getByText(/stays open until Finance's B2C duplicate decision workflow/i)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Mark as reviewed" })).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("refetches live queue results when the flag-type filter changes", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      const isFailedFilter = new URL(url, "http://localhost").searchParams.get("flagType") === "failed";
+      return reviewQueueResponse({
+        items: isFailedFilter ? [failedReviewItem] : [duplicateReviewItem],
+        metrics: { openCount: 1, resolvedThisMonthCount: 0, highPriorityOpenCount: isFailedFilter ? 0 : 1 },
+      });
+    }));
+
+    try {
+      render(<ReviewQueuePage />);
+      expect(await screen.findByText(`B2C payment · ${REVIEW_FLAG_ID}`)).toBeInTheDocument();
+
+      fireEvent.change(screen.getByRole("combobox", { name: "Filter queue by flag type" }), { target: { value: "failed" } });
+
+      expect(await screen.findByText("B2C payment · 22222222-2222-4222-8222-222222222222")).toBeInTheDocument();
+      expect(screen.queryByText(`B2C payment · ${REVIEW_FLAG_ID}`)).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows an honest empty state when the live queue has no flags", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => reviewQueueResponse({
+      items: [],
+      metrics: { openCount: 0, resolvedThisMonthCount: 0, highPriorityOpenCount: 0 },
+    })));
+
+    try {
+      render(<ReviewQueuePage />);
+      expect(await screen.findByText("No review flags are available yet.")).toBeInTheDocument();
+      expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps the detail open and reports a safe error when an Admin note is rejected", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/notes")) {
+        return reviewQueueResponse({ error: "Unable to save review note" }, false);
+      }
+      if (url.includes(`/api/review-queue/${REVIEW_FLAG_ID}`)) {
+        return reviewQueueResponse({ item: reviewQueueDetail() });
+      }
+      return reviewQueueResponse({
+        items: [duplicateReviewItem],
+        metrics: { openCount: 1, resolvedThisMonthCount: 0, highPriorityOpenCount: 1 },
+      });
+    }));
+
+    try {
+      render(<ReviewQueuePage />);
+      await screen.findByText(`B2C payment · ${REVIEW_FLAG_ID}`);
+      fireEvent.click(screen.getByRole("button", { name: /Possible duplicate.*B2C payment/ }));
+      await screen.findByRole("dialog");
+      fireEvent.change(screen.getByRole("textbox", { name: "Add review note" }), { target: { value: "Verified source reference with Finance" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Unable to save review note");
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("refreshes retained review history after an Admin note is saved", async () => {
+    let saved = false;
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/notes")) {
+        const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+        if (body?.note !== "Verified source reference with Finance") return reviewQueueResponse({ error: "Invalid review note" }, false);
+        saved = true;
+        return reviewQueueResponse({ ok: true });
+      }
+      if (url.includes(`/api/review-queue/${REVIEW_FLAG_ID}`)) {
+        return reviewQueueResponse({ item: reviewQueueDetail(saved ? [{
+          id: "33333333-3333-4333-8333-333333333333",
+          note: "Verified source reference with Finance",
+          createdBy: "Finance Admin",
+          createdAt: "2026-08-10T10:00:00.000Z",
+        }] : []) });
+      }
+      return reviewQueueResponse({
+        items: [duplicateReviewItem],
+        metrics: { openCount: 1, resolvedThisMonthCount: 0, highPriorityOpenCount: 1 },
+      });
+    }));
+
+    try {
+      render(<ReviewQueuePage />);
+      await screen.findByText(`B2C payment · ${REVIEW_FLAG_ID}`);
+      fireEvent.click(screen.getByRole("button", { name: /Possible duplicate.*B2C payment/ }));
+      await screen.findByRole("dialog");
+      fireEvent.change(screen.getByRole("textbox", { name: "Add review note" }), { target: { value: "Verified source reference with Finance" } });
+      fireEvent.click(screen.getByRole("button", { name: "Add note" }));
+
+      expect(await screen.findByText("Verified source reference with Finance")).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("keeps B2B pipeline, bookings, and recognised sales distinct", () => {
