@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, LoadingSkeleton, SectionCard } from "@/components/ui";
+import { useCanManage } from "@/lib/auth/role-context";
 
 type TargetResponse = {
   financialTargets: Array<{ id: string; metric_code: string; period_start: string; period_end: string; target_amount_usd: string; finance_reference: string }>;
@@ -15,6 +16,10 @@ function usd(value: string) { return "$" + Number(value).toLocaleString("en-US",
 export function TargetManagementPage() {
   const [targets, setTargets] = useState<TargetResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const canManage = useCanManage();
 
   useEffect(() => {
     void fetch("/api/targets").then(async (response) => {
@@ -24,6 +29,20 @@ export function TargetManagementPage() {
     }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load targets."));
   }, []);
 
+  async function createCustomTarget(form: HTMLFormElement) {
+    setSaving(true); setSaveError(null);
+    const values = new FormData(form);
+    const valueKind = String(values.get("valueKind"));
+    const response = await fetch("/api/admin/targets/operational", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      displayName: values.get("displayName"), valueKind, targetValue: values.get("targetValue"), unitLabel: valueKind === "quantity" ? values.get("unitLabel") : undefined,
+      periodStart: values.get("periodStart"), periodEnd: values.get("periodEnd"), status: "active", financeReference: values.get("financeReference"), revisionReason: values.get("revisionReason"),
+    }) });
+    const body = await response.json();
+    if (!response.ok) { setSaveError(body.error ?? "The target could not be saved."); setSaving(false); return; }
+    const refreshed = await fetch("/api/targets").then((result) => result.json());
+    setTargets(refreshed); setShowCustomForm(false); setSaving(false); form.reset();
+  }
+
   return <AppShell title="Targets" description="Approved financial goals and auditable operational goals. Financial actuals remain unavailable until verified source history is complete.">
     {error ? <ErrorState title="Targets unavailable" description={error} /> : !targets ? <LoadingSkeleton rows={4} /> : <>
       <SectionCard title="Financial targets" description="Goals approved by Finance. Actuals are calculated only from verified source records.">
@@ -32,10 +51,11 @@ export function TargetManagementPage() {
         <div className="mt-5 space-y-3">{targets.financialTargets.length ? targets.financialTargets.map((target) => <div key={target.id} className="rounded-card border border-border p-4"><p className="font-semibold text-text-primary">{label(target.metric_code)}</p><p className="mt-1 text-sm text-text-muted">{target.period_start} to {target.period_end} · {target.finance_reference}</p><p className="mt-3 text-xl font-semibold tabular-nums text-text-primary">{usd(target.target_amount_usd)}</p></div>) : <EmptyState title="No financial targets yet" description="An Admin can add an approved target when Finance confirms the metric and value." />}</div>
       </SectionCard>
       <SectionCard title="Operational targets" description="Manual operational metrics are kept separate from financial reporting." className="mt-4">
+        {canManage && <button type="button" onClick={() => setShowCustomForm(true)} className="mb-4 min-h-11 rounded-md bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:bg-brand-primary/90">Add custom target</button>}
         <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Manual operational metric</p>
         <div className="mt-4 space-y-3">{targets.operationalTargets.length ? targets.operationalTargets.map((target) => <div key={target.id} className="rounded-card border border-border p-4"><p className="font-semibold text-text-primary">{target.display_name}</p><p className="mt-1 text-sm text-text-muted">{target.period_start} to {target.period_end} · {target.finance_reference}</p><p className="mt-3 text-xl font-semibold tabular-nums text-text-primary">{target.value_kind === "money_usd" ? usd(target.target_value) : target.target_value + " " + target.unit_label}</p></div>) : <EmptyState title="No operational targets yet" description="Custom targets, such as tickets or sponsorships, will appear here after an Admin creates one." />}</div>
       </SectionCard>
+      {showCustomForm && <div className="fixed inset-0 z-50 grid place-items-center bg-brand-primary/40 p-4"><form aria-label="Add custom target" onSubmit={(event) => { event.preventDefault(); void createCustomTarget(event.currentTarget); }} className="w-full max-w-xl rounded-card bg-surface p-6 shadow-elevated"><h2 className="text-xl font-semibold text-text-primary">Add custom target</h2><p className="mt-2 text-sm text-text-muted">This stays separate from financial reporting.</p><div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium text-text-secondary sm:col-span-2">Name<input required name="displayName" className="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-text-primary" /></label><label className="text-sm font-medium text-text-secondary">Type<select name="valueKind" className="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-text-primary"><option value="quantity">Quantity</option><option value="money_usd">USD money</option></select></label><label className="text-sm font-medium text-text-secondary">Goal<input required name="targetValue" inputMode="decimal" className="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-text-primary" /></label><label className="text-sm font-medium text-text-secondary">Unit (for quantity)<input name="unitLabel" placeholder="tickets" className="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-text-primary" /></label><label className="text-sm font-medium text-text-secondary">Start date<input required name="periodStart" type="date" className="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-text-primary" /></label><label className="text-sm font-medium text-text-secondary">End date<input required name="periodEnd" type="date" className="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-text-primary" /></label><label className="text-sm font-medium text-text-secondary sm:col-span-2">Reference<input required name="financeReference" className="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-text-primary" /></label><label className="text-sm font-medium text-text-secondary sm:col-span-2">Reason<input required name="revisionReason" className="mt-1 h-11 w-full rounded-md border border-border bg-surface px-3 text-text-primary" /></label></div>{saveError && <p role="alert" className="mt-3 text-sm text-danger">{saveError}</p>}<div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setShowCustomForm(false)} className="min-h-11 rounded-md border border-border px-4 text-sm font-semibold text-text-secondary">Cancel</button><button disabled={saving} type="submit" className="min-h-11 rounded-md bg-brand-primary px-4 text-sm font-semibold text-white disabled:opacity-60">{saving ? "Saving…" : "Create target"}</button></div></form></div>}
     </>}
   </AppShell>;
 }
-
