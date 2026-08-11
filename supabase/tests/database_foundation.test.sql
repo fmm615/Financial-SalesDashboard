@@ -1,10 +1,50 @@
 begin;
 
-select plan(10);
+select plan(14);
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
 select has_table('public', 'b2c_payments', 'B2C payments table exists');
 select has_table('public', 'b2b_recognised_sales', 'recognised sales table exists separately');
 select has_table('public', 'data_coverage', 'coverage table exists for non-zero missing-data states');
+select has_table('public', 'operational_targets', 'custom operational targets have a separate table');
+select has_table('public', 'operational_target_progress_updates', 'operational progress is append-only');
+
+select throws_ok(
+  $$
+    insert into public.operational_targets (
+      display_name, value_kind, target_value, unit_label, period_start, period_end,
+      finance_reference, revision_reason
+    ) values (
+      'Tickets', 'quantity', 100.000000, null, '2026-01-01', '2026-12-31',
+      'Summit plan', 'Approved operational target'
+    )
+  $$,
+  '23514',
+  '%operational_target_quantity_unit_check%',
+  'quantity targets require a unit label'
+);
+
+insert into public.operational_targets (
+  id, display_name, value_kind, target_value, unit_label, period_start, period_end,
+  status, finance_reference, revision_reason
+) values (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Tickets', 'quantity', 100.000000, 'tickets',
+  '2026-01-01', '2026-12-31', 'active', 'Summit plan', 'Approved operational target'
+);
+
+select throws_ok(
+  $$
+    insert into public.operational_target_progress_updates (
+      target_id, actual_value, effective_on, evidence_note
+    ) values (
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 1.000000, '2026-08-11', ' '
+    )
+  $$,
+  '23514',
+  '%operational_target_progress_updates_evidence_note_check%',
+  'operational progress requires an evidence note'
+);
 
 select throws_ok(
   $$
