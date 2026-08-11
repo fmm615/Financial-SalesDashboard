@@ -14,6 +14,7 @@ const navigation = [
   { href: "/operations/b2c", label: "B2C operations", icon: Building2, group: "Operations" },
   { href: "/operations/b2b", label: "B2B operations", icon: Building2, group: "Operations" },
   { href: "/finance", label: "Finance", icon: Landmark, group: "Operations" },
+  { href: "/finance/targets", label: "Targets", icon: Landmark, group: "Operations" },
   { href: "/reports", label: "Reports", icon: FileBarChart2, group: "Governance" },
   { href: "/review-queue", label: "Review queue", icon: BookOpenCheck, group: "Governance" },
   { href: "/audit-log", label: "Audit log", icon: ShieldCheck, group: "Governance", adminOnly: true },
