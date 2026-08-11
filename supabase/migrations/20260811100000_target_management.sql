@@ -11,7 +11,12 @@ alter table public.financial_targets
   add column revision_reason text not null default 'Initial target definition' check (char_length(trim(revision_reason)) > 0),
   add column archived_at timestamptz;
 
+-- This one-time structural backfill runs in the SQL editor, not as an
+-- application Admin request. Keep the normal actor trigger enabled for every
+-- later target write, but disable it while populating a non-financial lineage.
+alter table public.financial_targets disable trigger assign_financial_target_actor;
 update public.financial_targets set target_lineage_id = id where target_lineage_id is null;
+alter table public.financial_targets enable trigger assign_financial_target_actor;
 alter table public.financial_targets alter column target_lineage_id set not null;
 alter table public.financial_targets alter column target_lineage_id set default gen_random_uuid();
 alter table public.financial_targets
@@ -166,4 +171,3 @@ grant select, insert, update on public.operational_targets to authenticated;
 grant select, insert on public.operational_target_progress_updates to authenticated;
 revoke all on function public.prevent_active_target_definition_mutation() from public;
 revoke all on function public.require_active_operational_target() from public;
-
