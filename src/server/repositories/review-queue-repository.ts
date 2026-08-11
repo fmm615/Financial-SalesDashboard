@@ -79,4 +79,18 @@ export class SupabaseReviewQueueRepository implements ReviewQueueRepository {
       notes: (noteResult.data ?? []).map(toNoteRecord),
     };
   }
+
+  /** The database trigger assigns the Admin actor; this never changes flag status or source data. */
+  async addNote(flagId: string, note: string): Promise<boolean> {
+    const flagResult = await this.client.from("review_flags")
+      .select("id")
+      .eq("id", flagId)
+      .maybeSingle();
+    if (flagResult.error) throw new Error("Could not load the review flag.");
+    if (!flagResult.data) return false;
+
+    const { error } = await this.client.from("review_notes").insert({ flag_id: flagId, note });
+    if (error) throw new Error("Could not save review note.");
+    return true;
+  }
 }
