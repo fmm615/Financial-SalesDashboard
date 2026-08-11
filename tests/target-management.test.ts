@@ -4,6 +4,7 @@ import {
   operationalProgressSchema,
   operationalTargetSchema,
 } from "@/lib/validation/target-contracts";
+import { recordOperationalProgress, type TargetRepository } from "@/server/services/target-management";
 
 describe("target-management contracts", () => {
   it("accepts only an approved financial metric with a decimal USD goal", () => {
@@ -50,5 +51,22 @@ describe("target-management contracts", () => {
 
     expect(operationalProgressSchema.safeParse(update).success).toBe(true);
     expect(operationalProgressSchema.safeParse({ ...update, evidenceNote: " " }).success).toBe(false);
+  });
+
+  it("records progress only against an active operational target", async () => {
+    const repository: TargetRepository = {
+      findOperationalTarget: async () => ({ id: "11111111-1111-4111-8111-111111111111", status: "active" }),
+      createOperationalProgress: async (input) => ({ ...input, id: "progress-1" }),
+    };
+
+    await expect(recordOperationalProgress({
+      targetId: "11111111-1111-4111-8111-111111111111", actualValue: "42",
+      effectiveOn: "2026-08-11", evidenceNote: "Ticketing report reconciled by Operations",
+    }, repository)).resolves.toMatchObject({ id: "progress-1", actualValue: "42" });
+
+    await expect(recordOperationalProgress({
+      targetId: "22222222-2222-4222-8222-222222222222", actualValue: "42",
+      effectiveOn: "2026-08-11", evidenceNote: "Ticketing report reconciled by Operations",
+    }, { ...repository, findOperationalTarget: async () => null })).rejects.toThrow("Operational target not found or inactive.");
   });
 });
