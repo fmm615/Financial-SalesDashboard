@@ -79,6 +79,10 @@ duplicate-candidate, and Tap-statement classification rules live in
 in `lib/validation/b2c-finance-import-contracts.ts`. The Operations page uses
 only the safe summary API, not raw Supabase rows.
 
+Exact Finance duplicate grouping uses its own repository, review model, and
+Admin-only routes/component. Direct Finance contact fields never leave that
+Admin boundary; Viewers retain the existing coverage-only view.
+
 The Payment Tracker workbook parser and upload orchestration are also isolated
 in `server/services/`: they validate source bytes, create a safe preview, and
 stage an explicitly confirmed original file through private Storage and the

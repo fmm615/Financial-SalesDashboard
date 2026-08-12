@@ -160,6 +160,13 @@ It always reports `Not fully loaded` until the complete Stripe Charges export,
 the required evidence, reconciliation, and a later Finance approval workflow
 exist. It does not calculate or display a B2C Finance revenue total.
 
+Exact cross-tab grouping is an Admin-only, review-first step after a completed
+Payment Tracker import. It creates a group only for one valid `B2C` row and one
+valid `B2C Cons` row with exact date, USD amount, category, payment method and
+direct identity. Repeated keys are ambiguous and never grouped automatically.
+Both rows remain immutable, and the reasoned canonical/excluded decision stays
+outside reportable payments and Finance period approval.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

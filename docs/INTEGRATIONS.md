@@ -134,6 +134,10 @@ rate. Typed name, email, and phone support Admin review, while card, address,
 fingerprint, IP, payment-method, and metadata values stay only in the private
 original CSV. No Stripe CSV upload creates B2C Finance revenue or a payment.
 
+Exact Payment Tracker duplicate grouping is internal Finance reconciliation,
+not a Stripe or Tap integration. Provider evidence may support an Admin review
+but cannot automatically link or create Finance revenue.
+
 ## HubSpot
 
 Purpose: B2B deals, stages, and bookings.
