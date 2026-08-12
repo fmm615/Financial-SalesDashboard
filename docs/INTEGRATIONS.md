@@ -113,9 +113,13 @@ VAT. They overlap, so they must never be added together as independent sources.
   to a Viewer.
 
 The full Stripe Charges export is still required before any B2C Finance period
-can be verified. The actual Excel parser, secure import-file upload workflow,
-automated group construction, and Finance period-approval step remain later
-work; no current staging record is reportable merely because it was imported.
+can be verified. An Admin may securely stage an approved Payment Tracker
+`.xlsx`: the server accepts only `B2C` and `B2C Cons`, previews safe quality
+counts, requires explicit confirmation of the same SHA-256 file, and retains
+the original in the private Admin-only `b2c-finance-imports` bucket before its
+rows are atomically staged. This creates neither a provider payment nor a
+reportable total. Tap CSV parsing/upload, Stripe export parsing/upload,
+automated group construction, and Finance period approval remain later work.
 
 ## HubSpot
 

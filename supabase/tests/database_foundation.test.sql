@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(21);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -11,6 +11,17 @@ select has_table('public', 'operational_targets', 'custom operational targets ha
 select has_table('public', 'operational_target_progress_updates', 'operational progress is append-only');
 select has_table('public', 'b2c_finance_imports', 'B2C Finance imports retain source-file provenance');
 select has_table('public', 'b2c_finance_staging_rows', 'B2C Finance source rows stay outside reportable payments');
+
+select ok(
+  exists(
+    select 1
+    from storage.buckets
+    where id = 'b2c-finance-imports'
+      and public = false
+      and file_size_limit = 10485760
+  ),
+  'Payment Tracker source files use a private size-limited Storage bucket'
+);
 
 select throws_ok(
   $$

@@ -134,6 +134,14 @@ until Finance makes an audited decision. A completed Finance import is stored
 atomically through a protected database function, rather than a sequence of
 browser writes.
 
+An Admin may upload the original Payment Tracker `.xlsx` only through the
+controlled B2C reconciliation workflow. The server validates and parses the
+two approved tabs, previews only safe quality counts, re-hashes the confirmed
+file, stores it in the private `b2c-finance-imports` bucket, and then invokes
+the atomic staging function. Storage policies permit only Admin access; no
+Viewer, anonymous user, or public URL can read the source workbook. Tap and
+Stripe evidence use separate future upload boundaries.
+
 The coverage API is deliberately safe for approved viewers: it exposes only
 source states and counts, never raw row data, provider IDs, or customer details.
 It always reports `Not fully loaded` until the complete Stripe Charges export,

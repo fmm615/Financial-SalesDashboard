@@ -79,6 +79,12 @@ duplicate-candidate, and Tap-statement classification rules live in
 in `lib/validation/b2c-finance-import-contracts.ts`. The Operations page uses
 only the safe summary API, not raw Supabase rows.
 
+The Payment Tracker workbook parser and upload orchestration are also isolated
+in `server/services/`: they validate source bytes, create a safe preview, and
+stage an explicitly confirmed original file through private Storage and the
+existing Finance-import repository. Multipart routes remain thin Admin-only
+boundaries; the UI never parses workbook bytes or receives raw Finance rows.
+
 ### `lib/supabase/` and `lib/validation/`
 
 Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.
