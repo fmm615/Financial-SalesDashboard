@@ -109,6 +109,37 @@ audit triggers. A target revision is an atomic database action that archives
 the active definition and creates its successor in the same lineage; an active
 target cannot be overwritten in place.
 
+## B2C Finance reconciliation boundary
+
+Finance workbook reconciliation is a separate staging boundary, not an
+alternative B2C payment ledger. Only the `B2C` and `B2C Cons` tabs of the
+Finance Payment Tracker are accepted as USD revenue candidates, and their
+amounts exclude customer VAT. The original file hash, private Storage location,
+tab, one-based row number, raw cells, parsed values, quality issues, and actor
+are retained. No staging path writes to `b2c_payments` or a reportable view.
+
+Stripe Charges and Tap statements are payment evidence only. They may be linked
+to a Finance candidate during reconciliation, but never create a second Finance
+revenue row. Tap statement amounts remain in their original BHD currency; the
+application never invents a BHD-to-USD rate. Provider fees, fee VAT, transfers,
+opening balances, refunds, and unrecognised statement lines are retained with
+their own evidence kind and cannot be sales.
+
+Source dates are parsed only when ISO, unambiguous `dd/mm/yyyy`, or a known
+Excel serial. A declared month/year disagreement creates a review issue; the
+application never swaps day/month or silently repairs the date. Exact source
+file hashes cannot be imported twice. Duplicate candidates, conflicts,
+zero-value rows, missing fields, and invalid rows remain staged and non-reportable
+until Finance makes an audited decision. A completed Finance import is stored
+atomically through a protected database function, rather than a sequence of
+browser writes.
+
+The coverage API is deliberately safe for approved viewers: it exposes only
+source states and counts, never raw row data, provider IDs, or customer details.
+It always reports `Not fully loaded` until the complete Stripe Charges export,
+the required evidence, reconciliation, and a later Finance approval workflow
+exist. It does not calculate or display a B2C Finance revenue total.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

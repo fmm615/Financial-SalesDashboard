@@ -82,6 +82,41 @@ The Tap boundary lives in `src/lib/integrations/tap/`; the sync service writes o
 
 Read [TAP_SETUP.md](TAP_SETUP.md) before adding a Tap key or webhook endpoint.
 
+## B2C Finance workbook reconciliation
+
+The Finance Payment Tracker is not a provider integration and is not imported
+into `b2c_payments`. Its first supported workbook scope is exactly the `B2C`
+and `B2C Cons` tabs. These are USD Finance revenue candidates excluding customer
+VAT. They overlap, so they must never be added together as independent sources.
+
+- `20260812090000_b2c_finance_reconciliation_staging.sql` retains immutable
+  source-file provenance, Finance staging rows, provider evidence, typed
+  reconciliation groups, and append-only Finance decisions. Admin-only RLS
+  protects every raw table and no delete policy exists.
+- `20260812091000_finalize_b2c_finance_import.sql` stores one already-parsed
+  Payment Tracker import atomically. The current API never parses raw `.xlsx`
+  bytes or marks an upload successful without a dedicated, validated parser.
+- A file SHA-256 is unique. Finance rows are unique by import, tab, and
+  one-based row number. Bad, missing, and zero values are retained as source
+  history, never converted into `$0` revenue.
+- Duplicate matching proposes a decision only. E-mail is preferred; without it,
+  name, payment method, amount, and date evidence are required. A later recurring
+  payment is not treated as a duplicate merely because the name and amount match.
+- Date parsing never guesses a day/month order or repairs a contradictory month
+  label. Tap statement `Sale -`, processing-fee, fee-VAT, transfer, opening-balance,
+  refund, and unrecognised rows stay as original-currency evidence. Tap BHD is
+  never converted to USD without Finance-approved FX.
+- The `B2C reconciliation` Operations screen shows only safe source status and
+  counts. Its `Not fully loaded` gate remains until the Payment Tracker, Tap
+  statement, full Stripe Charges export, reconciliation, and Finance approval
+  are complete. It never publishes B2C Finance revenue or exposes raw evidence
+  to a Viewer.
+
+The full Stripe Charges export is still required before any B2C Finance period
+can be verified. The actual Excel parser, secure import-file upload workflow,
+automated group construction, and Finance period-approval step remain later
+work; no current staging record is reportable merely because it was imported.
+
 ## HubSpot
 
 Purpose: B2B deals, stages, and bookings.

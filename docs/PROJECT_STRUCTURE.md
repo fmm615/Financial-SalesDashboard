@@ -72,6 +72,13 @@ The target-management repository and services own operational progress reads
 and writes. Target-definition revisions remain database RPCs so archiving the
 old version and creating the successor are one atomic, audited operation.
 
+The B2C Finance reconciliation repository owns only request-scoped staged
+imports, audited decisions, and the safe coverage summary. Pure Finance row,
+duplicate-candidate, and Tap-statement classification rules live in
+`server/services/b2c-finance-reconciliation.ts`; strict source contracts live
+in `lib/validation/b2c-finance-import-contracts.ts`. The Operations page uses
+only the safe summary API, not raw Supabase rows.
+
 ### `lib/supabase/` and `lib/validation/`
 
 Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.
@@ -86,7 +93,9 @@ Provider-specific code and normalization.
 
 ### `supabase/migrations/`
 
-All database schema changes.
+All database schema changes. The B2C Finance reconciliation migrations create
+immutable staging/evidence tables, an atomic Finance-import function, and an
+approved-user safe-summary function. They do not write to reportable B2C tables.
 
 ## Rule
 

@@ -21,6 +21,9 @@ Test:
   quantity-unit rules
 - target-management services: operational progress only for an active
   operational target, with a dated evidence note
+- B2C Finance staging: approved tab scope, Excel-date/month conflicts, zero and
+  invalid values, conservative duplicate candidates, recurring-payment safety,
+  and Tap statement classification without a BHD-to-USD conversion
 
 ### Integration tests
 
@@ -43,6 +46,10 @@ Test:
 - target UI: financial actuals remain explicitly unavailable while source
   history is incomplete, and operational revisions are submitted to the server
   before the UI refreshes
+- B2C Finance import/decision routes: Admin-only writes, strict pre-parsed rows,
+  atomic import RPC use, and no `b2c_payments` write
+- B2C reconciliation coverage: safe approved-viewer summary, `Not fully loaded`
+  gate, source state display, and no claimed B2C Finance revenue total
 
 Use provider sample/test payloads where possible.
 
@@ -62,6 +69,12 @@ Target database assertions additionally cover quantity-unit constraints,
 append-only operational evidence, and atomic operational revisions that archive
 the former active target before creating its replacement. The revision functions
 also require an authenticated Admin.
+
+B2C Finance database assertions cover immutable source-file hashes, allowed
+Payment Tracker tabs, protected RLS tables, and the fact that raw Finance rows
+remain outside `b2c_payments`. Run the pgTAP suite only after applying the
+reconciliation migrations to a local Supabase database; the local Supabase CLI
+is required for `npm run supabase:test`.
 
 ### End-to-end tests
 
