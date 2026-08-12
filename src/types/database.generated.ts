@@ -275,6 +275,10 @@ export interface Database {
         Args: { p_payment_id: Uuid; p_reason: string; p_confirmed_provider_transaction: boolean; p_confirmed_no_known_duplicate: boolean };
         Returns: undefined;
       };
+      finalize_b2c_finance_import: {
+        Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
+        Returns: Uuid;
+      };
     };
     Enums: {
       access_role: "admin" | "viewer";

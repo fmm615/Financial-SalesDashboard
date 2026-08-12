@@ -32,6 +32,7 @@
 - `src/lib/validation/b2c-finance-import-contracts.ts`: strict workbook/Tap row and Admin-decision contracts.
 - `src/server/services/b2c-finance-reconciliation.ts`: pure parsing, date-quality, duplicate-candidate, Tap classification, and publication-gate rules.
 - `src/server/repositories/b2c-finance-reconciliation-repository.ts`: request-scoped persistence only.
+- `supabase/migrations/20260812091000_finalize_b2c_finance_import.sql`: authenticated, atomic persistence for one already-parsed Finance workbook import.
 - `src/app/api/admin/b2c/finance-imports/**/route.ts`: Admin preview, finalize, and decision routes.
 - `src/app/api/b2c/reconciliation/route.ts`: approved-user safe summary read.
 - `src/features/b2c/b2c-reconciliation-page.tsx`: Admin review and safe coverage summary.
@@ -133,6 +134,7 @@ Run `git add src/lib/validation/b2c-finance-import-contracts.ts src/server/servi
 **Files:**
 
 - Create: `src/server/repositories/b2c-finance-reconciliation-repository.ts`
+- Create: `supabase/migrations/20260812091000_finalize_b2c_finance_import.sql`
 - Create: `src/app/api/admin/b2c/finance-imports/preview/route.ts`
 - Create: `src/app/api/admin/b2c/finance-imports/[importId]/finalize/route.ts`
 - Create: `src/app/api/admin/b2c/reconciliation/[groupId]/decision/route.ts`
@@ -154,7 +156,7 @@ Run `npm run test -- tests/b2c-finance-reconciliation-api.test.ts`. Expected: FA
 
 - [ ] **Step 3: Implement repository and thin routes**
 
-The repository inserts imports, rows, evidence, groups, links, and decisions through an authenticated client. Preview uses pure service logic only. Finalize verifies an Admin and accepts strict, already-parsed rows from a future trusted parser, creates an import in `processing`, persists source data atomically, then advances to `completed` or saves a safe failure. It does not accept raw spreadsheet bytes. Decision verifies an Admin and writes an append-only decision before state advancement.
+Preview uses pure service logic only. The repository uses a `security definer` SQL function to persist one already-parsed Finance workbook import and every staged row atomically; a PostgREST sequence of independent inserts is not permitted. Finalize verifies an Admin and accepts strict, already-parsed rows from a future trusted parser. It does not accept raw spreadsheet bytes. Decision verifies an Admin and writes an append-only decision before state advancement.
 
 - [ ] **Step 4: Run verification**
 

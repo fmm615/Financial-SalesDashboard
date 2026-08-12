@@ -1,5 +1,7 @@
 import {
   financeWorkbookRowSchema,
+  financeImportRequestSchema,
+  type FinanceImportRequestInput,
   tapEvidenceRowSchema,
   type FinanceWorkbookRowInput,
   type TapEvidenceRowInput,
@@ -16,6 +18,7 @@ export type AssessedFinanceRow = {
   amountUsd: string | null;
   normalizedCustomerName: string | null;
   normalizedCustomerEmail: string | null;
+  normalizedCustomerPhone: string | null;
   normalizedPaymentMethod: string | null;
   quality: FinanceRowQuality;
   issues: string[];
@@ -25,6 +28,11 @@ export type ClassifiedTapEvidence = {
   kind: TapEvidenceKind;
   issue: string | null;
   isReportableRevenue: false;
+};
+
+export type FinanceImportAssessment = {
+  rows: Array<AssessedFinanceRow & { rawPayload: Record<string, unknown> }>;
+  summary: { totalRows: number; validRows: number; needsReviewRows: number; zeroValueRows: number; invalidRows: number };
 };
 
 const decimalPattern = /^\d+(?:\.\d{1,6})?$/;
@@ -47,6 +55,11 @@ function normalizeText(value: string | null | undefined): string | null {
 function normalizeEmail(value: string | null | undefined): string | null {
   const email = normalizeText(value);
   return email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+
+function normalizePhone(value: string | null | undefined): string | null {
+  const digits = cleanText(value)?.replace(/\D/g, "") ?? "";
+  return digits.length >= 5 ? digits : null;
 }
 
 function parseDecimal(rawValue: string | null | undefined): string | null {
@@ -137,9 +150,26 @@ export function assessFinanceRow(input: FinanceWorkbookRowInput): AssessedFinanc
     amountUsd,
     normalizedCustomerName: normalizeText(row.customerNameRaw),
     normalizedCustomerEmail: normalizeEmail(row.customerEmailRaw),
+    normalizedCustomerPhone: normalizePhone(row.customerPhoneRaw),
     normalizedPaymentMethod: normalizeText(row.paymentMethodRaw),
     quality,
     issues,
+  };
+}
+
+/** Validates pre-parsed Finance rows and returns staging-safe values only. */
+export function assessFinanceImport(input: FinanceImportRequestInput): FinanceImportAssessment {
+  const request = financeImportRequestSchema.parse(input);
+  const rows = request.rows.map(({ rawPayload, ...row }) => ({ ...assessFinanceRow(row), rawPayload }));
+  return {
+    rows,
+    summary: {
+      totalRows: rows.length,
+      validRows: rows.filter((row) => row.quality === "valid").length,
+      needsReviewRows: rows.filter((row) => row.quality === "needs_review").length,
+      zeroValueRows: rows.filter((row) => row.quality === "zero_value").length,
+      invalidRows: rows.filter((row) => row.quality === "invalid").length,
+    },
   };
 }
 
