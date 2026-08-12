@@ -6,7 +6,8 @@ const rawText = (maximum: number) => z.string().max(maximum).nullable().optional
 export const financeWorkbookRowSchema = z.object({
   sourceTab: z.enum(["B2C", "B2C Cons"]),
   sourceRowNumber: z.number().int().min(2),
-  reportedDateRaw: z.string().min(1).max(100),
+  // An empty source date is retained as a Finance review issue; it is not dropped.
+  reportedDateRaw: z.string().max(100),
   declaredMonth: rawText(40),
   declaredYear: rawText(10),
   amountUsdRaw: rawText(100),
