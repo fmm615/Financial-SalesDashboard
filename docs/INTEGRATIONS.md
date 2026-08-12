@@ -135,8 +135,12 @@ fingerprint, IP, payment-method, and metadata values stay only in the private
 original CSV. No Stripe CSV upload creates B2C Finance revenue or a payment.
 
 Exact Payment Tracker duplicate grouping is internal Finance reconciliation,
-not a Stripe or Tap integration. Provider evidence may support an Admin review
-but cannot automatically link or create Finance revenue.
+not a Stripe or Tap integration. It compares the fields shared consistently by
+the two Finance tabs: normalized customer name, business date, USD amount, and
+payment method. `B2C` type and `B2C Cons` category/membership fields are not
+treated as equivalent, and historical cross-tab e-mail coverage is absent.
+Provider evidence may support an Admin review but cannot automatically link or
+create Finance revenue.
 
 ## HubSpot
 

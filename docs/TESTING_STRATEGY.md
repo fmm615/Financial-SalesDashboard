@@ -59,9 +59,10 @@ Test:
   source-hash confirmation, and no B2C payment/revenue creation
 - B2C reconciliation coverage: safe approved-viewer summary, `Not fully loaded`
   gate, source state display, and no claimed B2C Finance revenue total
-- exact B2C/B2C Cons duplicate grouping: exact-key eligibility, repeated-key
-  ambiguity, idempotent Admin-only grouping, reasoned one-time decisions, and
-  no B2C payment or total creation
+- exact B2C/B2C Cons duplicate grouping: exact normalized name/date/USD
+  amount/payment-method eligibility despite structurally different category
+  and contact fields, repeated-key ambiguity, idempotent Admin-only grouping,
+  reasoned one-time decisions, and no B2C payment or total creation
 
 Use provider sample/test payloads where possible.
 

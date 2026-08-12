@@ -162,10 +162,12 @@ exist. It does not calculate or display a B2C Finance revenue total.
 
 Exact cross-tab grouping is an Admin-only, review-first step after a completed
 Payment Tracker import. It creates a group only for one valid `B2C` row and one
-valid `B2C Cons` row with exact date, USD amount, category, payment method and
-direct identity. Repeated keys are ambiguous and never grouped automatically.
-Both rows remain immutable, and the reasoned canonical/excluded decision stays
-outside reportable payments and Finance period approval.
+valid `B2C Cons` row with the exact normalized customer name, date, USD amount,
+and payment method. The tabs' category and contact fields are not equivalent,
+so they remain Admin review context rather than cross-tab matching keys.
+Repeated keys are ambiguous and never grouped automatically. Both rows remain
+immutable, and the reasoned canonical/excluded decision stays outside
+reportable payments and Finance period approval.
 
 ## Authentication boundary
 

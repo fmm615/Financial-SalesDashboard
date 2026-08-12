@@ -27,7 +27,7 @@
 
 **Interfaces:** Existing `create_b2c_exact_duplicate_groups()` continues returning the number of newly created groups. `isExactFinanceCrossTabPair()` accepts identical name/date/amount/payment method even when contact/category fields differ.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 expect(isExactFinanceCrossTabPair(b2cRow, {
@@ -42,13 +42,13 @@ expect(isUnambiguousExactFinanceKey([b2cRow, b2cConsRow, anotherB2c])).toBe(fals
 
 Add a migration-contract assertion that the adjustment creates the function with `normalized_customer_name`, has both exact-once `count(*) filter` conditions, and does not mention `category_key`, `customer_email_key`, or `b2c_payments`.
 
-- [ ] **Step 2: Verify failure**
+- [x] **Step 2: Verify failure**
 
 Run `npm test -- tests/b2c-exact-duplicate-reconciliation.test.ts tests/database-foundation.test.ts`.
 
 Expected: the existing phone/e-mail/category rule rejects the revised pair and the adjustment migration is absent.
 
-- [ ] **Step 3: Implement the minimal adjustment**
+- [x] **Step 3: Implement the minimal adjustment**
 
 The new migration uses `create or replace function public.create_b2c_exact_duplicate_groups()` with the existing Admin check, advisory transaction lock, provider-evidence exclusion, group key, and conflict-safe inserts. Its comparison rows group only this identity key:
 
@@ -60,7 +60,7 @@ The exact-pair CTE groups by `import_id`, `occurred_on`, `amount_usd`, `payment_
 
 Update the pure TypeScript rule to require the same import, valid quality, distinct approved tabs, non-null equal name/date/amount/payment method. It must ignore e-mail, phone, and category for this cross-tab comparison.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run focused tests, `npm run typecheck`, and `git diff --check`, then commit `fix(b2c): align cross-tab duplicate grouping`.
 
@@ -73,15 +73,15 @@ Run focused tests, `npm run typecheck`, and `git diff --check`, then commit `fix
 - Modify: `docs/TESTING_STRATEGY.md`
 - Modify: this plan
 
-- [ ] **Step 1: Document the source-backed rule**
+- [x] **Step 1: Document the source-backed rule**
 
 Replace prior wording that requires category/direct-identity equality with the approved name/date/USD amount/payment-method exact key. Document that e-mail/category are structurally incompatible across these tabs and still remain visible only to Admin reviewers.
 
-- [ ] **Step 2: Verify all affected behavior**
+- [x] **Step 2: Verify all affected behavior**
 
 Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `git diff --check`, and `git status --short`. Report that `npm run supabase:test` remains blocked by the unavailable local CLI.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Commit `docs(b2c): document cross-tab grouping adjustment` with the operating docs and completed plan checkboxes.
 
