@@ -124,7 +124,7 @@ Use ExcelJS only in server services and tests. Do not use a browser spreadsheet 
 
 - [ ] **Step 4: Implement the parser**
 
-Reject files before workbook loading unless filename ends in `.xlsx` case-insensitively, bytes are 1–10 MiB, and the ZIP signature starts with `PK`. Load bytes with ExcelJS. Require exact sheet names `B2C` and `B2C Cons`; map headers after trim/lowercase normalization; require exactly one of each required header. Scan the first ten nonempty rows for a header row, then retain nonempty rows below it.
+Reject files before workbook loading unless filename ends in `.xlsx` case-insensitively, bytes are non-empty and no more than 10 MiB, and the ZIP signature starts with `PK`. Load bytes with ExcelJS. Require exact sheet names `B2C` and `B2C Cons`; map headers after trim/lowercase normalization; require exactly one of each required header. Scan the first ten nonempty rows for a header row, then retain nonempty rows below it.
 
 Map `B2C` headers: `Date`, `Amount USD`, `Name`, `Mobile`, `Type`, `Pay Method`, `Payment Status`, `year`, `Note`. Map `B2C Cons`: `Date`, `Amount`, `Name`, `Mobile`, `Category`, `Membership Type`, `Pay Method`, `Payment Status`, `Month`, `Year`, `Note`. Preserve all accepted header/value pairs in `rawPayload`. Convert a true date cell to `YYYY-MM-DD`; retain numeric values as text. A formula may use its primitive cached result only, otherwise throw a safe parser error; never run calculations. Hash original bytes with SHA-256.
 
