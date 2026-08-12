@@ -62,6 +62,47 @@ type B2cPaymentRow = {
   updated_at: Timestamp;
 };
 
+type B2cStripePaymentDetailsRow = {
+  payment_id: Uuid;
+  payment_intent_id: string | null;
+  payment_method_id: string | null;
+  checkout_session_id: string | null;
+  invoice_id: string | null;
+  customer_id: string | null;
+  balance_transaction_id: string | null;
+  customer_name_source: "charge_receipt" | "charge_billing" | "charge_shipping" | "checkout_session" | "invoice_snapshot" | null;
+  customer_email_source: "charge_receipt" | "charge_billing" | "charge_shipping" | "checkout_session" | "invoice_snapshot" | null;
+  customer_phone_source: "charge_receipt" | "charge_billing" | "charge_shipping" | "checkout_session" | "invoice_snapshot" | null;
+  charge_customer_name: string | null;
+  charge_customer_email: string | null;
+  charge_customer_phone: string | null;
+  checkout_customer_name: string | null;
+  checkout_customer_email: string | null;
+  checkout_customer_phone: string | null;
+  invoice_customer_name: string | null;
+  invoice_customer_email: string | null;
+  invoice_customer_phone: string | null;
+  payment_method_customer_name: string | null;
+  payment_method_customer_email: string | null;
+  payment_method_customer_phone: string | null;
+  customer_profile_name: string | null;
+  customer_profile_email: string | null;
+  customer_profile_phone: string | null;
+  settlement_gross_amount: Decimal | null;
+  settlement_fee_amount: Decimal | null;
+  settlement_fee_tax_amount: Decimal | null;
+  settlement_net_amount: Decimal | null;
+  settlement_currency: string | null;
+  settlement_exchange_rate: Decimal | null;
+  provider_tax_amount: Decimal | null;
+  provider_tax_currency: string | null;
+  enrichment_status: "complete" | "partial";
+  enrichment_issue_codes: Json;
+  last_enriched_at: Timestamp | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+};
+
 type B2bDealRow = {
   id: Uuid;
   company_id: Uuid;
@@ -135,6 +176,7 @@ export interface Database {
         membership_tier: string | null; created_by: Uuid; updated_by: Uuid; created_at: Timestamp; updated_at: Timestamp;
       }>;
       b2c_payments: Table<B2cPaymentRow>;
+      b2c_stripe_payment_details: Table<B2cStripePaymentDetailsRow>;
       b2c_finance_imports: Table<{
         id: Uuid; source_kind: Database["public"]["Enums"]["b2c_finance_import_source_kind"]; source_file_name: string;
         source_file_sha256: string; source_storage_bucket: string; source_storage_path: string;
@@ -290,6 +332,18 @@ export interface Database {
       };
       create_b2c_exact_duplicate_groups: { Args: Record<string, never>; Returns: number };
       get_b2c_reconciliation_safe_summary: { Args: Record<string, never>; Returns: Json };
+      get_b2c_stripe_payment_contact_fallbacks: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          payment_id: Uuid;
+          customer_name: string | null;
+          customer_name_label: "Stripe payment method" | "Stripe profile" | null;
+          customer_email: string | null;
+          customer_email_label: "Stripe payment method" | "Stripe profile" | null;
+          customer_phone: string | null;
+          customer_phone_label: "Stripe payment method" | "Stripe profile" | null;
+        }>;
+      };
     };
     Enums: {
       access_role: "admin" | "viewer";

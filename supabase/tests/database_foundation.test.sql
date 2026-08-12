@@ -1,6 +1,6 @@
 begin;
 
-select plan(27);
+select plan(33);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -51,6 +51,50 @@ select has_column(
   'b2c_provider_evidence',
   'customer_email',
   'Stripe contact email is retained separately from raw evidence'
+);
+
+select has_table(
+  'public',
+  'b2c_stripe_payment_details',
+  'Stripe API enrichment has a separate typed details table'
+);
+
+select has_column(
+  'public',
+  'b2c_stripe_payment_details',
+  'checkout_customer_email',
+  'Stripe Checkout contact evidence is retained explicitly'
+);
+
+select has_column(
+  'public',
+  'b2c_stripe_payment_details',
+  'settlement_fee_amount',
+  'Stripe settlement fees remain separate evidence'
+);
+
+select has_function(
+  'public',
+  'get_b2c_stripe_payment_contact_fallbacks',
+  array[]::text[],
+  'Approved users receive only a protected contact-fallback projection'
+);
+
+select ok(
+  (select relrowsecurity
+    from pg_class
+    where oid = 'public.b2c_stripe_payment_details'::regclass),
+  'RLS protects Stripe payment enrichment details'
+);
+
+select throws_ok(
+  $$
+    insert into public.b2c_stripe_payment_details (payment_id, enrichment_status)
+    values ('dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'complete')
+  $$,
+  '23514',
+  '%linked payment is not a Stripe payment%',
+  'Tap payments cannot receive Stripe enrichment details'
 );
 
 select has_column(

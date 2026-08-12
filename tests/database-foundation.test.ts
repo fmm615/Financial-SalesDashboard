@@ -163,6 +163,23 @@ describe("Phase 2 database migration contracts", () => {
     expect(adjustedGroups).not.toContain("insert into public.b2c_payments");
   });
 
+  it("stores typed Stripe enrichment behind an Admin-only evidence boundary", () => {
+    const sql = migration("20260812105000_stripe_read_only_payment_enrichment.sql");
+
+    expect(sql).toContain("create table public.b2c_stripe_payment_details");
+    expect(sql).toContain("payment_id uuid primary key");
+    expect(sql).toContain("references public.b2c_payments(id)");
+    expect(sql).toContain("checkout_customer_email citext");
+    expect(sql).toContain("customer_profile_email citext");
+    expect(sql).toContain("settlement_fee_amount numeric(20,6)");
+    expect(sql).toContain("alter table public.b2c_stripe_payment_details enable row level security");
+    expect(sql).toContain("create policy admin_read");
+    expect(sql).toContain("create or replace function public.get_b2c_stripe_payment_contact_fallbacks()");
+    expect(sql).toContain("public.is_approved_user()");
+    expect(sql).toContain("linked payment is not a Stripe payment");
+    expect(sql).not.toContain("grant insert, update on public.b2c_stripe_payment_details to authenticated");
+  });
+
   it("enforces provider identity, Stripe=B2C, separate refunds, and refund overage protection", () => {
     const b2c = migration("20260802100200_b2c_foundation.sql");
     const b2b = migration("20260802100300_b2b_foundation.sql");
