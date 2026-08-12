@@ -42,25 +42,33 @@ private original source file retains full evidence for authorised audit access.
 
 ## Accepted rows and classification
 
-Every non-blank CSV row is retained using its Stripe charge ID as the provider
-row ID. Duplicate IDs in one source file are rejected; an existing Stripe
-provider row or exact source-file hash is rejected atomically.
+Every non-blank CSV row creates one primary evidence entry using its Stripe
+charge ID as the provider row ID. A row with a positive `Amount Refunded`
+creates one additional, linked refund evidence entry from the same source row.
+The schema therefore adds an explicit source-entry key (`primary` or `refund`)
+to its immutable provenance key; it does not invent a Stripe refund ID where
+the Charges export does not provide one. Both entries retain the charge ID,
+original source-row number, original status, and raw cells.
+
+Duplicate non-empty charge IDs in one source file are rejected. An existing
+Stripe provider row and source-entry key, or an exact source-file hash, is
+rejected atomically.
 
 Rows are classified from direct Stripe values:
 
 - `Paid` with a non-empty charge ID and captured `TRUE` becomes `sale` evidence.
-- A positive `Amount Refunded` is retained as separate `refund` evidence linked
-  to the charge ID; the original paid row remains unchanged.
+- A positive `Amount Refunded` creates separate `refund` evidence linked to
+  the charge ID; the original paid evidence remains unchanged.
 - `Failed`, `canceled`, uncaptured, missing-ID, malformed, or unrecognised rows
   become `needs_review` evidence.
 - `Fee` is retained in that charge row's raw source payload only when it can be
   tied directly to a valid charge ID. It is not a revenue deduction, a second
-  provider-evidence row, or a dashboard total. The current evidence schema has
-  one immutable evidence row per CSV row.
+  provider-evidence row, or a dashboard total. The source-entry key makes the
+  primary charge and its optional linked refund independently immutable.
 
-The exact final parsing rule will retain the original Stripe status and raw
-cells, so a future Finance reviewer can see why a row was classified without
-guessing from description text.
+The parser retains the original Stripe status and raw cells, so a Finance
+reviewer can see why a row was classified without guessing from description
+text.
 
 ## Currency and amounts
 
@@ -75,7 +83,9 @@ the importer will not make a BHD, GBP, AED, or other currency conversion.
 
 ## Contacts and access
 
-The Admin B2C review experience displays the best direct source values for
+The evidence schema adds separately validated, optional customer-name,
+customer-email, and customer-phone columns. The Admin B2C review experience
+displays the best direct source values for
 customer name, email, and phone. It uses a clear source priority: customer name
 comes from `Card Name`, falling back to `Customer Description`; email and phone
 come only from their direct Stripe columns. Blank values remain blank.
@@ -97,8 +107,9 @@ team that resolves records without making them part of management reporting.
 4. The original CSV is uploaded to the existing private
    `b2c-finance-imports` Storage bucket.
 5. One protected database function creates the `stripe_charges` import and all
-   Stripe evidence rows in a single transaction. Storage is removed if that
-   database operation fails.
+   Stripe evidence entries in a single transaction, including both linked
+   entries for a refunded source row. Storage is removed if that database
+   operation fails.
 6. The B2C reconciliation page refreshes only safe source coverage. The page
    remains `Not fully loaded` until reconciliation and a separate Finance
    approval workflow exist.
@@ -134,8 +145,9 @@ team that resolves records without making them part of management reporting.
   mismatch rejection, private Storage cleanup, and atomic RPC invocation.
 - UI tests: Admin two-step flow and safe preview; Viewer cannot see upload
   controls or contact details; no amount total, conversion, or revenue claim.
-- Database test: protected finalization exists and leaves `b2c_payments`
-  untouched.
+- Database test: protected finalization exists, preserves the explicit source
+  entry key for refunds, protects contact fields with Admin-only RLS, and leaves
+  `b2c_payments` untouched.
 - Full project test suite, TypeScript, lint, and production build before each
   code checkpoint. The local Supabase CLI remains unavailable, so database
   pgTAP coverage is retained for manual/CI execution.
