@@ -59,7 +59,7 @@ Add TypeScript migration assertions for table names, source-file hash uniqueness
 ```ts
 expect(migration).toContain("unique (source_file_sha256)");
 expect(migration).toContain("source_tab in ('B2C', 'B2C Cons')");
-expect(migration).toContain("transaction_kind in ('sale', 'processing_fee', 'fee_vat', 'refund', 'transfer', 'opening_balance')");
+expect(migration).toContain("transaction_kind in ('sale', 'processing_fee', 'fee_vat', 'refund', 'transfer', 'opening_balance', 'needs_review')");
 ```
 
 - [ ] **Step 2: Run test to verify it fails**

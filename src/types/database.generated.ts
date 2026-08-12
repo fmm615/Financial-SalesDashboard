@@ -135,6 +135,43 @@ export interface Database {
         membership_tier: string | null; created_by: Uuid; updated_by: Uuid; created_at: Timestamp; updated_at: Timestamp;
       }>;
       b2c_payments: Table<B2cPaymentRow>;
+      b2c_finance_imports: Table<{
+        id: Uuid; source_kind: Database["public"]["Enums"]["b2c_finance_import_source_kind"]; source_file_name: string;
+        source_file_sha256: string; source_storage_bucket: string; source_storage_path: string;
+        import_status: Database["public"]["Enums"]["b2c_finance_import_status"]; safe_error_summary: string | null;
+        imported_by: Uuid; completed_at: Timestamp | null; failed_at: Timestamp | null; created_at: Timestamp; updated_at: Timestamp;
+      }>;
+      b2c_finance_staging_rows: Table<{
+        id: Uuid; import_id: Uuid; source_tab: "B2C" | "B2C Cons"; source_row_number: number; raw_payload: Json;
+        reported_date_raw: string; declared_month_raw: string | null; declared_year_raw: string | null; amount_usd_raw: string | null;
+        customer_name_raw: string | null; customer_email_raw: string | null; customer_phone_raw: string | null; category_raw: string | null;
+        membership_type_raw: string | null; payment_method_raw: string | null; payment_status_raw: string | null; note_raw: string | null;
+        occurred_on: string | null; amount_usd: Decimal | null; normalized_customer_name: string | null;
+        normalized_customer_email: string | null; normalized_customer_phone: string | null;
+        row_quality: Database["public"]["Enums"]["b2c_finance_row_quality"]; quality_issues: Json; created_at: Timestamp;
+      }>;
+      b2c_provider_evidence: Table<{
+        id: Uuid; import_id: Uuid; provider: "tap" | "stripe"; source_row_number: number; provider_row_id: string | null;
+        provider_payment_id: string | null; provider_refund_id: string | null;
+        transaction_kind: Database["public"]["Enums"]["b2c_provider_evidence_kind"]; description_raw: string | null;
+        occurred_at: Timestamp | null; occurred_at_raw: string | null; original_currency: string; credit_amount: Decimal | null;
+        debit_amount: Decimal | null; raw_payload: Json; created_at: Timestamp;
+      }>;
+      b2c_reconciliation_groups: Table<{
+        id: Uuid; reconciliation_state: Database["public"]["Enums"]["b2c_reconciliation_state"];
+        canonical_finance_row_id: Uuid | null; decision_reason: string | null; decided_by: Uuid | null; decided_at: Timestamp | null;
+        created_by: Uuid; created_at: Timestamp;
+      }>;
+      b2c_reconciliation_finance_rows: Table<{
+        id: Uuid; reconciliation_group_id: Uuid; finance_row_id: Uuid; created_at: Timestamp;
+      }>;
+      b2c_reconciliation_provider_evidence: Table<{
+        id: Uuid; reconciliation_group_id: Uuid; provider_evidence_id: Uuid; created_at: Timestamp;
+      }>;
+      b2c_reconciliation_decisions: Table<{
+        id: Uuid; reconciliation_group_id: Uuid; decision_state: "canonical" | "excluded"; canonical_finance_row_id: Uuid | null;
+        decision_reason: string; decided_by: Uuid; created_at: Timestamp;
+      }>;
       b2c_payment_local_overrides: Table<{
         payment_id: Uuid; customer_name: string | null; customer_email: string | null; customer_phone: string | null;
         category_code: string | null; membership_tier: string | null; local_amount_usd: Decimal | null; local_occurred_on: string | null; created_by: Uuid; updated_by: Uuid;
@@ -247,6 +284,11 @@ export interface Database {
       integration_status: "pending" | "processing" | "completed" | "failed" | "cancelled";
       report_type: "monthly" | "quarterly" | "annual" | "ad_hoc";
       report_job_status: "pending" | "processing" | "completed" | "failed" | "cancelled";
+      b2c_finance_import_source_kind: "payment_tracker" | "tap_statement" | "stripe_charges";
+      b2c_finance_import_status: "pending" | "processing" | "completed" | "failed";
+      b2c_finance_row_quality: "valid" | "zero_value" | "needs_review" | "invalid";
+      b2c_reconciliation_state: "unmatched" | "exact_duplicate_candidate" | "possible_duplicate" | "conflict" | "canonical" | "excluded";
+      b2c_provider_evidence_kind: "sale" | "processing_fee" | "fee_vat" | "refund" | "transfer" | "opening_balance" | "needs_review";
     };
     CompositeTypes: Record<string, never>;
   };

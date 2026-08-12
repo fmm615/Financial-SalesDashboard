@@ -1,6 +1,6 @@
 begin;
 
-select plan(16);
+select plan(20);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -9,6 +9,8 @@ select has_table('public', 'b2b_recognised_sales', 'recognised sales table exist
 select has_table('public', 'data_coverage', 'coverage table exists for non-zero missing-data states');
 select has_table('public', 'operational_targets', 'custom operational targets have a separate table');
 select has_table('public', 'operational_target_progress_updates', 'operational progress is append-only');
+select has_table('public', 'b2c_finance_imports', 'B2C Finance imports retain source-file provenance');
+select has_table('public', 'b2c_finance_staging_rows', 'B2C Finance source rows stay outside reportable payments');
 
 select throws_ok(
   $$
@@ -87,6 +89,38 @@ select throws_ok(
   $$,
   '23505',
   'duplicate Stripe provider ID is rejected'
+);
+
+insert into public.b2c_finance_imports (
+  id, source_kind, source_file_name, source_file_sha256, source_storage_bucket, source_storage_path
+) values (
+  'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1', 'payment_tracker', 'payment-tracker.xlsx', repeat('a', 64),
+  'b2c-imports', 'payment-tracker/a.xlsx'
+);
+
+select throws_ok(
+  $$
+    insert into public.b2c_finance_imports (
+      source_kind, source_file_name, source_file_sha256, source_storage_bucket, source_storage_path
+    ) values (
+      'payment_tracker', 'payment-tracker-copy.xlsx', repeat('a', 64), 'b2c-imports', 'payment-tracker/copy.xlsx'
+    )
+  $$,
+  '23505',
+  'identical Finance source-file hash is rejected'
+);
+
+select throws_ok(
+  $$
+    insert into public.b2c_finance_staging_rows (
+      import_id, source_tab, source_row_number, raw_payload, reported_date_raw, row_quality
+    ) values (
+      'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1', 'Other B2C', 2, '{}'::jsonb, '2026-08-01', 'needs_review'
+    )
+  $$,
+  '23514',
+  '%b2c_finance_staging_rows_source_tab_check%',
+  'unapproved Finance workbook tab is rejected'
 );
 
 select throws_ok(

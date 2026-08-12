@@ -116,6 +116,22 @@ describe("Phase 2 validation contracts", () => {
 });
 
 describe("Phase 2 database migration contracts", () => {
+  it("creates auditable B2C Finance staging with protected source boundaries", () => {
+    const stagingMigration = () => migration("20260812090000_b2c_finance_reconciliation_staging.sql");
+
+    expect(stagingMigration).not.toThrow();
+
+    const staging = stagingMigration();
+    expect(staging).toContain("create table public.b2c_finance_imports");
+    expect(staging).toContain("create table public.b2c_finance_staging_rows");
+    expect(staging).toContain("create table public.b2c_provider_evidence");
+    expect(staging).toContain("unique (source_file_sha256)");
+    expect(staging).toContain("source_tab in ('B2C', 'B2C Cons')");
+    expect(staging).toContain("transaction_kind in ('sale', 'processing_fee', 'fee_vat', 'refund', 'transfer', 'opening_balance', 'needs_review')");
+    expect(staging).toContain("enable row level security");
+    expect(staging).toContain("public.is_admin()");
+  });
+
   it("enforces provider identity, Stripe=B2C, separate refunds, and refund overage protection", () => {
     const b2c = migration("20260802100200_b2c_foundation.sql");
     const b2b = migration("20260802100300_b2b_foundation.sql");
