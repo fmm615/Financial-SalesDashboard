@@ -8,13 +8,15 @@ const chargeContactSchema = z.object({
   name: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
 });
+const stripeIdReferenceSchema = z.union([z.string().min(1), z.object({ id: z.string().min(1) }).passthrough()]);
 const chargeSchema = z.object({
   id: z.string().min(1), amount: z.number().int().positive(), currency: z.string().length(3), created: z.number().int().nonnegative(),
   status: z.string(), paid: z.boolean(), captured: z.boolean(), receipt_email: z.string().nullable().optional(),
   billing_details: chargeContactSchema.optional(),
   shipping: chargeContactSchema.nullable().optional(),
-  customer: z.union([z.string().min(1), z.object({ id: z.string().min(1) }).passthrough()]).nullable().optional(),
-  metadata: metadataSchema.optional(), payment_intent: z.string().nullable().optional(), invoice: z.string().nullable().optional(), description: z.string().nullable().optional(),
+  customer: stripeIdReferenceSchema.nullable().optional(),
+  metadata: metadataSchema.optional(), payment_intent: stripeIdReferenceSchema.nullable().optional(), payment_method: stripeIdReferenceSchema.nullable().optional(),
+  invoice: stripeIdReferenceSchema.nullable().optional(), balance_transaction: stripeIdReferenceSchema.nullable().optional(), description: z.string().nullable().optional(),
 }).passthrough();
 const refundSchema = z.object({
   id: z.string().min(1), charge: z.string().nullable(), amount: z.number().int().positive(), currency: z.string().length(3),
@@ -43,8 +45,10 @@ const checkoutLineItemsSchema = z.object({
 });
 
 export type StripePaymentStatus = "succeeded" | "failed" | "pending";
+export type StripeTransactionContactSource = "charge_receipt" | "charge_billing" | "charge_shipping" | "checkout_session" | "invoice_snapshot";
 export type NormalisedStripeCharge = {
   chargeId: string; customerEmail: string | null; customerName: string | null; customerPhone: string | null; productReference: string | null; paymentStatus: StripePaymentStatus;
+  customerEmailSource: StripeTransactionContactSource | null; customerNameSource: StripeTransactionContactSource | null; customerPhoneSource: StripeTransactionContactSource | null;
   originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; occurredOn: string;
   sourceMetadata: Record<string, string>;
 };
@@ -63,26 +67,30 @@ export class StripeNormalisationError extends Error {}
 /** A non-succeeded refund is a provider lifecycle state, not a financial refund. */
 export class StripeRefundNotSucceededError extends StripeNormalisationError {}
 
-function cleanText(value: string | null | undefined, maxLength: number): string | null {
+export function cleanStripeText(value: string | null | undefined, maxLength: number): string | null {
   const cleaned = value?.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
   return cleaned ? cleaned.slice(0, maxLength) : null;
 }
 
-function validatedEmail(value: string | null | undefined): string | null {
-  const email = cleanText(value, 320)?.toLowerCase();
+export function validatedStripeEmail(value: string | null | undefined): string | null {
+  const email = cleanStripeText(value, 320)?.toLowerCase();
   return email && z.string().email().safeParse(email).success ? email : null;
 }
 
 /** Keep only a phone Stripe put directly on this Charge; never infer one from another system or profile. */
-function validatedPhone(value: string | null | undefined): string | null {
-  const phone = cleanText(value, 40);
+export function validatedStripePhone(value: string | null | undefined): string | null {
+  const phone = cleanStripeText(value, 40);
   return phone && /^[+\d][\d\s().-]{4,39}$/.test(phone) ? phone : null;
 }
 
 /** Returns the provider Customer ID when the Charge contains one; no data is persisted from this helper. */
 export function stripeChargeCustomerId(payload: unknown): string | null {
   const customer = chargeSchema.parse(payload).customer;
-  return typeof customer === "string" ? customer : customer?.id ?? null;
+  return stripeReferenceId(customer);
+}
+
+function stripeReferenceId(reference: string | { id: string } | null | undefined): string | null {
+  return typeof reference === "string" ? reference : reference?.id ?? null;
 }
 
 function stripeMinorAmountToDecimal(amount: number, currency: string): string {
@@ -103,7 +111,7 @@ function requireUsd(currency: string): "USD" {
 }
 
 function planMetadataValue(metadata: Record<string, string>): string | null {
-  return cleanText(metadata.plan ?? metadata.tier ?? metadata.membership_plan, 100);
+  return cleanStripeText(metadata.plan ?? metadata.tier ?? metadata.membership_plan, 100);
 }
 
 /** Formats only Stripe's direct Price.recurring fields; it never infers a cadence. */
@@ -132,7 +140,7 @@ export function normaliseStripeCheckoutPlan(payload: unknown): StripeCheckoutPla
     checkoutSessionId: result.data.sessionId,
     priceId: price.id,
     productId: product?.id ?? (typeof price.product === "string" ? price.product : null),
-    planName: planMetadataValue(price.metadata ?? {}) ?? cleanText(price.nickname, 100) ?? (product ? planMetadataValue(product.metadata ?? {}) ?? cleanText(product.name, 100) : null),
+    planName: planMetadataValue(price.metadata ?? {}) ?? cleanStripeText(price.nickname, 100) ?? (product ? planMetadataValue(product.metadata ?? {}) ?? cleanStripeText(product.name, 100) : null),
     billingInterval: price.recurring?.interval ?? null,
     billingIntervalCount: price.recurring?.interval_count ?? null,
   };
@@ -165,25 +173,42 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
   const originalCurrency = requireUsd(charge.currency.toUpperCase());
   const occurredAt = new Date(charge.created * 1000);
   if (Number.isNaN(occurredAt.getTime())) throw new StripeNormalisationError("Stripe charge has an invalid created timestamp.");
-  const customerEmail = validatedEmail(charge.receipt_email ?? charge.billing_details?.email);
+  const receiptEmail = validatedStripeEmail(charge.receipt_email);
+  const billingEmail = validatedStripeEmail(charge.billing_details?.email);
+  const shippingEmail = validatedStripeEmail(charge.shipping?.email);
+  const customerEmail = receiptEmail ?? billingEmail ?? shippingEmail;
+  const billingName = cleanStripeText(charge.billing_details?.name, 200);
+  const shippingName = cleanStripeText(charge.shipping?.name, 200);
+  const customerName = billingName ?? shippingName;
+  const billingPhone = validatedStripePhone(charge.billing_details?.phone);
+  const shippingPhone = validatedStripePhone(charge.shipping?.phone);
+  const customerPhone = billingPhone ?? shippingPhone;
   const amount = stripeMinorAmountToDecimal(charge.amount, originalCurrency);
   const metadata = charge.metadata ?? {};
-  const productReference = cleanText(metadata[productReferenceMetadataKey], 255);
+  const productReference = cleanStripeText(metadata[productReferenceMetadataKey], 255);
   const paymentStatus: StripePaymentStatus = charge.status === "succeeded" && charge.paid && charge.captured ? "succeeded" : charge.status === "failed" ? "failed" : "pending";
   return {
     chargeId: charge.id,
     customerEmail,
-    customerName: cleanText(charge.billing_details?.name ?? charge.shipping?.name, 200),
-    customerPhone: validatedPhone(charge.billing_details?.phone ?? charge.shipping?.phone),
+    customerName,
+    customerPhone,
+    customerEmailSource: receiptEmail ? "charge_receipt" : billingEmail ? "charge_billing" : shippingEmail ? "charge_shipping" : null,
+    customerNameSource: billingName ? "charge_billing" : shippingName ? "charge_shipping" : null,
+    customerPhoneSource: billingPhone ? "charge_billing" : shippingPhone ? "charge_shipping" : null,
     productReference,
     paymentStatus,
     originalAmount: amount, originalCurrency, exchangeRateToUsd: "1", amountUsd: amount, occurredAt: occurredAt.toISOString(), occurredOn: bahrainBusinessDate(occurredAt),
     sourceMetadata: {
-      ...(cleanText(charge.payment_intent, 255) ? { payment_intent_id: cleanText(charge.payment_intent, 255)! } : {}),
-      ...(cleanText(charge.invoice, 255) ? { invoice_id: cleanText(charge.invoice, 255)! } : {}),
+      ...(stripeReferenceId(charge.payment_intent) ? { payment_intent_id: stripeReferenceId(charge.payment_intent)! } : {}),
+      ...(stripeReferenceId(charge.payment_method) ? { payment_method_id: stripeReferenceId(charge.payment_method)! } : {}),
+      ...(stripeReferenceId(charge.invoice) ? { invoice_id: stripeReferenceId(charge.invoice)! } : {}),
+      ...(stripeReferenceId(charge.balance_transaction) ? { balance_transaction_id: stripeReferenceId(charge.balance_transaction)! } : {}),
       ...(stripeChargeCustomerId(charge) ? { stripe_customer_id: stripeChargeCustomerId(charge)! } : {}),
       ...(productReference ? { product_reference: productReference } : {}),
-      ...(cleanText(charge.description, 300) ? { description: cleanText(charge.description, 300)! } : {}),
+      ...(cleanStripeText(charge.description, 300) ? { description: cleanStripeText(charge.description, 300)! } : {}),
+      ...(customerName ? { customer_name_source: (billingName ? "charge_billing" : "charge_shipping") } : {}),
+      ...(customerEmail ? { customer_email_source: receiptEmail ? "charge_receipt" : billingEmail ? "charge_billing" : "charge_shipping" } : {}),
+      ...(customerPhone ? { customer_phone_source: billingPhone ? "charge_billing" : "charge_shipping" } : {}),
     },
   };
 }
@@ -195,7 +220,7 @@ export function normaliseStripeRefund(payload: unknown): NormalisedStripeRefund 
   const originalCurrency = requireUsd(refund.currency.toUpperCase());
   const occurredAt = new Date(refund.created * 1000);
   if (Number.isNaN(occurredAt.getTime())) throw new StripeNormalisationError("Stripe refund has an invalid created timestamp.");
-  return { refundId: refund.id, chargeId: refund.charge, originalAmount: stripeMinorAmountToDecimal(refund.amount, originalCurrency), originalCurrency, exchangeRateToUsd: "1", amountUsd: stripeMinorAmountToDecimal(refund.amount, originalCurrency), occurredAt: occurredAt.toISOString(), reason: cleanText(refund.reason, 300), metadata: {} };
+  return { refundId: refund.id, chargeId: refund.charge, originalAmount: stripeMinorAmountToDecimal(refund.amount, originalCurrency), originalCurrency, exchangeRateToUsd: "1", amountUsd: stripeMinorAmountToDecimal(refund.amount, originalCurrency), occurredAt: occurredAt.toISOString(), reason: cleanStripeText(refund.reason, 300), metadata: {} };
 }
 
 const stripeEventSchema = z.object({ id: z.string().min(1), type: z.string().min(1), data: z.object({ object: z.unknown() }) }).passthrough();

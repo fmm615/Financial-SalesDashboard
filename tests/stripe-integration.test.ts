@@ -62,6 +62,16 @@ describe("Stripe normalisation and webhook security", () => {
     expect(normaliseStripeCharge({ ...charge, billing_details: { ...charge.billing_details, phone: "not a phone" } }, "product_id").customerPhone).toBeNull();
   });
 
+  it("falls through an invalid receipt email to valid transaction billing evidence", () => {
+    const payment = normaliseStripeCharge({
+      ...charge,
+      receipt_email: "not-an-email",
+      billing_details: { ...charge.billing_details, email: "billing@example.com" },
+    }, "product_id");
+    expect(payment.customerEmail).toBe("billing@example.com");
+    expect(payment.customerEmailSource).toBe("charge_billing");
+  });
+
   it("uses the direct Stripe Checkout Price and Product name as plan context", () => {
     const plan = normaliseStripeCheckoutPlan({
       sessionId: "cs_123",
