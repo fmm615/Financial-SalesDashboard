@@ -1,5 +1,6 @@
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
 import type { DatabaseClient } from "@/lib/supabase/server";
+import type { NormalisedStripeEnrichment } from "@/lib/integrations/stripe/enrichment";
 
 type ProviderSyncRun = { id: string };
 export type ProviderBackfillRun = { id: string; continuationCursor: string | null; recordsProcessed: number; recordsFailed: number; completed: boolean };
@@ -140,44 +141,117 @@ export class SupabaseB2cProviderSyncRepository {
     await this.recordIntegrationError({ syncRunId, error, sourceReference });
   }
 
-  async persistCharge(input: NormalisedB2cProviderCharge & { providerEventId?: string; reconciliationSource?: string }): Promise<{ inserted: boolean }> {
+  async persistCharge(input: NormalisedB2cProviderCharge & { providerEventId?: string; reconciliationSource?: string }): Promise<{ paymentId: string; inserted: boolean }> {
     const { data: existing, error: existingError } = await this.client.from("b2c_payments")
-      .select("id,provider_event_id").eq("source_system", this.provider).eq("provider_transaction_id", input.chargeId).maybeSingle();
+      .select("id,provider_event_id,customer_email,customer_name,customer_phone,source_metadata").eq("source_system", this.provider).eq("provider_transaction_id", input.chargeId).maybeSingle();
     if (existingError) throw new Error(`Could not check existing ${this.providerLabel} charge: ${existingError.message}`);
 
-    const customerId = input.customerEmail ? await this.upsertCustomer(input.customerEmail, input.customerName) : null;
+    const existingMetadata = existing?.source_metadata && typeof existing.source_metadata === "object" && !Array.isArray(existing.source_metadata) ? existing.source_metadata as Record<string, unknown> : {};
+    const sourcePriority = (value: unknown): number => ({ charge_receipt: 1, charge_billing: 2, charge_shipping: 3, checkout_session: 4, invoice_snapshot: 5 }[typeof value === "string" ? value : ""] ?? 99);
+    const mergeContact = (current: string | null | undefined, incoming: string | null, currentSource: unknown, incomingSource: unknown): { value: string | null; source: string | null; conflict: boolean } => {
+      const normalizedCurrent = current ?? null;
+      const normalizedIncomingSource = typeof incomingSource === "string" ? incomingSource : null;
+      const normalizedCurrentSource = typeof currentSource === "string" ? currentSource : null;
+      if (!incoming) return { value: normalizedCurrent, source: normalizedCurrentSource, conflict: false };
+      if (!normalizedCurrent) return { value: incoming, source: normalizedIncomingSource, conflict: false };
+      if (normalizedCurrent.toLocaleLowerCase("en-US") === incoming.toLocaleLowerCase("en-US")) return { value: normalizedCurrent, source: sourcePriority(normalizedIncomingSource) < sourcePriority(normalizedCurrentSource) ? normalizedIncomingSource : normalizedCurrentSource, conflict: false };
+      if (sourcePriority(normalizedIncomingSource) < sourcePriority(normalizedCurrentSource)) return { value: incoming, source: normalizedIncomingSource, conflict: true };
+      return { value: normalizedCurrent, source: normalizedCurrentSource, conflict: true };
+    };
+    const mergedName = mergeContact(existing?.customer_name, input.customerName, existingMetadata.customer_name_source, input.sourceMetadata.customer_name_source);
+    const mergedEmail = mergeContact(existing?.customer_email, input.customerEmail, existingMetadata.customer_email_source, input.sourceMetadata.customer_email_source);
+    const mergedPhone = mergeContact(existing?.customer_phone, input.customerPhone, existingMetadata.customer_phone_source, input.sourceMetadata.customer_phone_source);
+    const customerId = mergedEmail.value ? await this.upsertCustomer(mergedEmail.value, mergedName.value) : null;
     const mapping = await this.findProductMapping(input.productReference);
     const categoryCode = mapping?.categoryCode ?? "unmapped";
-    const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: input.customerEmail, amountUsd: input.amountUsd, categoryCode, occurredOn: input.occurredOn, providerTransactionId: input.chargeId });
+    const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: mergedEmail.value, amountUsd: input.amountUsd, categoryCode, occurredOn: input.occurredOn, providerTransactionId: input.chargeId });
     const values = {
       source_system: this.provider, provider_transaction_id: input.chargeId, provider_event_id: input.providerEventId ?? existing?.provider_event_id ?? null,
-      customer_id: customerId, customer_email: input.customerEmail, customer_name: input.customerName, customer_phone: input.customerPhone, product_mapping_id: mapping?.id ?? null, category_code: categoryCode,
+      customer_id: customerId, customer_email: mergedEmail.value, customer_name: mergedName.value, customer_phone: mergedPhone.value, product_mapping_id: mapping?.id ?? null, category_code: categoryCode,
       // A verified local mapping remains the reporting classification. When no
       // mapping exists, show the direct provider plan name for traceability only.
       membership_tier: mapping?.membershipTier ?? input.sourceMetadata.provider_plan_name ?? null, payment_status: input.paymentStatus, original_amount: input.originalAmount,
       original_currency: input.originalCurrency, exchange_rate_to_usd: input.exchangeRateToUsd, amount_usd: input.amountUsd, gross_amount_usd: input.amountUsd,
       tax_amount_usd: null, net_amount_usd: null, occurred_at: input.occurredAt, occurred_on: input.occurredOn, duplicate_fingerprint: duplicateFingerprint,
-      reconciliation_source: input.reconciliationSource ?? null, source_metadata: input.sourceMetadata,
+      reconciliation_source: input.reconciliationSource ?? null, source_metadata: {
+        ...existingMetadata, ...input.sourceMetadata,
+        ...(mergedName.source ? { customer_name_source: mergedName.source } : {}),
+        ...(mergedEmail.source ? { customer_email_source: mergedEmail.source } : {}),
+        ...(mergedPhone.source ? { customer_phone_source: mergedPhone.source } : {}),
+      },
     };
     const { data: payment, error } = existing
       ? await this.client.from("b2c_payments").update(values).eq("id", existing.id).select("id").single()
       : await this.client.from("b2c_payments").insert(values).select("id").single();
     if (error) throw new Error(`Could not save ${this.providerLabel} charge: ${error.message}`);
 
-    if (!input.customerEmail) await this.openFlag(payment.id, "needs_follow_up", `${this.providerLabel} payment is missing a valid customer email. It is retained for traceability and excluded from financial totals until an Admin records a verified local correction.`);
+    if (!mergedEmail.value) await this.openFlag(payment.id, "needs_follow_up", `${this.providerLabel} payment is missing a valid customer email. It is retained for traceability and excluded from financial totals until an Admin records a verified local correction.`);
+    if (mergedName.conflict || mergedEmail.conflict || mergedPhone.conflict) await this.openFlag(payment.id, "needs_follow_up", `${this.providerLabel} returned conflicting transaction contact evidence. The higher-priority retained value remains in use pending Admin review.`);
     if (!mapping) await this.openFlag(payment.id, "unmapped_product", `${this.providerLabel} payment has no approved product mapping. It is retained for traceability and excluded from financial totals until an Admin maps the product.`);
     if (input.paymentStatus === "failed") await this.openFlag(payment.id, "failed", `${this.providerLabel} payment failed. It is retained for follow-up and excluded from financial totals.`);
     // A failed card attempt followed by a successful retry commonly has the same
     // email, amount, and day. Only two completed payments can be financial
     // duplicate candidates; failed or pending attempts never taint a success.
-    if (input.paymentStatus === "succeeded" && input.customerEmail) {
+    if (input.paymentStatus === "succeeded" && mergedEmail.value) {
       const duplicatePaymentIds = await this.findRecentContentDuplicates(payment.id, duplicateFingerprint, input.occurredAt);
       if (duplicatePaymentIds.length) {
         const reason = "Another completed B2C payment has the same customer, amount, category, and Bahrain business date within 48 hours. It is excluded from financial totals pending Admin review.";
         await Promise.all([payment.id, ...duplicatePaymentIds].map((paymentId) => this.openFlag(paymentId, "possible_duplicate", reason)));
       }
     }
-    return { inserted: existing === null };
+    return { paymentId: payment.id, inserted: existing === null };
+  }
+
+  async persistStripeDetails(paymentId: string, details: NormalisedStripeEnrichment): Promise<void> {
+    if (this.provider !== "stripe") throw new Error("Only Stripe payments can receive Stripe enrichment details.");
+    const { data: existing, error: existingError } = await this.client.from("b2c_stripe_payment_details").select("*").eq("payment_id", paymentId).maybeSingle();
+    if (existingError) throw new Error(`Could not load Stripe enrichment details: ${existingError.message}`);
+    const retained = <T>(incoming: T | null, current: T | null | undefined): T | null => incoming ?? current ?? null;
+    const values = {
+      payment_id: paymentId,
+      payment_intent_id: retained(details.references.paymentIntentId, existing?.payment_intent_id),
+      payment_method_id: retained(details.references.paymentMethodId, existing?.payment_method_id),
+      checkout_session_id: retained(details.references.checkoutSessionId, existing?.checkout_session_id),
+      invoice_id: retained(details.references.invoiceId, existing?.invoice_id),
+      customer_id: retained(details.references.customerId, existing?.customer_id),
+      balance_transaction_id: retained(details.references.balanceTransactionId, existing?.balance_transaction_id),
+      customer_name_source: retained(details.transactionContact.nameSource, existing?.customer_name_source),
+      customer_email_source: retained(details.transactionContact.emailSource, existing?.customer_email_source),
+      customer_phone_source: retained(details.transactionContact.phoneSource, existing?.customer_phone_source),
+      charge_customer_name: retained(details.chargeContact.name, existing?.charge_customer_name),
+      charge_customer_email: retained(details.chargeContact.email, existing?.charge_customer_email),
+      charge_customer_phone: retained(details.chargeContact.phone, existing?.charge_customer_phone),
+      checkout_customer_name: retained(details.checkoutContact.name, existing?.checkout_customer_name),
+      checkout_customer_email: retained(details.checkoutContact.email, existing?.checkout_customer_email),
+      checkout_customer_phone: retained(details.checkoutContact.phone, existing?.checkout_customer_phone),
+      invoice_customer_name: retained(details.invoiceContact.name, existing?.invoice_customer_name),
+      invoice_customer_email: retained(details.invoiceContact.email, existing?.invoice_customer_email),
+      invoice_customer_phone: retained(details.invoiceContact.phone, existing?.invoice_customer_phone),
+      payment_method_customer_name: retained(details.paymentMethodContact.name, existing?.payment_method_customer_name),
+      payment_method_customer_email: retained(details.paymentMethodContact.email, existing?.payment_method_customer_email),
+      payment_method_customer_phone: retained(details.paymentMethodContact.phone, existing?.payment_method_customer_phone),
+      customer_profile_name: retained(details.customerProfileContact.name, existing?.customer_profile_name),
+      customer_profile_email: retained(details.customerProfileContact.email, existing?.customer_profile_email),
+      customer_profile_phone: retained(details.customerProfileContact.phone, existing?.customer_profile_phone),
+      settlement_gross_amount: retained(details.settlement?.grossAmount ?? null, existing?.settlement_gross_amount),
+      settlement_fee_amount: retained(details.settlement?.feeAmount ?? null, existing?.settlement_fee_amount),
+      settlement_fee_tax_amount: retained(details.settlement?.feeTaxAmount ?? null, existing?.settlement_fee_tax_amount),
+      settlement_net_amount: retained(details.settlement?.netAmount ?? null, existing?.settlement_net_amount),
+      settlement_currency: retained(details.settlement?.currency ?? null, existing?.settlement_currency),
+      settlement_exchange_rate: retained(details.settlement?.exchangeRate ?? null, existing?.settlement_exchange_rate),
+      provider_tax_amount: retained(details.providerTax?.amount ?? null, existing?.provider_tax_amount),
+      provider_tax_currency: retained(details.providerTax?.currency ?? null, existing?.provider_tax_currency),
+      enrichment_status: details.issueCodes.length ? "partial" as const : "complete" as const,
+      enrichment_issue_codes: details.issueCodes,
+      last_enriched_at: details.issueCodes.length ? existing?.last_enriched_at ?? null : new Date().toISOString(),
+    };
+    const { error } = await this.client.from("b2c_stripe_payment_details").upsert(values, { onConflict: "payment_id" });
+    if (error) throw new Error(`Could not save Stripe enrichment details: ${error.message}`);
+    if (details.issueCodes.some((code) => code.startsWith("contact_conflict_"))) await this.openFlag(paymentId, "needs_follow_up", "Stripe returned conflicting transaction contact evidence. The retained higher-priority value requires Admin review.");
+  }
+
+  async recordOptionalEnrichmentError(input: { integrationEventId?: string; syncRunId?: string; chargeId: string; objectType: "checkout_session" | "invoice" | "payment_method" | "customer" | "balance_transaction"; error: unknown }): Promise<void> {
+    await this.recordIntegrationError({ integrationEventId: input.integrationEventId, syncRunId: input.syncRunId, error: input.error, sourceReference: `Stripe charge ${input.chargeId} ${input.objectType} enrichment` });
   }
 
   async persistRefund(input: NormalisedB2cProviderRefund): Promise<{ inserted: boolean }> {

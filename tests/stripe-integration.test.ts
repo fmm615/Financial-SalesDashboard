@@ -133,6 +133,85 @@ describe("Stripe ingestion orchestration", () => {
     }));
   });
 
+  it("persists one enriched Charge while keeping mutable contacts and settlement in separate details", async () => {
+    const repository = {
+      persistCharge: vi.fn().mockResolvedValue({ paymentId: "payment-1", inserted: false }),
+      persistRefund: vi.fn(),
+      persistStripeDetails: vi.fn(),
+      recordOptionalEnrichmentError: vi.fn(),
+      startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }),
+      completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn(),
+    };
+    const source = {
+      fetchCharge: vi.fn(),
+      listChargesCreatedSince: vi.fn().mockResolvedValue([{ ...charge, receipt_email: null, billing_details: {}, payment_intent: "pi_123", payment_method: "pm_123", customer: "cus_123", balance_transaction: "txn_123" }]),
+      listRefundsCreatedSince: vi.fn().mockResolvedValue([]),
+      fetchCheckoutContextForPaymentIntent: vi.fn().mockResolvedValue({ session: { id: "cs_123", status: "complete", customer_details: { email: "checkout@example.com" } }, lineItems: { data: [] } }),
+      fetchInvoice: vi.fn(),
+      fetchPaymentMethod: vi.fn().mockResolvedValue({ id: "pm_123", billing_details: { email: "mutable@example.com" } }),
+      fetchCustomer: vi.fn().mockResolvedValue({ id: "cus_123", email: "profile@example.com" }),
+      fetchBalanceTransaction: vi.fn().mockResolvedValue({ id: "txn_123", amount: 12345, fee: 345, net: 12000, currency: "usd", exchange_rate: null, status: "available", fee_details: [] }),
+    };
+
+    const result = await runStripeReconciliation({ source, productReferenceMetadataKey: "product_id", repository, now: new Date("2026-08-02T12:00:00.000Z") });
+
+    expect(result).toMatchObject({ processed: 1, failed: 0, inserted: 0 });
+    expect(repository.persistCharge).toHaveBeenCalledTimes(1);
+    expect(repository.persistCharge).toHaveBeenCalledWith(expect.objectContaining({ customerEmail: "checkout@example.com" }));
+    expect(repository.persistCharge).not.toHaveBeenCalledWith(expect.objectContaining({ customerEmail: "mutable@example.com" }));
+    expect(repository.persistStripeDetails).toHaveBeenCalledWith("payment-1", expect.objectContaining({
+      paymentMethodContact: expect.objectContaining({ email: "mutable@example.com" }),
+      customerProfileContact: expect.objectContaining({ email: "profile@example.com" }),
+      settlement: expect.objectContaining({ feeAmount: "3.45", netAmount: "120.00" }),
+    }));
+  });
+
+  it("retains the valid Charge and records partial enrichment failures safely", async () => {
+    const repository = {
+      persistCharge: vi.fn().mockResolvedValue({ paymentId: "payment-1", inserted: true }),
+      persistRefund: vi.fn(), persistStripeDetails: vi.fn(),
+      recordOptionalEnrichmentError: vi.fn(),
+      startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }),
+      completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn(),
+    };
+    const source = {
+      fetchCharge: vi.fn(),
+      listChargesCreatedSince: vi.fn().mockResolvedValue([{ ...charge, payment_method: "pm_123" }]),
+      listRefundsCreatedSince: vi.fn().mockResolvedValue([]),
+      fetchPaymentMethod: vi.fn().mockRejectedValue(new Error("temporary Stripe lookup failure")),
+    };
+
+    const result = await runStripeReconciliation({ source, productReferenceMetadataKey: "product_id", repository, now: new Date("2026-08-02T12:00:00.000Z") });
+
+    expect(result).toMatchObject({ processed: 1, failed: 0, inserted: 1 });
+    expect(repository.persistCharge).toHaveBeenCalledTimes(1);
+    expect(repository.persistStripeDetails).toHaveBeenCalledWith("payment-1", expect.objectContaining({ issueCodes: ["payment_method_lookup_failed"] }));
+    expect(repository.recordOptionalEnrichmentError).toHaveBeenCalledWith(expect.objectContaining({ syncRunId: "run-1", chargeId: "ch_123", objectType: "payment_method" }));
+    expect(repository.recordSyncError).not.toHaveBeenCalled();
+  });
+
+  it("treats an invalid optional Stripe payload as partial enrichment rather than a failed Charge", async () => {
+    const repository = {
+      persistCharge: vi.fn().mockResolvedValue({ paymentId: "payment-1", inserted: true }),
+      persistRefund: vi.fn(), persistStripeDetails: vi.fn(), recordOptionalEnrichmentError: vi.fn(),
+      startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }), completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn(),
+    };
+    const source = {
+      fetchCharge: vi.fn(),
+      listChargesCreatedSince: vi.fn().mockResolvedValue([{ ...charge, payment_method: "pm_invalid" }]),
+      listRefundsCreatedSince: vi.fn().mockResolvedValue([]),
+      fetchPaymentMethod: vi.fn().mockResolvedValue({ id: 123, billing_details: "invalid" }),
+    };
+
+    const result = await runStripeReconciliation({ source, productReferenceMetadataKey: "product_id", repository, now: new Date("2026-08-02T12:00:00.000Z") });
+
+    expect(result).toMatchObject({ processed: 1, failed: 0, inserted: 1 });
+    expect(repository.persistCharge).toHaveBeenCalledTimes(1);
+    expect(repository.persistStripeDetails).toHaveBeenCalledWith("payment-1", expect.objectContaining({ issueCodes: ["payment_method_validation_failed"] }));
+    expect(repository.recordOptionalEnrichmentError).toHaveBeenCalledWith(expect.objectContaining({ objectType: "payment_method" }));
+    expect(repository.recordSyncError).not.toHaveBeenCalled();
+  });
+
   it("does not treat a failed retry as a possible financial duplicate", async () => {
     const repository = { persistCharge: vi.fn().mockResolvedValue({ inserted: true }), persistRefund: vi.fn() };
     const source = { fetchCharge: vi.fn(), listChargesCreatedSince: vi.fn(), listRefundsCreatedSince: vi.fn() };

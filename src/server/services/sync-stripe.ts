@@ -1,9 +1,15 @@
 import { addStripeCheckoutPlan, normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, parseStripeWebhookEvent, StripeRefundNotSucceededError, type StripeWebhookEvent } from "@/lib/integrations/stripe/normalise";
+import { applyStripeTransactionEnrichment, normaliseStripeEnrichment, stripeChargeEnrichmentReferences, type NormalisedStripeEnrichment } from "@/lib/integrations/stripe/enrichment";
 import type { StripeBackfillRun, SupabaseStripeSyncRepository } from "@/server/repositories/stripe-sync-repository";
 
 export type StripeSource = {
   fetchCharge(chargeId: string): Promise<unknown>;
   fetchCheckoutPlanForPaymentIntent?(paymentIntentId: string): Promise<unknown | null>;
+  fetchCheckoutContextForPaymentIntent?(paymentIntentId: string): Promise<unknown | null>;
+  fetchInvoice?(invoiceId: string): Promise<unknown>;
+  fetchPaymentMethod?(paymentMethodId: string): Promise<unknown>;
+  fetchCustomer?(customerId: string): Promise<unknown>;
+  fetchBalanceTransaction?(balanceTransactionId: string): Promise<unknown>;
   listChargesCreatedSince(since: Date): Promise<unknown[]>;
   listRefundsCreatedSince(since: Date): Promise<unknown[]>;
 };
@@ -13,7 +19,7 @@ export type StripeHistoricalSource = Pick<StripeSource, "fetchCharge"> & {
   listRefundsPage(cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
 };
 
-type StripeRepository = Pick<SupabaseStripeSyncRepository, "persistCharge" | "persistRefund">;
+type StripeRepository = Pick<SupabaseStripeSyncRepository, "persistCharge" | "persistRefund"> & Partial<Pick<SupabaseStripeSyncRepository, "persistStripeDetails" | "recordOptionalEnrichmentError">>;
 type StripeWebhookRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "recordWebhookEvent" | "markEventCompleted" | "failEvent">;
 type StripeReconciliationRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "startSyncRun" | "completeSyncRun" | "failSyncRun" | "recordSyncError">;
 type StripeBackfillRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "getOrStartHistoricalBackfill" | "finishHistoricalBackfillBatch" | "failSyncRun" | "recordSyncError">;
@@ -23,10 +29,66 @@ function refundReference(refundId: string): string { return `Stripe refund ${ref
 
 type StripePlanLookupSource = { fetchCheckoutPlanForPaymentIntent?: (paymentIntentId: string) => Promise<unknown | null> };
 
-async function persistCharge(input: { charge: unknown; source?: Pick<StripeSource, "fetchCharge"> & StripePlanLookupSource; productReferenceMetadataKey: string; repository: StripeRepository; providerEventId?: string; reconciliationSource?: string }): Promise<boolean> {
+type OptionalObjectType = "checkout_session" | "invoice" | "payment_method" | "customer" | "balance_transaction";
+
+async function collectStripeEnrichment(input: { rawCharge: unknown; charge: ReturnType<typeof normaliseStripeCharge>; source: StripeSource; repository: StripeRepository; integrationEventId?: string; syncRunId?: string }): Promise<NormalisedStripeEnrichment> {
+  const references = stripeChargeEnrichmentReferences(input.rawCharge);
+  const lookups: Array<{ objectType: OptionalObjectType; run: () => Promise<unknown | null> }> = [];
+  if (references.paymentIntentId && input.source.fetchCheckoutContextForPaymentIntent) lookups.push({ objectType: "checkout_session", run: () => input.source.fetchCheckoutContextForPaymentIntent!(references.paymentIntentId!) });
+  if (references.invoiceId && input.source.fetchInvoice) lookups.push({ objectType: "invoice", run: () => input.source.fetchInvoice!(references.invoiceId!) });
+  if (references.paymentMethodId && input.source.fetchPaymentMethod) lookups.push({ objectType: "payment_method", run: () => input.source.fetchPaymentMethod!(references.paymentMethodId!) });
+  if (references.customerId && input.source.fetchCustomer) lookups.push({ objectType: "customer", run: () => input.source.fetchCustomer!(references.customerId!) });
+  if (references.balanceTransactionId && input.source.fetchBalanceTransaction) lookups.push({ objectType: "balance_transaction", run: () => input.source.fetchBalanceTransaction!(references.balanceTransactionId!) });
+  const settled = await Promise.allSettled(lookups.map((lookup) => lookup.run()));
+  const payloads: Partial<Record<OptionalObjectType, unknown | null>> = {};
+  const issueCodes: string[] = [];
+  for (const [index, result] of settled.entries()) {
+    const lookup = lookups[index];
+    if (!lookup) continue;
+    if (result.status === "fulfilled") payloads[lookup.objectType] = result.value;
+    else {
+      issueCodes.push(`${lookup.objectType}_lookup_failed`);
+      if (input.repository.recordOptionalEnrichmentError) await input.repository.recordOptionalEnrichmentError({
+        integrationEventId: input.integrationEventId, syncRunId: input.syncRunId, chargeId: input.charge.chargeId, objectType: lookup.objectType, error: result.reason,
+      });
+    }
+  }
+  for (const lookup of lookups) {
+    if (payloads[lookup.objectType] == null) continue;
+    try {
+      normaliseStripeEnrichment({
+        charge: input.charge, references,
+        ...(lookup.objectType === "checkout_session" ? { checkoutContext: payloads.checkout_session } : {}),
+        ...(lookup.objectType === "invoice" ? { invoice: payloads.invoice } : {}),
+        ...(lookup.objectType === "payment_method" ? { paymentMethod: payloads.payment_method } : {}),
+        ...(lookup.objectType === "customer" ? { customer: payloads.customer } : {}),
+        ...(lookup.objectType === "balance_transaction" ? { balanceTransaction: payloads.balance_transaction } : {}),
+      });
+    } catch (error) {
+      delete payloads[lookup.objectType];
+      issueCodes.push(`${lookup.objectType}_validation_failed`);
+      if (input.repository.recordOptionalEnrichmentError) await input.repository.recordOptionalEnrichmentError({
+        integrationEventId: input.integrationEventId, syncRunId: input.syncRunId, chargeId: input.charge.chargeId, objectType: lookup.objectType, error,
+      });
+    }
+  }
+  const enrichment = normaliseStripeEnrichment({
+    charge: input.charge, references,
+    checkoutContext: payloads.checkout_session, invoice: payloads.invoice, paymentMethod: payloads.payment_method,
+    customer: payloads.customer, balanceTransaction: payloads.balance_transaction,
+  });
+  return { ...enrichment, issueCodes: [...new Set([...enrichment.issueCodes, ...issueCodes])] };
+}
+
+async function persistCharge(input: { charge: unknown; source?: Pick<StripeSource, "fetchCharge"> & StripePlanLookupSource & Partial<StripeSource>; productReferenceMetadataKey: string; repository: StripeRepository; providerEventId?: string; reconciliationSource?: string; syncRunId?: string }): Promise<boolean> {
   let charge = normaliseStripeCharge(input.charge, input.productReferenceMetadataKey);
-  const paymentIntentId = charge.sourceMetadata.payment_intent_id;
-  if (paymentIntentId && input.source?.fetchCheckoutPlanForPaymentIntent) {
+  let enrichment: NormalisedStripeEnrichment | null = null;
+  if (input.source && (input.source.fetchCheckoutContextForPaymentIntent || input.source.fetchInvoice || input.source.fetchPaymentMethod || input.source.fetchCustomer || input.source.fetchBalanceTransaction)) {
+    enrichment = await collectStripeEnrichment({ rawCharge: input.charge, charge, source: input.source as StripeSource, repository: input.repository, integrationEventId: input.providerEventId, syncRunId: input.syncRunId });
+    charge = applyStripeTransactionEnrichment(charge, enrichment);
+  } else {
+    const paymentIntentId = charge.sourceMetadata.payment_intent_id;
+    if (paymentIntentId && input.source?.fetchCheckoutPlanForPaymentIntent) {
     try {
       const rawPlan = await input.source.fetchCheckoutPlanForPaymentIntent(paymentIntentId);
       const plan = rawPlan ? normaliseStripeCheckoutPlan(rawPlan) : null;
@@ -36,8 +98,10 @@ async function persistCharge(input: { charge: unknown; source?: Pick<StripeSourc
       // Checkout or the optional plan lookup is unavailable. An unmapped flag
       // keeps it out of financial totals until a verified local mapping exists.
     }
+    }
   }
   const result = await input.repository.persistCharge({ ...charge, providerEventId: input.providerEventId, reconciliationSource: input.reconciliationSource });
+  if (enrichment && result.paymentId && input.repository.persistStripeDetails) await input.repository.persistStripeDetails(result.paymentId, enrichment);
   return result.inserted;
 }
 
@@ -97,7 +161,7 @@ export async function runStripeReconciliation(input: { source: StripeSource; pro
     const [charges, refunds] = await Promise.all([input.source.listChargesCreatedSince(lookbackStart), input.source.listRefundsCreatedSince(lookbackStart)]);
     for (const charge of charges) {
       try {
-        if (await persistCharge({ charge, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_48_hour_reconciliation" })) inserted += 1;
+        if (await persistCharge({ charge, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_48_hour_reconciliation", syncRunId: run.id })) inserted += 1;
         processed += 1;
       } catch (error) {
         const id = (charge as { id?: unknown }).id;
@@ -155,7 +219,7 @@ export async function runStripeHistoricalBackfillBatch(input: {
       const page = await input.source.listChargesPage(cursor.providerCursor);
       for (const charge of page.records) {
         try {
-          await persistCharge({ charge, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_historical_backfill" });
+          await persistCharge({ charge, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_historical_backfill", syncRunId: run.id });
           processed += 1;
         } catch (error) {
           const id = (charge as { id?: unknown }).id;
