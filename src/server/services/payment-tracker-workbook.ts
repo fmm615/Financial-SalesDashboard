@@ -85,6 +85,11 @@ function validateFile(sourceFileName: string, bytes: Uint8Array): void {
   }
 }
 
+/** Finance supplies `B2C cons`; capitalization alone does not change tab meaning. */
+function approvedWorksheet(workbook: ExcelJS.Workbook, tab: AcceptedTab): ExcelJS.Worksheet | undefined {
+  return workbook.worksheets.find((worksheet) => normalizeHeader(worksheet.name) === normalizeHeader(tab));
+}
+
 function findHeaderRow(worksheet: ExcelJS.Worksheet, tab: AcceptedTab): { rowNumber: number; indexes: Map<string, number> } {
   const expected = new Map(workbookColumns[tab].map((column) => [normalizeHeader(column.header), column]));
   const requiredForTab = workbookColumns[tab].filter((column) => requiredHeaders.has(normalizeHeader(column.header)));
@@ -181,10 +186,13 @@ export async function parsePaymentTrackerWorkbook(sourceFileName: string, bytes:
   } catch {
     throw new PaymentTrackerWorkbookError("The selected file is not a valid XLSX workbook.");
   }
+  const worksheets = new Map<AcceptedTab, ExcelJS.Worksheet>();
   for (const tab of acceptedTabs) {
-    if (!workbook.getWorksheet(tab)) throw new PaymentTrackerWorkbookError(`The Payment Tracker is missing the required ${tab} tab.`);
+    const worksheet = approvedWorksheet(workbook, tab);
+    if (!worksheet) throw new PaymentTrackerWorkbookError(`The Payment Tracker is missing the required ${tab} tab.`);
+    worksheets.set(tab, worksheet);
   }
-  const rows = acceptedTabs.flatMap((tab) => extractRows(workbook.getWorksheet(tab)!, tab));
+  const rows = acceptedTabs.flatMap((tab) => extractRows(worksheets.get(tab)!, tab));
   if (rows.length === 0) throw new PaymentTrackerWorkbookError("The Payment Tracker has no Finance rows to stage.");
   if (rows.length > MAX_EXTRACTED_ROWS) throw new PaymentTrackerWorkbookError("The Payment Tracker exceeds the maximum of 20,000 extracted Finance rows.");
 

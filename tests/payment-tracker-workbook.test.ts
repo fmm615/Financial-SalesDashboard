@@ -53,6 +53,17 @@ describe("Payment Tracker workbook parser", () => {
     ]));
   });
 
+  it("accepts the Finance workbook's lowercase B2C cons tab name as the canonical B2C Cons source", async () => {
+    const bytes = await workbookBytes([
+      { name: "B2C", rows: [b2cHeaders, ["2025-10-05", "Reham", "", 475, "Membership", "Stripe", 2025, "", "Received"]] },
+      { name: "B2C cons", rows: [b2cConsHeaders, ["05/10/2025", "Reham", "", 475, "Membership", "Individual", "Stripe", "October", 2025, "", "Received"]] },
+    ]);
+
+    await expect(parsePaymentTrackerWorkbook("payment-tracker.xlsx", bytes)).resolves.toMatchObject({
+      rows: expect.arrayContaining([expect.objectContaining({ sourceTab: "B2C Cons" })]),
+    });
+  });
+
   it("rejects a workbook that omits an approved Finance tab", async () => {
     const bytes = await workbookBytes([{ name: "B2C", rows: [b2cHeaders, ["2025-10-05", "Reham", "", 475, "Membership", "Stripe", 2025, "", "Received"]] }]);
 
