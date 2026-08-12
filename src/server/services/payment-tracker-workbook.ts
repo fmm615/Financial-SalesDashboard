@@ -58,18 +58,26 @@ function isoDate(value: Date): string {
   return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
 }
 
-function displayedValue(value: ExcelJS.CellValue | null | undefined, location: string): string | null {
+function displayedValue(value: ExcelJS.CellValue | null | undefined, location: string, ignoreUncachedFormula = false): string | null {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return isoDate(value);
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value).trim();
   if (typeof value === "object" && "formula" in value) {
     if (value.result === undefined || value.result === null) {
+      if (ignoreUncachedFormula) return null;
+      throw new PaymentTrackerWorkbookError(`${location} contains a formula without a cached displayed value.`);
+    }
+    return displayedValue(value.result as ExcelJS.CellValue, location);
+  }
+  if (typeof value === "object" && "sharedFormula" in value) {
+    if (value.result === undefined || value.result === null) {
+      if (ignoreUncachedFormula) return null;
       throw new PaymentTrackerWorkbookError(`${location} contains a formula without a cached displayed value.`);
     }
     return displayedValue(value.result as ExcelJS.CellValue, location);
   }
   if (typeof value === "object" && "richText" in value) return value.richText.map((part) => part.text).join("").trim();
-  if (typeof value === "object" && "text" in value) return value.text.trim();
+  if (typeof value === "object" && "text" in value) return displayedValue(value.text as ExcelJS.CellValue, location);
   throw new PaymentTrackerWorkbookError(`${location} contains an unsupported cell value.`);
 }
 
@@ -100,7 +108,7 @@ function findHeaderRow(worksheet: ExcelJS.Worksheet, tab: AcceptedTab): { rowNum
     const indexes = new Map<string, number>();
     let hasContent = false;
     for (let index = 1; index <= row.cellCount; index += 1) {
-      const value = displayedValue(row.getCell(index).value, `${tab} row ${rowNumber}, column ${index}`);
+      const value = displayedValue(row.getCell(index).value, `${tab} row ${rowNumber}, column ${index}`, true);
       if (!value) continue;
       hasContent = true;
       const normalized = normalizeHeader(value);
@@ -120,8 +128,8 @@ function findHeaderRow(worksheet: ExcelJS.Worksheet, tab: AcceptedTab): { rowNum
   throw new PaymentTrackerWorkbookError(`${tab} is missing a required header. Expected: ${missing}.`);
 }
 
-function rowHasContent(row: ExcelJS.Row, tab: AcceptedTab): boolean {
-  for (let index = 1; index <= row.cellCount; index += 1) {
+function rowHasContent(row: ExcelJS.Row, tab: AcceptedTab, indexes: Map<string, number>): boolean {
+  for (const index of indexes.values()) {
     if (displayedValue(row.getCell(index).value, `${tab} row ${row.number}, column ${index}`)) return true;
   }
   return false;
@@ -133,7 +141,7 @@ function extractRows(worksheet: ExcelJS.Worksheet, tab: AcceptedTab): ParsedWork
 
   for (let sourceRowNumber = headerRowNumber + 1; sourceRowNumber <= worksheet.rowCount; sourceRowNumber += 1) {
     const sourceRow = worksheet.getRow(sourceRowNumber);
-    if (!rowHasContent(sourceRow, tab)) continue;
+    if (!rowHasContent(sourceRow, tab, indexes)) continue;
     const rawPayload: Record<string, unknown> = {};
     const source: Record<RawFinanceField, string | null> = {
       reportedDateRaw: null,

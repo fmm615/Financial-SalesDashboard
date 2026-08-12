@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { parsePaymentTrackerWorkbook } from "@/server/services/payment-tracker-workbook";
 
-type SheetDefinition = { name: string; rows: Array<Array<string | number | Date | ExcelJS.CellFormulaValue | null>> };
+type SheetDefinition = { name: string; rows: Array<Array<ExcelJS.CellValue | null>> };
 
 async function workbookBytes(sheets: SheetDefinition[]): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook();
@@ -61,6 +61,28 @@ describe("Payment Tracker workbook parser", () => {
 
     await expect(parsePaymentTrackerWorkbook("payment-tracker.xlsx", bytes)).resolves.toMatchObject({
       rows: expect.arrayContaining([expect.objectContaining({ sourceTab: "B2C Cons" })]),
+    });
+  });
+
+  it("ignores an unselected formula above the Finance header", async () => {
+    const bytes = await workbookBytes([
+      { name: "B2C", rows: [[{ formula: "SUM(1:1)" }], b2cHeaders, ["2025-10-05", "Reham", "", 475, "Membership", "Stripe", 2025, "", "Received"]] },
+      { name: "B2C Cons", rows: [b2cConsHeaders, ["05/10/2025", "Reham", "", 475, "Membership", "Individual", "Stripe", "October", 2025, "", "Received"]] },
+    ]);
+
+    await expect(parsePaymentTrackerWorkbook("payment-tracker.xlsx", bytes)).resolves.toMatchObject({
+      rows: expect.arrayContaining([expect.objectContaining({ sourceTab: "B2C", sourceRowNumber: 3 })]),
+    });
+  });
+
+  it("retains a selected hyperlink's displayed text without retaining its URL", async () => {
+    const bytes = await workbookBytes([
+      { name: "B2C", rows: [b2cHeaders, ["2025-10-05", { text: "Reham", hyperlink: "https://example.test/private" }, "", 475, "Membership", "Stripe", 2025, "", "Received"]] },
+      { name: "B2C Cons", rows: [b2cConsHeaders, ["05/10/2025", "Reham", "", 475, "Membership", "Individual", "Stripe", "October", 2025, "", "Received"]] },
+    ]);
+
+    await expect(parsePaymentTrackerWorkbook("payment-tracker.xlsx", bytes)).resolves.toMatchObject({
+      rows: expect.arrayContaining([expect.objectContaining({ sourceTab: "B2C", customerNameRaw: "Reham", rawPayload: expect.not.objectContaining({ Name: expect.stringContaining("example.test") }) })]),
     });
   });
 
