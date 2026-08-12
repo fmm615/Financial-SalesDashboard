@@ -56,7 +56,8 @@ export const tapStatementEvidenceRowSchema = z.object({
   currency: z.string().trim().regex(/^[A-Z]{3}$/),
   credit: z.string().regex(/^\d+(?:\.\d{1,6})?$/).nullable(),
   debit: z.string().regex(/^\d+(?:\.\d{1,6})?$/).nullable(),
-  rawPayload: z.record(z.string(), z.unknown()),
+  // Tap CSV cells are text; constraining them here makes the database JSON boundary explicit.
+  rawPayload: z.record(z.string(), z.string()),
 }).strict();
 
 const reconciliationDecisionFields = {
