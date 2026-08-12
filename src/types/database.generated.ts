@@ -279,6 +279,7 @@ export interface Database {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
         Returns: Uuid;
       };
+      get_b2c_reconciliation_safe_summary: { Args: Record<string, never>; Returns: Json };
     };
     Enums: {
       access_role: "admin" | "viewer";

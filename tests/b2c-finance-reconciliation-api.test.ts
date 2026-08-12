@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as previewImport } from "@/app/api/admin/b2c/finance-imports/preview/route";
 import { POST as finalizeImport } from "@/app/api/admin/b2c/finance-imports/finalize/route";
 import { POST as decideGroup } from "@/app/api/admin/b2c/reconciliation/[groupId]/decision/route";
+import { GET as getReconciliationSummary } from "@/app/api/b2c/reconciliation/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getApprovedRole } from "@/lib/auth/access";
 
@@ -102,5 +103,23 @@ describe("B2C Finance import APIs", () => {
       canonical_finance_row_id: "44444444-4444-4444-8444-444444444444",
       decision_reason: "Finance verified the source row against the workbook.",
     });
+  });
+
+  it("returns only safe summary data to an approved Viewer", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      publicationState: "not_fully_loaded",
+      publicationMessage: "B2C Finance revenue is withheld.",
+      sources: [],
+      counts: { stagedRows: 0, validRows: 0, needsReviewRows: 0, zeroValueRows: 0, invalidRows: 0, unresolvedGroups: 0 },
+    }, error: null });
+    const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) }, rpc };
+    createServerClientMock.mockResolvedValue(client as never);
+    getApprovedRoleMock.mockResolvedValue("viewer");
+
+    const response = await getReconciliationSummary();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ summary: { publicationState: "not_fully_loaded", counts: { stagedRows: 0 } } });
+    expect(rpc).toHaveBeenCalledWith("get_b2c_reconciliation_safe_summary", {});
   });
 });

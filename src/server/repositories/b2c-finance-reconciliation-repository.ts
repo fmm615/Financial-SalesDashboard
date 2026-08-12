@@ -3,6 +3,13 @@ import type { FinanceImportRequestInput } from "@/lib/validation/b2c-finance-imp
 import type { FinanceImportAssessment } from "@/server/services/b2c-finance-reconciliation";
 import type { Json } from "@/types/database.generated";
 
+export type B2cReconciliationSafeSummary = {
+  publicationState: "not_fully_loaded";
+  publicationMessage: string;
+  sources: Array<{ key: "payment_tracker" | "tap_statement" | "stripe_charges"; label: string; status: "pending" | "processing" | "completed" | "failed" | "not_loaded" }>;
+  counts: { stagedRows: number; validRows: number; needsReviewRows: number; zeroValueRows: number; invalidRows: number; unresolvedGroups: number };
+};
+
 export class SupabaseB2cFinanceReconciliationRepository {
   constructor(private readonly client: DatabaseClient) {}
 
@@ -44,5 +51,11 @@ export class SupabaseB2cFinanceReconciliationRepository {
     });
     if (error || !data) throw new Error("Could not finalize the B2C Finance import.");
     return data;
+  }
+
+  async getSafeSummary(): Promise<B2cReconciliationSafeSummary> {
+    const { data, error } = await this.client.rpc("get_b2c_reconciliation_safe_summary", {});
+    if (error || !data || typeof data !== "object" || Array.isArray(data)) throw new Error("Could not load the B2C reconciliation summary.");
+    return data as B2cReconciliationSafeSummary;
   }
 }
