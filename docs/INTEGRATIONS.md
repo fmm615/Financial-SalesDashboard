@@ -118,8 +118,8 @@ can be verified. An Admin may securely stage an approved Payment Tracker
 counts, requires explicit confirmation of the same SHA-256 file, and retains
 the original in the private Admin-only `b2c-finance-imports` bucket before its
 rows are atomically staged. This creates neither a provider payment nor a
-reportable total. Tap CSV parsing/upload, Stripe export parsing/upload,
-automated group construction, and Finance period approval remain later work.
+reportable total. Stripe export parsing/upload, automated group construction,
+and Finance period approval remain later work.
 
 An Admin may also stage one complete Tap statement CSV as original-currency
 evidence. The server retains sales, fees, fee VAT, refunds, transfers, opening

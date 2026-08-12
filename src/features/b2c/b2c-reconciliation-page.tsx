@@ -6,6 +6,7 @@ import { ErrorState, LoadingSkeleton, MetricCard, SectionCard, StatusBadge } fro
 import { useCanManage } from "@/lib/auth/role-context";
 import type { B2cReconciliationSafeSummary } from "@/server/repositories/b2c-finance-reconciliation-repository";
 import type { PaymentTrackerPreview } from "@/server/services/payment-tracker-upload";
+import type { TapStatementPreview } from "@/server/services/tap-statement-upload";
 
 function displayCount(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -24,6 +25,10 @@ export function B2cReconciliationPage() {
   const [preview, setPreview] = useState<PaymentTrackerPreview | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [tapFile, setTapFile] = useState<File | null>(null);
+  const [tapPreview, setTapPreview] = useState<TapStatementPreview | null>(null);
+  const [tapUploadError, setTapUploadError] = useState<string | null>(null);
+  const [tapUploading, setTapUploading] = useState(false);
   const loadSummary = useCallback(async () => {
     setLoadError(false);
     try {
@@ -63,6 +68,30 @@ export function B2cReconciliationPage() {
     } catch (error) { setUploadError(error instanceof Error ? error.message : "The workbook could not be staged."); }
     finally { setUploading(false); }
   };
+  const requestTapPreview = async () => {
+    if (!tapFile) return;
+    setTapUploading(true); setTapUploadError(null); setTapPreview(null);
+    try {
+      const form = new FormData(); form.set("file", tapFile);
+      const response = await fetch("/api/admin/b2c/tap-statement/preview", { method: "POST", body: form });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok || !payload || typeof payload !== "object" || !("preview" in payload)) throw new Error(payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "The Tap statement preview could not be prepared.");
+      setTapPreview(payload.preview as TapStatementPreview);
+    } catch (error) { setTapUploadError(error instanceof Error ? error.message : "The Tap statement preview could not be prepared."); }
+    finally { setTapUploading(false); }
+  };
+  const confirmTapImport = async () => {
+    if (!tapFile || !tapPreview) return;
+    setTapUploading(true); setTapUploadError(null);
+    try {
+      const form = new FormData(); form.set("file", tapFile); form.set("expectedFileSha256", tapPreview.sourceFileSha256);
+      const response = await fetch("/api/admin/b2c/tap-statement/finalize", { method: "POST", body: form });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "The Tap statement could not be staged.");
+      setTapFile(null); setTapPreview(null); await loadSummary();
+    } catch (error) { setTapUploadError(error instanceof Error ? error.message : "The Tap statement could not be staged."); }
+    finally { setTapUploading(false); }
+  };
 
   return <AppShell title="B2C reconciliation" description="A controlled intake view for Finance workbook and provider evidence. Until reconciliation and Finance approval are complete, B2C Finance revenue is intentionally not published.">
     {!summary && !loadError && <section className="rounded-card border border-border bg-surface p-5 shadow-card"><p className="mb-3 text-sm text-text-muted">Loading B2C reconciliation coverage</p><LoadingSkeleton rows={5} /></section>}
@@ -79,6 +108,13 @@ export function B2cReconciliationPage() {
         <div className="mt-3 flex flex-wrap gap-3"><button type="button" disabled={!file || uploading} onClick={() => void requestPreview()} className="rounded-md bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{uploading ? "Processing…" : "Preview workbook"}</button><button type="button" disabled={!preview || uploading} onClick={() => void confirmImport()} className="rounded-md border border-brand-primary px-4 py-2 text-sm font-semibold text-brand-primary disabled:cursor-not-allowed disabled:opacity-50">Confirm staged import</button></div>
         {uploadError && <p className="mt-3 text-sm text-danger" role="alert">{uploadError}</p>}
         {preview && <div className="mt-4 rounded-md border border-border bg-canvas p-4 text-sm text-text-secondary" role="status"><p className="font-medium text-text-primary">{preview.summary.totalRows} extracted rows</p><p className="mt-1">Tabs: {preview.acceptedTabs.join(" and ")} · {preview.summary.validRows} valid · {preview.summary.needsReviewRows} need review · {preview.summary.zeroValueRows} zero-value · {preview.summary.invalidRows} invalid</p><p className="mt-1">Duplicate candidates: {preview.duplicateCandidates.exact} exact, {preview.duplicateCandidates.possible} possible, {preview.duplicateCandidates.conflicts} conflicts.</p><p className="mt-2 text-text-muted">Review only: staging retains source evidence and does not create a reportable total.</p></div>}
+      </SectionCard>}
+      {canManage && <SectionCard title="Tap statement upload" description="Preview one complete Tap .csv statement, then explicitly stage it as original-currency evidence. It never publishes B2C Finance revenue." className="mt-4">
+        <label htmlFor="tap-statement-csv" className="text-sm font-medium text-text-primary">Tap statement CSV</label>
+        <input id="tap-statement-csv" type="file" accept=".csv,text/csv" disabled={tapUploading} className="mt-2 block w-full text-sm" onChange={(event) => { setTapFile(event.target.files?.[0] ?? null); setTapPreview(null); setTapUploadError(null); }} />
+        <div className="mt-3 flex flex-wrap gap-3"><button type="button" disabled={!tapFile || tapUploading} onClick={() => void requestTapPreview()} className="rounded-md bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{tapUploading ? "Processing…" : "Preview Tap statement"}</button><button type="button" disabled={!tapPreview || tapUploading} onClick={() => void confirmTapImport()} className="rounded-md border border-brand-primary px-4 py-2 text-sm font-semibold text-brand-primary disabled:cursor-not-allowed disabled:opacity-50">Confirm Tap staged import</button></div>
+        {tapUploadError && <p className="mt-3 text-sm text-danger" role="alert">{tapUploadError}</p>}
+        {tapPreview && <div className="mt-4 rounded-md border border-border bg-canvas p-4 text-sm text-text-secondary" role="status"><p className="font-medium text-text-primary">{tapPreview.totalRows} evidence rows</p><p className="mt-1">{tapPreview.kindCounts.sale} sales · {tapPreview.kindCounts.processing_fee} processing fees · {tapPreview.kindCounts.fee_vat} fee VAT · {tapPreview.kindCounts.refund} refunds · {tapPreview.kindCounts.transfer} transfers</p><p className="mt-1">{tapPreview.kindCounts.opening_balance} opening balances · {tapPreview.kindCounts.needs_review} need review · {tapPreview.missingPaymentIdSales} sales missing Tap payment IDs · {tapPreview.unparsedDates} raw dates retained</p><p className="mt-2 text-text-muted">Evidence only: original currency and raw statement dates are retained; no total, conversion, or revenue is created.</p></div>}
       </SectionCard>}
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Staged Finance rows" value={displayCount(summary.counts.stagedRows)} note="Retained for reconciliation; not a revenue total" />

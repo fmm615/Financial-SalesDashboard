@@ -33,6 +33,7 @@ describe("B2C reconciliation review UI", () => {
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve canonical sale" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Payment Tracker workbook")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Tap statement CSV")).not.toBeInTheDocument();
   });
 
   it("allows an Admin to preview then explicitly stage one workbook without showing a Finance total", async () => {
@@ -47,5 +48,20 @@ describe("B2C reconciliation review UI", () => {
     await waitFor(() => expect(screen.getByText("2 extracted rows")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Confirm staged import" })).toBeEnabled();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+  });
+
+  it("allows an Admin to preview a Tap CSV using safe evidence counts only", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ summary: { publicationState: "not_fully_loaded", publicationMessage: "Finance revenue is withheld.", sources: [], counts: { stagedRows: 0, validRows: 0, needsReviewRows: 0, zeroValueRows: 0, invalidRows: 0, unresolvedGroups: 0 } } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ preview: { sourceFileSha256: "c".repeat(64), totalRows: 836, kindCounts: { sale: 200, processing_fee: 200, fee_vat: 200, refund: 0, transfer: 100, opening_balance: 1, needs_review: 135 }, missingPaymentIdSales: 0, unparsedDates: 836 } }) }));
+    render(<RoleProvider role="admin"><B2cReconciliationPage /></RoleProvider>);
+    const input = await screen.findByLabelText("Tap statement CSV");
+    fireEvent.change(input, { target: { files: [new File(["bytes"], "Tap Statement.csv")] } });
+    expect(screen.getByRole("button", { name: "Confirm Tap staged import" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Preview Tap statement" }));
+    await waitFor(() => expect(screen.getByText("836 evidence rows")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Confirm Tap staged import" })).toBeEnabled();
+    expect(screen.getByText(/200 sales/)).toBeInTheDocument();
+    expect(screen.queryByText("BHD 74.570")).not.toBeInTheDocument();
   });
 });
