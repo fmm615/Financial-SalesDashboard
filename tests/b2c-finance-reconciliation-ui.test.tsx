@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RoleProvider } from "@/lib/auth/role-context";
@@ -32,5 +32,20 @@ describe("B2C reconciliation review UI", () => {
     expect(screen.getByText("Stripe Charges")).toBeInTheDocument();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve canonical sale" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Payment Tracker workbook")).not.toBeInTheDocument();
+  });
+
+  it("allows an Admin to preview then explicitly stage one workbook without showing a Finance total", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ summary: { publicationState: "not_fully_loaded", publicationMessage: "Finance revenue is withheld.", sources: [], counts: { stagedRows: 0, validRows: 0, needsReviewRows: 0, zeroValueRows: 0, invalidRows: 0, unresolvedGroups: 0 } } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ preview: { sourceFileSha256: "a".repeat(64), acceptedTabs: ["B2C", "B2C Cons"], summary: { totalRows: 2, validRows: 2, needsReviewRows: 0, zeroValueRows: 0, invalidRows: 0 }, issueCounts: {}, duplicateCandidates: { exact: 1, possible: 0, conflicts: 0 } } }) }));
+    render(<RoleProvider role="admin"><B2cReconciliationPage /></RoleProvider>);
+    const input = await screen.findByLabelText("Payment Tracker workbook");
+    fireEvent.change(input, { target: { files: [new File(["bytes"], "Payment Tracker.xlsx")] } });
+    expect(screen.getByRole("button", { name: "Confirm staged import" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Preview workbook" }));
+    await waitFor(() => expect(screen.getByText("2 extracted rows")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Confirm staged import" })).toBeEnabled();
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
   });
 });
