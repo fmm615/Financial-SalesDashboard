@@ -142,6 +142,11 @@ the atomic staging function. Storage policies permit only Admin access; no
 Viewer, anonymous user, or public URL can read the source workbook. Tap and
 Stripe evidence use separate future upload boundaries.
 
+Tap statements follow the same private-upload control but stage into provider
+evidence rather than Finance revenue candidates. Every source line is retained
+with its Tap kind and original currency, through an atomic Tap finalizer. No
+Tap upload can write a reportable payment or invent a BHD-to-USD rate.
+
 The coverage API is deliberately safe for approved viewers: it exposes only
 source states and counts, never raw row data, provider IDs, or customer details.
 It always reports `Not fully loaded` until the complete Stripe Charges export,

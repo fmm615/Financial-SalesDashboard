@@ -51,6 +51,9 @@ Test:
 - Payment Tracker upload: `.xlsx` tab/header/row-limit/formula validation,
   memory-only preview, confirmation hash matching, private Storage cleanup on
   failed finalization, and Admin-only controls with no displayed Finance total
+- Tap statement upload: full CSV line retention and classification, original
+  currency preservation, atomic evidence staging, private Storage cleanup, and
+  no BHD/USD conversion or `b2c_payments` write
 - B2C reconciliation coverage: safe approved-viewer summary, `Not fully loaded`
   gate, source state display, and no claimed B2C Finance revenue total
 

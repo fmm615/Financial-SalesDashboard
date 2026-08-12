@@ -121,6 +121,11 @@ rows are atomically staged. This creates neither a provider payment nor a
 reportable total. Tap CSV parsing/upload, Stripe export parsing/upload,
 automated group construction, and Finance period approval remain later work.
 
+An Admin may also stage one complete Tap statement CSV as original-currency
+evidence. The server retains sales, fees, fee VAT, refunds, transfers, opening
+balances, and unknown lines through a separate atomic function. Tap evidence
+does not create B2C Finance revenue or a USD conversion.
+
 ## HubSpot
 
 Purpose: B2B deals, stages, and bookings.

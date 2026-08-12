@@ -1,6 +1,6 @@
 begin;
 
-select plan(21);
+select plan(22);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -21,6 +21,15 @@ select ok(
       and file_size_limit = 10485760
   ),
   'Payment Tracker source files use a private size-limited Storage bucket'
+);
+
+select ok(
+  exists(
+    select 1
+    from pg_proc
+    where proname = 'finalize_tap_statement_import'
+  ),
+  'Tap statement evidence has an atomic finalization function'
 );
 
 select throws_ok(
