@@ -44,6 +44,21 @@ export const tapEvidenceRowSchema = z.object({
   credit: z.string().max(100).nullable(),
 }).strict();
 
+export const tapStatementEvidenceRowSchema = z.object({
+  sourceRowNumber: z.number().int().min(2),
+  postingId: z.string().trim().min(1).max(255),
+  paymentId: z.string().trim().max(255).nullable(),
+  refundId: z.string().trim().max(255).nullable(),
+  kind: z.enum(["sale", "processing_fee", "fee_vat", "refund", "transfer", "opening_balance", "needs_review"]),
+  description: z.string().max(1000).nullable(),
+  occurredAt: z.string().datetime().nullable(),
+  occurredAtRaw: z.string().max(100).nullable(),
+  currency: z.string().trim().regex(/^[A-Z]{3}$/),
+  credit: z.string().regex(/^\d+(?:\.\d{1,6})?$/).nullable(),
+  debit: z.string().regex(/^\d+(?:\.\d{1,6})?$/).nullable(),
+  rawPayload: z.record(z.string(), z.unknown()),
+}).strict();
+
 const reconciliationDecisionFields = {
   decisionState: z.enum(["canonical", "excluded"]),
   canonicalFinanceRowId: z.string().uuid().nullable().optional(),
@@ -70,4 +85,5 @@ export const reconciliationDecisionSchema = addDecisionRequirements(z.object({
 export type FinanceWorkbookRowInput = z.infer<typeof financeWorkbookRowSchema>;
 export type FinanceImportRequestInput = z.infer<typeof financeImportRequestSchema>;
 export type TapEvidenceRowInput = z.infer<typeof tapEvidenceRowSchema>;
+export type TapStatementEvidenceRowInput = z.infer<typeof tapStatementEvidenceRowSchema>;
 export type ReconciliationDecisionInput = z.infer<typeof reconciliationDecisionSchema>;
