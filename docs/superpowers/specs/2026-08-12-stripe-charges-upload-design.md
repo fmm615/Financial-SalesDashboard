@@ -42,8 +42,8 @@ private original source file retains full evidence for authorised audit access.
 
 ## Accepted rows and classification
 
-Every non-blank CSV row creates one primary evidence entry using its Stripe
-charge ID as the provider row ID. A row with a positive `Amount Refunded`
+Every non-blank CSV row creates one primary evidence entry, using its Stripe
+charge ID as the provider row ID when one is present. A row with a positive `Amount Refunded`
 creates one additional, linked refund evidence entry from the same source row.
 The schema therefore adds an explicit source-entry key (`primary` or `refund`)
 to its immutable provenance key; it does not invent a Stripe refund ID where
