@@ -169,6 +169,15 @@ Repeated keys are ambiguous and never grouped automatically. Both rows remain
 immutable, and the reasoned canonical/excluded decision stays outside
 reportable payments and Finance period approval.
 
+Stripe API enrichment remains one-to-one with the existing B2C payment. The
+Charge ID is the payment identity; PaymentIntent, Checkout, Invoice, Payment
+Method, Customer, and Balance Transaction objects add typed evidence and never
+create another sale. Charge, completed-Checkout, and finalized-Invoice contacts
+are transaction evidence. Mutable Payment Method and Customer contacts are
+stored separately and exposed to approved users only through a narrow protected
+function with explicit source labels. Settlement, fee, conversion, and tax
+evidence is Admin-only and never enters dashboard totals.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

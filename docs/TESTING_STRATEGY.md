@@ -57,6 +57,11 @@ Test:
 - Stripe Charges CSV upload: separate linked refund evidence, minimized stored
   source fields, typed Admin-only contacts, original-currency retention,
   source-hash confirmation, and no B2C payment/revenue creation
+- Stripe API enrichment: GET-only client requests, strict provider-object
+  validation, fixed transaction-contact precedence, mutable fallback isolation,
+  one Charge/one payment idempotency, partial lookup retention, settlement
+  evidence separation, and labelled dashboard contacts that do not change
+  reportability or financial totals
 - B2C reconciliation coverage: safe approved-viewer summary, `Not fully loaded`
   gate, source state display, and no claimed B2C Finance revenue total
 - exact B2C/B2C Cons duplicate grouping: exact normalized name/date/USD

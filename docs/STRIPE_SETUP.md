@@ -40,7 +40,22 @@ For a safe test event:
 stripe trigger charge.succeeded
 ```
 
-PLAYBOOK uses only an email provided directly on the **Charge** (receipt or billing details); it never substitutes an attached Stripe Customer email because that profile can belong to a different or outdated account. A charge without a valid direct email is still retained in the B2C source ledger as `—` and flagged **Missing customer email** for Admin review. If the charge has no configured product reference or mapping, it is likewise retained as **Unmapped product**. These records remain excluded from financial totals until an Admin completes the required review.
+PLAYBOOK reads transaction contacts from the **Charge**, a completed Checkout
+Session, and a finalized Invoice snapshot. It may display current Payment Method
+or Customer-profile contact as a clearly labelled fallback, but mutable fallback
+data never makes a payment reportable or changes duplicate matching. A charge
+without a valid transaction email remains flagged **Missing customer email**.
+If the charge has no configured product reference or mapping, it remains
+**Unmapped product**. These records stay excluded until the required review is
+completed.
+
+The integration also reads the referenced Balance Transaction for Admin-only
+fee and settlement reconciliation. Every Stripe request is HTTP GET. PLAYBOOK
+has no Stripe create, update, refund, email, metadata-write, or delete method.
+
+If a Stripe secret is ever printed in terminal or tool output, rotate it in the
+Stripe Dashboard and replace the server-only value before live testing. Never
+print `.env.local` values while checking configuration.
 
 ## 4. Configure the production endpoint later
 
@@ -64,3 +79,9 @@ Copy that endpoint's signing secret into the production environment as `STRIPE_W
 Before a payment can count in B2C totals, an Admin must map the provider product reference to an approved category and optional membership tier. Duplicates, failed payments, refunds, and unmapped products remain visible in the B2C ledger and Review Queue for traceability.
 
 The daily job should call `/api/internal/reconcile/stripe` with the `Authorization: Bearer <INTEGRATION_CRON_SECRET>` header. It re-reads the last 48 hours, using provider IDs and content fingerprints to avoid double-counting.
+
+After deploying enrichment, restart the historical backfill from Admin to
+revisit existing Charge IDs. Validate a small sample against the Stripe Charges
+CSV by exact `ch_...` ID. Compare only safe match/missing/conflict counts in
+logs; never print customer contacts, card data, addresses, raw payloads, or
+credentials.

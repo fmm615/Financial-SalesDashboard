@@ -95,6 +95,13 @@ their own protected finalizers. Stripe evidence keeps only typed Admin review
 contacts and a minimized payload; sensitive export fields remain in private
 Storage rather than spreading through application models.
 
+Stripe API enrichment normalization lives in
+`lib/integrations/stripe/enrichment.ts`. The GET-only client retrieves referenced
+Stripe objects, `server/services/sync-stripe.ts` coordinates optional reads, and
+the provider repository persists only typed one-to-one details. The general B2C
+dashboard consumes a protected contact-fallback function; Admin-only settlement
+evidence does not cross into its financial snapshot.
+
 ### `lib/supabase/` and `lib/validation/`
 
 Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.
