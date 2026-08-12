@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyStripeTransactionEnrichment,
   normaliseStripeEnrichment,
   stripeChargeEnrichmentReferences,
 } from "@/lib/integrations/stripe/enrichment";
 import { normaliseStripeCharge } from "@/lib/integrations/stripe/normalise";
+import { StripeClient } from "@/lib/integrations/stripe/client";
 
 const rawCharge = {
   id: "ch_123",
@@ -124,5 +125,49 @@ describe("Stripe read-only enrichment normalisation", () => {
       references: stripeChargeEnrichmentReferences(rawCharge),
       balanceTransaction: { id: "txn_bad", amount: 1000, fee: 100, net: 950, currency: "usd", exchange_rate: null, status: "available", fee_details: [] },
     })).toThrow("inconsistent settlement amounts");
+  });
+});
+
+describe("Stripe enrichment client", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("retrieves every enrichment object with explicit GET requests only", async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (url.includes("/checkout/sessions?")) return new Response(JSON.stringify({ data: [{ id: "cs_123" }] }), { status: 200 });
+      if (url.includes("/line_items?")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      return new Response(JSON.stringify({ id: "object_123" }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new StripeClient({ apiBaseUrl: "https://api.stripe.test", apiKey: "secret-placeholder", webhookSecret: "webhook-placeholder", productReferenceMetadataKey: "product_id" });
+
+    await Promise.all([
+      client.fetchCheckoutContextForPaymentIntent("pi_123"),
+      client.fetchInvoice("in_123"),
+      client.fetchPaymentMethod("pm_123"),
+      client.fetchCustomer("cus_123"),
+      client.fetchBalanceTransaction("txn_123"),
+    ]);
+
+    expect(fetchMock.mock.calls.every(([, init]) => init?.method === "GET")).toBe(true);
+    const requestedUrls = fetchMock.mock.calls.map(([url]) => url);
+    expect(requestedUrls).toEqual(expect.arrayContaining([
+      expect.stringContaining("/v1/payment_methods/pm_123"),
+      expect.stringContaining("/v1/customers/cus_123"),
+      expect.stringContaining("/v1/invoices/in_123"),
+      expect.stringContaining("/v1/balance_transactions/txn_123"),
+    ]));
+    expect(requestedUrls.some((url) => url.includes("payment_intent=pi_123"))).toBe(true);
+  });
+
+  it("URL-encodes provider IDs and returns null when no Checkout Session exists", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ data: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new StripeClient({ apiBaseUrl: "https://api.stripe.test", apiKey: "secret-placeholder", webhookSecret: "webhook-placeholder", productReferenceMetadataKey: "product_id" });
+
+    await client.fetchPaymentMethod("pm/test value");
+    await expect(client.fetchCheckoutContextForPaymentIntent("pi missing")).resolves.toBeNull();
+
+    expect(fetchMock.mock.calls[0][0]).toContain("pm%2Ftest%20value");
+    expect(fetchMock.mock.calls[1][0]).toContain("payment_intent=pi+missing");
   });
 });

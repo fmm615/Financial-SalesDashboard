@@ -25,11 +25,23 @@ export class StripeClient {
   }
 
   async fetchCharge(chargeId: string): Promise<unknown> { return this.request(`/v1/charges/${encodeURIComponent(chargeId)}`); }
+  async fetchPaymentMethod(paymentMethodId: string): Promise<unknown> { return this.request(`/v1/payment_methods/${encodeURIComponent(paymentMethodId)}`); }
+  async fetchCustomer(customerId: string): Promise<unknown> { return this.request(`/v1/customers/${encodeURIComponent(customerId)}`); }
+  async fetchInvoice(invoiceId: string): Promise<unknown> {
+    const query = new URLSearchParams();
+    query.append("expand[]", "lines.data.price.product");
+    return this.request(`/v1/invoices/${encodeURIComponent(invoiceId)}?${query.toString()}`);
+  }
+  async fetchBalanceTransaction(balanceTransactionId: string): Promise<unknown> { return this.request(`/v1/balance_transactions/${encodeURIComponent(balanceTransactionId)}`); }
   /**
    * Checkout is the reliable path from a Charge's PaymentIntent to its Price
    * and Product. The result remains untrusted until normalised by the service.
    */
   async fetchCheckoutPlanForPaymentIntent(paymentIntentId: string): Promise<unknown | null> {
+    const context = await this.fetchCheckoutContextForPaymentIntent(paymentIntentId) as { session: { id: string }; lineItems: unknown } | null;
+    return context ? { sessionId: context.session.id, lineItems: context.lineItems } : null;
+  }
+  async fetchCheckoutContextForPaymentIntent(paymentIntentId: string): Promise<unknown | null> {
     const query = new URLSearchParams({ payment_intent: paymentIntentId, limit: "1" });
     const sessions = await this.request(`/v1/checkout/sessions?${query.toString()}`) as StripeListResponse;
     const session = sessions.data?.[0] as { id?: unknown } | undefined;
@@ -37,7 +49,7 @@ export class StripeClient {
     const lineItemQuery = new URLSearchParams({ limit: "100" });
     lineItemQuery.append("expand[]", "data.price.product");
     const lineItems = await this.request(`/v1/checkout/sessions/${encodeURIComponent(session.id)}/line_items?${lineItemQuery.toString()}`);
-    return { sessionId: session.id, lineItems };
+    return { session, lineItems };
   }
   async listChargesCreatedSince(since: Date): Promise<unknown[]> { return this.listSince("charges", since); }
   async listRefundsCreatedSince(since: Date): Promise<unknown[]> { return this.listSince("refunds", since); }
