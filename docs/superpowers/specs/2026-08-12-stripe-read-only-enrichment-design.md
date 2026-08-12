@@ -171,9 +171,11 @@ typed enrichment fields needed for traceability and reconciliation, including:
 - last successful enrichment timestamp.
 
 The table stores no card number, last four digits, fingerprint, expiry,
-address, IP address, UTM values, or unrestricted raw payload. It uses the same
-protected B2C access boundary and database constraints for money, currency,
-field lengths, and one details row per payment.
+address, IP address, UTM values, or unrestricted raw payload. It is Admin-read
+only and uses database constraints for money, currency, field lengths, one
+details row per payment, and a Stripe-only linked payment. A protected
+approved-user function exposes only the resolved mutable fallback contacts and
+their labels; it exposes no provider IDs, settlement, tax, issues, or timestamps.
 
 Local Admin corrections remain separate and keep priority in effective
 dashboard presentation. Automated enrichment records provider facts; it is not
@@ -201,7 +203,8 @@ details constraint prevent duplicate payments and duplicate details records.
 
 ## Dashboard behavior
 
-The B2C ledger continues to show one row per Stripe Charge. It displays:
+The B2C ledger continues to show one row per Stripe Charge. Through the narrow
+fallback-contact function, it displays:
 
 - effective name, email, and phone;
 - a subtle source label when a displayed contact comes only from a current
