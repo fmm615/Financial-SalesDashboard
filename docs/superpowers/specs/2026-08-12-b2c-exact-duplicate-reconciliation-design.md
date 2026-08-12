@@ -36,11 +36,15 @@ An exact cross-tab duplicate candidate requires all of the following:
    email; and
 4. when e-mail is absent, both have the same normalized customer name and
    phone number.
+5. that exact key occurs once in `B2C` and once in `B2C Cons` within the same
+   completed workbook import. If either tab contains two or more matching rows,
+   the source is ambiguous and no group is created.
 
 Blank fields, conflicting fields, merely similar names, nearby dates, or a
 matching amount alone are not exact duplicates. They remain independent,
-non-reportable source rows for review. The rule never treats recurring
-payments as duplicates merely because they have the same customer and amount.
+non-reportable source rows for review. The rule never treats recurring or
+multiple same-day payments as duplicates merely because they have the same
+customer and amount.
 
 ## Reconciliation flow
 
