@@ -66,9 +66,11 @@ Rows are classified from direct Stripe values:
   provider-evidence row, or a dashboard total. The source-entry key makes the
   primary charge and its optional linked refund independently immutable.
 
-The parser retains the original Stripe status and raw cells, so a Finance
-reviewer can see why a row was classified without guessing from description
-text.
+The parser retains the original Stripe status and a deliberate non-sensitive
+source-field subset, so a Finance reviewer can see why a row was classified
+without guessing from description text. Card, address, fingerprint, IP,
+payment-method, and metadata fields remain only in the private original file,
+not in the evidence-table payload.
 
 ## Currency and amounts
 
