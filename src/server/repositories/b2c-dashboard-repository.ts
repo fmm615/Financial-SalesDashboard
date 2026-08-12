@@ -12,6 +12,9 @@ export type B2cLedgerRow = {
   customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
+  customerNameEvidenceLabel: StripeContactFallbackLabel;
+  customerEmailEvidenceLabel: StripeContactFallbackLabel;
+  customerPhoneEvidenceLabel: StripeContactFallbackLabel;
   date: string;
   dateValue: string;
   amountUsd: string;
@@ -32,6 +35,13 @@ export type B2cLedgerRow = {
   openReviewFlags: B2cOpenReviewFlag[];
   issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Refunded" | null;
 };
+export type StripeContactFallbackLabel = "Stripe payment method" | "Stripe profile" | null;
+export type B2cStripeContactFallback = {
+  customerName: string | null; customerNameLabel: StripeContactFallbackLabel;
+  customerEmail: string | null; customerEmailLabel: StripeContactFallbackLabel;
+  customerPhone: string | null; customerPhoneLabel: StripeContactFallbackLabel;
+};
+export type B2cContactDisplay = B2cStripeContactFallback;
 export type B2cDashboardSnapshot = {
   period: B2cReportingPeriod;
   sourceCoverage: B2cSourceCoverage;
@@ -77,6 +87,17 @@ type FinanceExceptionDecision = {
   created_at: string;
   id: string;
 };
+
+export function resolveB2cContactDisplay(source: Pick<ReturnType<typeof resolveEffectiveB2cPayment>, "customerName" | "customerEmail" | "customerPhone" | "hasLocalCorrection" | "correctedFields">, fallback: B2cStripeContactFallback | null | undefined): B2cContactDisplay {
+  return {
+    customerName: source.customerName ?? fallback?.customerName ?? null,
+    customerNameLabel: source.customerName ? null : fallback?.customerNameLabel ?? null,
+    customerEmail: source.customerEmail ?? fallback?.customerEmail ?? null,
+    customerEmailLabel: source.customerEmail ? null : fallback?.customerEmailLabel ?? null,
+    customerPhone: source.customerPhone ?? fallback?.customerPhone ?? null,
+    customerPhoneLabel: source.customerPhone ? null : fallback?.customerPhoneLabel ?? null,
+  };
+}
 
 export type B2cOpenReviewFlag = {
   id: string;
@@ -170,19 +191,20 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  */
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, financeExceptionResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = await Promise.all([
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, financeExceptionResult, stripeContactFallbacksResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = await Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
     client.from("b2c_payment_local_overrides").select("payment_id,customer_name,customer_email,customer_phone,category_code,membership_tier,local_amount_usd,local_occurred_on"),
     client.from("b2c_payment_finance_exception_decisions").select("id,payment_id,decision,created_at").order("created_at", { ascending: false }),
+    client.rpc("get_b2c_stripe_payment_contact_fallbacks"),
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "stripe").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "stripe").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "tap").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "tap").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? financeExceptionResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error) {
+  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? financeExceptionResult.error ?? stripeContactFallbacksResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error) {
     throw new Error("Could not load B2C source records.");
   }
 
@@ -193,6 +215,11 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     { provider: "tap", active: payments.some((payment) => payment.source_system === "tap") || refunds.some((refund) => refund.source_system === "tap") || Boolean(tapHistoricalResult.data), historicalBackfill: tapHistoricalResult.data ? { status: tapHistoricalResult.data.status, recordsFailed: tapHistoricalResult.data.records_failed, completedAt: tapHistoricalResult.data.completed_at } : null, latestReconciliation: tapReconciliationResult.data ? { status: tapReconciliationResult.data.status, requestedRangeEnd: tapReconciliationResult.data.requested_range_end, completedAt: tapReconciliationResult.data.completed_at } : null },
   ] });
   const overridesByPayment = new Map<string, LocalPaymentOverride>((localOverridesResult.data ?? []).map((override) => [override.payment_id, override]));
+  const stripeFallbacksByPayment = new Map<string, B2cStripeContactFallback>((stripeContactFallbacksResult.data ?? []).map((fallback) => [fallback.payment_id, {
+    customerName: fallback.customer_name, customerNameLabel: fallback.customer_name_label,
+    customerEmail: fallback.customer_email, customerEmailLabel: fallback.customer_email_label,
+    customerPhone: fallback.customer_phone, customerPhoneLabel: fallback.customer_phone_label,
+  }]));
   const latestFinanceDecisionByPayment = new Map<string, FinanceExceptionDecision>();
   for (const decision of (financeExceptionResult.data ?? []) as FinanceExceptionDecision[]) {
     if (!latestFinanceDecisionByPayment.has(decision.payment_id)) latestFinanceDecisionByPayment.set(decision.payment_id, decision);
@@ -304,12 +331,16 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     ...payments.filter((payment) => isInB2cPeriod(effectivePayment(payment).occurredOn, period)).map((payment) => {
       const reviewFlags = (flagsByRecord.get(payment.id) ?? []).map((flag) => ({ id: flag.id, type: flagLabel([flag])!, reason: flag.reason }));
       const effective = effectivePayment(payment);
+      const displayContact = resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id));
       return {
       id: payment.id,
       recordType: "Payment" as const,
-      customerName: effective.customerName,
-      customerEmail: effective.customerEmail,
-      customerPhone: effective.customerPhone,
+      customerName: displayContact.customerName,
+      customerEmail: displayContact.customerEmail,
+      customerPhone: displayContact.customerPhone,
+      customerNameEvidenceLabel: displayContact.customerNameLabel,
+      customerEmailEvidenceLabel: displayContact.customerEmailLabel,
+      customerPhoneEvidenceLabel: displayContact.customerPhoneLabel,
       date: formatDate(effective.occurredOn),
       dateValue: effective.occurredOn,
       amountUsd: formatUsd(toScaledUsd(effective.amountUsd)),
@@ -337,13 +368,17 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     }).map((refund) => {
       const payment = paymentById.get(refund.payment_id);
       const effective = payment ? effectivePayment(payment) : null;
+      const displayContact = payment && effective ? resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id)) : null;
       const reviewFlags = (flagsByRecord.get(refund.id) ?? []).map((flag) => ({ id: flag.id, type: flagLabel([flag])!, reason: flag.reason }));
       return {
         id: refund.id,
         recordType: "Refund" as const,
-        customerName: effective?.customerName ?? null,
-        customerEmail: effective?.customerEmail ?? null,
-        customerPhone: effective?.customerPhone ?? null,
+        customerName: displayContact?.customerName ?? null,
+        customerEmail: displayContact?.customerEmail ?? null,
+        customerPhone: displayContact?.customerPhone ?? null,
+        customerNameEvidenceLabel: displayContact?.customerNameLabel ?? null,
+        customerEmailEvidenceLabel: displayContact?.customerEmailLabel ?? null,
+        customerPhoneEvidenceLabel: displayContact?.customerPhoneLabel ?? null,
         date: formatDate(refund.occurred_at.slice(0, 10)),
         dateValue: refund.occurred_at.slice(0, 10),
         amountUsd: formatUsd(-toScaledUsd(refund.amount_usd)),
