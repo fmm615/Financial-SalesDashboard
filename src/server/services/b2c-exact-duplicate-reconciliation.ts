@@ -16,17 +16,10 @@ export type ExactFinanceRow = {
 export function isExactFinanceCrossTabPair(left: ExactFinanceRow, right: ExactFinanceRow): boolean {
   if (left.importId !== right.importId || left.quality !== "valid" || right.quality !== "valid") return false;
   if (new Set([left.sourceTab, right.sourceTab]).size !== 2) return false;
-  if (!left.occurredOn || !left.amountUsd || !left.category || !left.paymentMethod) return false;
+  if (!left.occurredOn || !left.amountUsd || !left.paymentMethod || !left.normalizedCustomerName) return false;
   if (left.occurredOn !== right.occurredOn || left.amountUsd !== right.amountUsd
-    || left.category !== right.category || left.paymentMethod !== right.paymentMethod) return false;
-
-  if (left.normalizedCustomerEmail || right.normalizedCustomerEmail) {
-    return Boolean(left.normalizedCustomerEmail && left.normalizedCustomerEmail === right.normalizedCustomerEmail);
-  }
-
-  return Boolean(left.normalizedCustomerName && left.normalizedCustomerPhone
-    && left.normalizedCustomerName === right.normalizedCustomerName
-    && left.normalizedCustomerPhone === right.normalizedCustomerPhone);
+    || left.paymentMethod !== right.paymentMethod) return false;
+  return left.normalizedCustomerName === right.normalizedCustomerName;
 }
 
 /** Multiple same-key rows are ambiguous and cannot be automatically grouped. */

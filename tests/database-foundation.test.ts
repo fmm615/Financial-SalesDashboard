@@ -148,6 +148,21 @@ describe("Phase 2 database migration contracts", () => {
     expect(exactGroups).not.toContain("insert into public.b2c_payments");
   });
 
+  it("aligns cross-tab duplicate grouping with the shared Finance source fields", () => {
+    const adjustment = () => migration("20260812104000_adjust_b2c_cross_tab_duplicate_grouping.sql");
+
+    expect(adjustment).not.toThrow();
+
+    const adjustedGroups = adjustment();
+    expect(adjustedGroups).toContain("create or replace function public.create_b2c_exact_duplicate_groups()");
+    expect(adjustedGroups).toContain("rows.normalized_customer_name as customer_name_key");
+    expect(adjustedGroups).toContain("count(*) filter (where source_tab = 'B2C') = 1");
+    expect(adjustedGroups).toContain("count(*) filter (where source_tab = 'B2C Cons') = 1");
+    expect(adjustedGroups).not.toContain("category_key");
+    expect(adjustedGroups).not.toContain("customer_email_key");
+    expect(adjustedGroups).not.toContain("insert into public.b2c_payments");
+  });
+
   it("enforces provider identity, Stripe=B2C, separate refunds, and refund overage protection", () => {
     const b2c = migration("20260802100200_b2c_foundation.sql");
     const b2b = migration("20260802100300_b2b_foundation.sql");

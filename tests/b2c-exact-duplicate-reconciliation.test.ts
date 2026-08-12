@@ -16,24 +16,29 @@ const b2cConsRow: ExactFinanceRow = {
 };
 
 describe("exact B2C Finance duplicate rules", () => {
-  it("accepts one exact cross-tab e-mail match from one completed-import candidate set", () => {
-    expect(isExactFinanceCrossTabPair(b2cRow, b2cConsRow)).toBe(true);
-    expect(isUnambiguousExactFinanceKey([b2cRow, b2cConsRow])).toBe(true);
+  it("accepts one exact name, date, amount, and method pair despite incompatible cross-tab contact and category fields", () => {
+    const sourceStructuredConsRow = {
+      ...b2cConsRow,
+      category: "b2c-membership",
+      normalizedCustomerEmail: null,
+      normalizedCustomerPhone: null,
+    };
+
+    expect(isExactFinanceCrossTabPair(b2cRow, sourceStructuredConsRow)).toBe(true);
+    expect(isUnambiguousExactFinanceKey([b2cRow, sourceStructuredConsRow])).toBe(true);
   });
 
-  it("rejects a same-customer same-day row when a financial field differs", () => {
+  it("rejects a cross-tab row when a shared comparison field differs", () => {
     expect(isExactFinanceCrossTabPair(b2cRow, { ...b2cConsRow, amountUsd: "476" })).toBe(false);
-    expect(isExactFinanceCrossTabPair(b2cRow, { ...b2cConsRow, category: "other" })).toBe(false);
+    expect(isExactFinanceCrossTabPair(b2cRow, { ...b2cConsRow, normalizedCustomerName: "another member" })).toBe(false);
     expect(isExactFinanceCrossTabPair(b2cRow, { ...b2cConsRow, paymentMethod: "bank transfer" })).toBe(false);
   });
 
-  it("allows name and phone only when e-mail is absent on both rows", () => {
-    const noEmailB2c = { ...b2cRow, normalizedCustomerEmail: null, normalizedCustomerPhone: "97336001234" };
-    const noEmailCons = { ...b2cConsRow, normalizedCustomerEmail: null, normalizedCustomerPhone: "97336001234" };
-
-    expect(isExactFinanceCrossTabPair(noEmailB2c, noEmailCons)).toBe(true);
-    expect(isExactFinanceCrossTabPair(noEmailB2c, { ...noEmailCons, normalizedCustomerPhone: null })).toBe(false);
-    expect(isExactFinanceCrossTabPair(noEmailB2c, { ...b2cConsRow, normalizedCustomerEmail: "other@playbook.test" })).toBe(false);
+  it("requires a non-empty normalized name even when other shared fields match", () => {
+    expect(isExactFinanceCrossTabPair(
+      { ...b2cRow, normalizedCustomerName: null },
+      { ...b2cConsRow, normalizedCustomerName: null },
+    )).toBe(false);
   });
 
   it("keeps recurring and repeated same-day records out of automatic grouping", () => {
