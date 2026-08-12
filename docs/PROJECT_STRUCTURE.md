@@ -85,6 +85,12 @@ stage an explicitly confirmed original file through private Storage and the
 existing Finance-import repository. Multipart routes remain thin Admin-only
 boundaries; the UI never parses workbook bytes or receives raw Finance rows.
 
+Tap-statement and Stripe-Charges CSV parsing live in focused provider-evidence
+services. Their upload services re-parse and hash the selected file, then call
+their own protected finalizers. Stripe evidence keeps only typed Admin review
+contacts and a minimized payload; sensitive export fields remain in private
+Storage rather than spreading through application models.
+
 ### `lib/supabase/` and `lib/validation/`
 
 Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.

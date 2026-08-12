@@ -147,6 +147,13 @@ evidence rather than Finance revenue candidates. Every source line is retained
 with its Tap kind and original currency, through an atomic Tap finalizer. No
 Tap upload can write a reportable payment or invent a BHD-to-USD rate.
 
+Stripe Charges CSV files use the same private staging boundary. A direct
+Stripe refund is retained as a second, linked evidence entry with an explicit
+source-entry key, so the original charge evidence remains intact. Typed source
+name, email, and phone fields are Admin-only; card, address, fingerprint, IP,
+payment-method, and metadata values are retained only in the private original
+file. This path does not create a B2C payment, USD conversion, or revenue total.
+
 The coverage API is deliberately safe for approved viewers: it exposes only
 source states and counts, never raw row data, provider IDs, or customer details.
 It always reports `Not fully loaded` until the complete Stripe Charges export,

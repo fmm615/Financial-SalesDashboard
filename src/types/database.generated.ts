@@ -152,10 +152,11 @@ export interface Database {
       }>;
       b2c_provider_evidence: Table<{
         id: Uuid; import_id: Uuid; provider: "tap" | "stripe"; source_row_number: number; provider_row_id: string | null;
-        provider_payment_id: string | null; provider_refund_id: string | null;
+        source_entry_key: "primary" | "refund"; provider_payment_id: string | null; provider_refund_id: string | null;
         transaction_kind: Database["public"]["Enums"]["b2c_provider_evidence_kind"]; description_raw: string | null;
         occurred_at: Timestamp | null; occurred_at_raw: string | null; original_currency: string; credit_amount: Decimal | null;
-        debit_amount: Decimal | null; raw_payload: Json; created_at: Timestamp;
+        debit_amount: Decimal | null; customer_name: string | null; customer_email: string | null; customer_phone: string | null;
+        raw_payload: Json; created_at: Timestamp;
       }>;
       b2c_reconciliation_groups: Table<{
         id: Uuid; reconciliation_state: Database["public"]["Enums"]["b2c_reconciliation_state"];
@@ -280,6 +281,10 @@ export interface Database {
         Returns: Uuid;
       };
       finalize_tap_statement_import: {
+        Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
+        Returns: Uuid;
+      };
+      finalize_stripe_charges_import: {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
         Returns: Uuid;
       };

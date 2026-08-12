@@ -126,6 +126,14 @@ evidence. The server retains sales, fees, fee VAT, refunds, transfers, opening
 balances, and unknown lines through a separate atomic function. Tap evidence
 does not create B2C Finance revenue or a USD conversion.
 
+Stripe Charges CSV evidence uses an analogous private, Admin-only source
+boundary. Each source row has a primary evidence entry, and a directly stated
+refund receives a separately linked refund entry. The source retains original
+currency only; Stripe export conversion columns are never treated as a USD
+rate. Typed name, email, and phone support Admin review, while card, address,
+fingerprint, IP, payment-method, and metadata values stay only in the private
+original CSV. No Stripe CSV upload creates B2C Finance revenue or a payment.
+
 ## HubSpot
 
 Purpose: B2B deals, stages, and bookings.

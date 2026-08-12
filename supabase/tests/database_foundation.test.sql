@@ -1,6 +1,6 @@
 begin;
 
-select plan(22);
+select plan(25);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -30,6 +30,27 @@ select ok(
     where proname = 'finalize_tap_statement_import'
   ),
   'Tap statement evidence has an atomic finalization function'
+);
+
+select has_function(
+  'public',
+  'finalize_stripe_charges_import',
+  array['text', 'text', 'text', 'text', 'jsonb'],
+  'Stripe Charges evidence has an atomic finalization function'
+);
+
+select has_column(
+  'public',
+  'b2c_provider_evidence',
+  'source_entry_key',
+  'Stripe refund provenance retains a source entry key'
+);
+
+select has_column(
+  'public',
+  'b2c_provider_evidence',
+  'customer_email',
+  'Stripe contact email is retained separately from raw evidence'
 );
 
 select throws_ok(

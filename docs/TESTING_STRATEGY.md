@@ -54,6 +54,9 @@ Test:
 - Tap statement upload: full CSV line retention and classification, original
   currency preservation, atomic evidence staging, private Storage cleanup, and
   no BHD/USD conversion or `b2c_payments` write
+- Stripe Charges CSV upload: separate linked refund evidence, minimized stored
+  source fields, typed Admin-only contacts, original-currency retention,
+  source-hash confirmation, and no B2C payment/revenue creation
 - B2C reconciliation coverage: safe approved-viewer summary, `Not fully loaded`
   gate, source state display, and no claimed B2C Finance revenue total
 
