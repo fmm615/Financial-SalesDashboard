@@ -161,7 +161,7 @@ export interface Database {
       b2c_reconciliation_groups: Table<{
         id: Uuid; reconciliation_state: Database["public"]["Enums"]["b2c_reconciliation_state"];
         canonical_finance_row_id: Uuid | null; decision_reason: string | null; decided_by: Uuid | null; decided_at: Timestamp | null;
-        created_by: Uuid; created_at: Timestamp;
+        grouping_key: string | null; created_by: Uuid; created_at: Timestamp;
       }>;
       b2c_reconciliation_finance_rows: Table<{
         id: Uuid; reconciliation_group_id: Uuid; finance_row_id: Uuid; created_at: Timestamp;
@@ -288,6 +288,7 @@ export interface Database {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
         Returns: Uuid;
       };
+      create_b2c_exact_duplicate_groups: { Args: Record<string, never>; Returns: number };
       get_b2c_reconciliation_safe_summary: { Args: Record<string, never>; Returns: Json };
     };
     Enums: {

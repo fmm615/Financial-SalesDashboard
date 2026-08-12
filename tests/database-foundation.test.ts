@@ -132,6 +132,22 @@ describe("Phase 2 database migration contracts", () => {
     expect(staging).toContain("public.is_admin()");
   });
 
+  it("creates protected, idempotent groups for exact B2C Finance duplicates", () => {
+    const exactDuplicateGroups = () => migration("20260812103000_b2c_exact_duplicate_groups.sql");
+
+    expect(exactDuplicateGroups).not.toThrow();
+
+    const exactGroups = exactDuplicateGroups();
+    expect(exactGroups).toContain("add column grouping_key text");
+    expect(exactGroups).toContain("create unique index b2c_reconciliation_groups_grouping_key_unique");
+    expect(exactGroups).toContain("create or replace function public.create_b2c_exact_duplicate_groups()");
+    expect(exactGroups).toContain("security definer");
+    expect(exactGroups).toContain("not public.is_admin()");
+    expect(exactGroups).toContain("count(*) filter (where source_tab = 'B2C') = 1");
+    expect(exactGroups).toContain("count(*) filter (where source_tab = 'B2C Cons') = 1");
+    expect(exactGroups).not.toContain("insert into public.b2c_payments");
+  });
+
   it("enforces provider identity, Stripe=B2C, separate refunds, and refund overage protection", () => {
     const b2c = migration("20260802100200_b2c_foundation.sql");
     const b2b = migration("20260802100300_b2b_foundation.sql");

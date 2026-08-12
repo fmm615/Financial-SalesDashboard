@@ -1,6 +1,6 @@
 begin;
 
-select plan(25);
+select plan(27);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -51,6 +51,20 @@ select has_column(
   'b2c_provider_evidence',
   'customer_email',
   'Stripe contact email is retained separately from raw evidence'
+);
+
+select has_column(
+  'public',
+  'b2c_reconciliation_groups',
+  'grouping_key',
+  'Exact duplicate reconciliation groups retain an idempotency key'
+);
+
+select has_function(
+  'public',
+  'create_b2c_exact_duplicate_groups',
+  array[]::text[],
+  'Exact duplicate reconciliation groups have a protected constructor'
 );
 
 select throws_ok(
