@@ -45,13 +45,14 @@ after an older payment. Treating it as transaction-time evidence could alter
 duplicate detection or make a payment reportable using data that was not
 captured with that transaction. This approach is rejected.
 
-### Layer transaction enrichment and a labelled profile fallback
+### Layer transaction enrichment and labelled mutable fallbacks
 
 This is the selected approach. Read transaction-linked Stripe objects first.
-Store current Customer-profile contact separately as display/reconciliation
-context. Only transaction-linked contact evidence may populate the payment's
-financial matching fields automatically. The profile fallback can make the
-dashboard more useful without silently changing financial eligibility.
+Store current Payment Method and Customer-profile contact separately as
+display/reconciliation context. Only transaction-linked contact evidence may
+populate the payment's financial matching fields automatically. The labelled
+fallback can make the dashboard more useful without silently changing
+financial eligibility.
 
 ## Read-only Stripe boundary
 
@@ -81,7 +82,7 @@ credentials after the previously displayed credentials are replaced.
 
 ## Contact evidence and precedence
 
-The system distinguishes transaction evidence from mutable profile context.
+The system distinguishes transaction evidence from mutable provider context.
 
 ### Transaction-linked sources
 
@@ -89,19 +90,22 @@ For each field, use the first valid non-empty value in this order:
 
 1. Charge receipt, billing, or shipping details.
 2. Completed Checkout Session `customer_details`.
-3. Invoice customer snapshot fields.
-4. Payment Method billing details captured for the Charge.
+3. Finalized Invoice customer snapshot fields.
 
-The chosen field retains a source label such as `charge_billing`,
-`checkout_session`, `invoice_snapshot`, or `payment_method`. Validated
-transaction-linked email may satisfy the existing verified-source-email gate.
+The chosen field retains a source label such as `charge_receipt`,
+`charge_billing`, `charge_shipping`, `checkout_session`, or
+`invoice_snapshot`. Validated transaction-linked email may satisfy the existing
+verified-source-email gate.
 
-### Profile fallback
+### Mutable provider fallback
 
 If every transaction-linked source is empty, the integration may retain the
-current Customer profile's name, email, and phone in a separate Stripe-details
-record. The B2C dashboard may display it with a `Stripe profile` label, but it
-does not:
+current Payment Method billing details and Customer profile's name, email, and
+phone in a separate Stripe-details record. Both Stripe objects can be edited
+after an older payment, so neither is treated as proof of the contact captured
+at the time of that transaction. The B2C dashboard may display the first valid
+fallback with a `Stripe profile` or `Stripe payment method` label, but it does
+not:
 
 - replace the payment's transaction contact fields;
 - satisfy the verified transaction email gate;
@@ -110,7 +114,7 @@ does not:
 - overwrite a verified local correction.
 
 This reproduces the useful context visible in the Stripe export without
-claiming that a current profile value existed when an older payment occurred.
+claiming that a mutable provider value existed when an older payment occurred.
 
 ### Conflicts
 
@@ -161,7 +165,7 @@ typed enrichment fields needed for traceability and reconciliation, including:
 - payment, PaymentIntent, Payment Method, Checkout Session, Invoice, Customer,
   and Balance Transaction identifiers;
 - selected contact-source labels;
-- current Customer-profile fallback contact;
+- current Payment Method and Customer-profile fallback contacts;
 - settlement gross, fee, fee tax, net, currency, and exchange-rate evidence;
 - directly stated Stripe tax evidence; and
 - last successful enrichment timestamp.
@@ -184,7 +188,7 @@ For a webhook, 48-hour reconciliation item, or historical-backfill Charge:
    enrichment fields.
 3. Validate each optional response independently.
 4. Resolve transaction contacts according to the fixed precedence.
-5. Retain Customer-profile context separately.
+5. Retain mutable Payment Method and Customer-profile context separately.
 6. Persist the Charge idempotently by exact Charge ID.
 7. Upsert the one Stripe-details record locally.
 8. Recompute local duplicate and review state only from approved transaction
@@ -200,12 +204,12 @@ details constraint prevent duplicate payments and duplicate details records.
 The B2C ledger continues to show one row per Stripe Charge. It displays:
 
 - effective name, email, and phone;
-- a subtle source label when a displayed contact comes only from the current
-  Stripe Customer profile;
+- a subtle source label when a displayed contact comes only from a current
+  Stripe Payment Method or Customer profile;
 - existing payment amount, status, date, category, and product context; and
 - Admin-only settlement evidence where useful for reconciliation.
 
-Profile fallback improves identification but does not remove the existing
+Mutable fallback improves identification but does not remove the existing
 missing transaction-email exclusion. The calculation breakdown and reportable
 totals continue to use the shared reportability rules, not UI display values.
 
@@ -228,7 +232,8 @@ Implementation follows test-driven development and covers:
 - Charge, Checkout, Invoice, Payment Method, Customer, and Balance Transaction
   payload validation;
 - fixed transaction-contact precedence;
-- profile fallback display without reportability or fingerprint changes;
+- mutable Payment Method and Customer-profile fallback display without
+  reportability or fingerprint changes;
 - an existing non-empty value survives a partial webhook or failed lookup;
 - conflicting non-empty contacts remain reviewable;
 - settlement amounts use decimal strings and preserve their currency;
@@ -262,7 +267,7 @@ explicit file for manual Supabase execution.
   export whenever Stripe exposes that information through readable objects.
 - Existing Stripe payments are enriched without duplicates.
 - Missing information stays missing when no Stripe object supplies it.
-- Profile-derived context is visibly and technically separated from
-  transaction evidence.
-- Financial totals remain unchanged by profile, fee, net, conversion, or tax
-  enrichment.
+- Mutable Payment Method and Customer-profile context is visibly and
+  technically separated from transaction evidence.
+- Financial totals remain unchanged by fallback contacts, fee, net,
+  conversion, or tax enrichment.
