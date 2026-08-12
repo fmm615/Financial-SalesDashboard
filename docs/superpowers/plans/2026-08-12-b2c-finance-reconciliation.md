@@ -103,7 +103,7 @@ Run `git add supabase/migrations/20260812090000_b2c_finance_reconciliation_stagi
 
 - [ ] **Step 1: Write failing unit tests**
 
-Test that only accepted tabs pass; zero amount returns `zero_value`; missing payment method returns `needs_review`; date/month mismatch returns `needs_review` with original date retained; an identical identity/date/amount/method pair returns `exact_duplicate_candidate`; and an incompatible date returns `conflict`.
+Test that only accepted tabs pass; zero amount returns `zero_value`; missing payment method returns `needs_review`; date/month mismatch returns `needs_review` with original date retained; an identical identity/date/amount/method pair returns `exact_duplicate_candidate`; a same-day identity/amount mismatch returns `conflict`; and a later recurring payment stays `unmatched`.
 
 ```ts
 expect(assessFinanceRow({ sourceTab: "B2C Cons", sourceRowNumber: 2, reportedDateRaw: "45787", declaredMonth: "October", declaredYear: "2025", amountUsdRaw: "475", customerNameRaw: "Reham Garash", paymentMethodRaw: "Stripe" }).quality).toBe("needs_review");
