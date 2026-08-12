@@ -60,6 +60,31 @@ export const tapStatementEvidenceRowSchema = z.object({
   rawPayload: z.record(z.string(), z.string()),
 }).strict();
 
+/** A minimized Stripe Charges CSV entry, kept outside the B2C payment ledger. */
+export const stripeChargesEvidenceRowSchema = z.object({
+  sourceRowNumber: z.number().int().min(2),
+  sourceEntryKey: z.enum(["primary", "refund"]),
+  chargeId: z.string().trim().max(255).nullable(),
+  kind: z.enum(["sale", "refund", "needs_review"]),
+  description: z.string().max(1000).nullable(),
+  occurredAt: z.string().datetime().nullable(),
+  occurredAtRaw: z.string().max(100).nullable(),
+  currency: z.string().trim().regex(/^[A-Z]{3}$/),
+  credit: z.string().regex(/^\d+(?:\.\d{1,6})?$/).nullable(),
+  debit: z.string().regex(/^\d+(?:\.\d{1,6})?$/).nullable(),
+  customerName: z.string().trim().min(1).max(200).nullable(),
+  customerEmail: z.string().trim().toLowerCase().email().max(320).nullable(),
+  customerPhone: z.string().trim().regex(/^[0-9+().\-\s]{5,40}$/).nullable(),
+  // Only a selected non-sensitive source subset is persisted; the original CSV remains private evidence.
+  rawPayload: z.record(z.string(), z.string()),
+}).strict().superRefine((row, context) => {
+  if (row.sourceEntryKey === "refund" && row.kind !== "refund") context.addIssue({ code: "custom", path: ["kind"], message: "Refund source entries must be refund evidence." });
+  if (row.sourceEntryKey === "primary" && row.kind === "refund") context.addIssue({ code: "custom", path: ["kind"], message: "Primary source entries cannot be refund evidence." });
+  if ((row.kind === "sale" || row.kind === "refund") && !row.chargeId) context.addIssue({ code: "custom", path: ["chargeId"], message: "Sale and refund evidence require a Stripe charge ID." });
+  if (row.kind === "sale" && !row.credit) context.addIssue({ code: "custom", path: ["credit"], message: "Sale evidence requires an original amount." });
+  if (row.kind === "refund" && !row.debit) context.addIssue({ code: "custom", path: ["debit"], message: "Refund evidence requires a refunded amount." });
+});
+
 const reconciliationDecisionFields = {
   decisionState: z.enum(["canonical", "excluded"]),
   canonicalFinanceRowId: z.string().uuid().nullable().optional(),
@@ -87,4 +112,5 @@ export type FinanceWorkbookRowInput = z.infer<typeof financeWorkbookRowSchema>;
 export type FinanceImportRequestInput = z.infer<typeof financeImportRequestSchema>;
 export type TapEvidenceRowInput = z.infer<typeof tapEvidenceRowSchema>;
 export type TapStatementEvidenceRowInput = z.infer<typeof tapStatementEvidenceRowSchema>;
+export type StripeChargesEvidenceRowInput = z.infer<typeof stripeChargesEvidenceRowSchema>;
 export type ReconciliationDecisionInput = z.infer<typeof reconciliationDecisionSchema>;
