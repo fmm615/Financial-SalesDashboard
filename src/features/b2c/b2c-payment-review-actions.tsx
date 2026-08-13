@@ -48,7 +48,7 @@ function draftFromRow(row: B2cLedgerRow): CorrectionDraft {
     // Numeric PostgreSQL values can be serialised as numbers by a Supabase
     // client even though the UI domain formats money as text. Form state must
     // always be text so the change comparison and input controls stay safe.
-    amountUsd: String(row.amountValueUsd),
+    amountUsd: row.amountValueUsd === null ? "" : String(row.amountValueUsd),
     occurredOn: String(row.dateValue),
   };
 }
@@ -145,14 +145,15 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
     } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The local B2C correction could not be saved."); } finally { setSaving(false); }
   }
 
-  const canUseFinanceException = row.paymentStatus === "Completed" && Boolean(row.providerReference) && row.category !== "Unmapped" && !row.hasFinanceException;
+  const requiresFxReview = row.foreignCurrencyReview === true || row.amountValueUsd === null;
+  const canUseFinanceException = !requiresFxReview && row.paymentStatus === "Completed" && Boolean(row.providerReference) && row.category !== "Unmapped" && !row.hasFinanceException;
   const hasSourceReview = row.openReviewFlags.length > 0;
   const financeExceptionSourceGaps = Array.from(new Set(row.openReviewFlags.flatMap((flag) => {
     if (flag.type === "Missing customer email") return ["customer email"];
     if (flag.type === "Unmapped product") return ["approved product mapping"];
     return [];
   })));
-  const showFinanceException = row.hasFinanceException || financeExceptionSourceGaps.length > 0;
+  const showFinanceException = !requiresFxReview && (row.hasFinanceException || financeExceptionSourceGaps.length > 0);
 
   return <>
     <button type="button" onClick={openReview} className="font-medium text-brand-accent hover:underline">Edit locally</button>
@@ -181,7 +182,7 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
             <div className="mt-3 grid gap-x-5 gap-y-4 md:grid-cols-2">
             <label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={draft.categoryCode} onChange={(event) => updateDraft("categoryCode", event.target.value)} placeholder="Required for Finance, e.g. membership" /><span className="mt-1 block text-xs font-normal text-text-muted">Enter a verified category; do not use a dash.</span></label>
             <label className={fieldClass}>Plan / tier<input className={inputClass} value={draft.membershipTier} onChange={(event) => updateDraft("membershipTier", event.target.value)} placeholder="Unavailable from Stripe" /></label>
-            <label className={fieldClass}>Local B2C amount (USD)<input className={inputClass} type="number" min="0.000001" step="0.000001" value={draft.amountUsd} onChange={(event) => updateDraft("amountUsd", event.target.value)} /></label>
+            <label className={fieldClass}>Local B2C amount (USD)<input className={inputClass} type="number" min="0.000001" step="0.000001" value={draft.amountUsd} onChange={(event) => updateDraft("amountUsd", event.target.value)} disabled={requiresFxReview} /><span className="mt-1 block text-xs font-normal text-text-muted">{requiresFxReview ? "A Finance-approved FX conversion is required before a USD amount can be entered." : "Use only a Finance-verified USD amount."}</span></label>
             <label className={fieldClass}>Local business date<input className={inputClass} type="date" value={draft.occurredOn} onChange={(event) => updateDraft("occurredOn", event.target.value)} /></label>
             </div>
           </div>

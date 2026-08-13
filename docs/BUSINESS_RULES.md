@@ -57,7 +57,7 @@ The original payment remains untouched in the ledger.
 
 B2B and B2C reporting is in USD.
 
-If a source record uses another currency, preserve the original currency and conversion rate for audit purposes.
+If a source record uses another currency, preserve the original currency and source amount for audit purposes. Never invent a USD value from a provider settlement rate. It remains outside USD reporting until Finance approves a conversion source and accounting rule.
 
 ## Missing data
 

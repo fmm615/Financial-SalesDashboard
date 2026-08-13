@@ -45,9 +45,9 @@ type B2cPaymentRow = {
   payment_status: "succeeded" | "failed" | "pending";
   original_amount: Decimal;
   original_currency: string;
-  exchange_rate_to_usd: Decimal;
-  amount_usd: Decimal;
-  gross_amount_usd: Decimal;
+  exchange_rate_to_usd: Decimal | null;
+  amount_usd: Decimal | null;
+  gross_amount_usd: Decimal | null;
   tax_amount_usd: Decimal | null;
   net_amount_usd: Decimal | null;
   occurred_at: Timestamp;
@@ -242,7 +242,7 @@ export interface Database {
       }>;
       b2c_refunds: Table<{
         id: Uuid; payment_id: Uuid; source_system: B2cPaymentRow["source_system"]; provider_refund_id: string | null;
-        original_amount: Decimal; original_currency: string; exchange_rate_to_usd: Decimal; amount_usd: Decimal;
+        original_amount: Decimal; original_currency: string; exchange_rate_to_usd: Decimal | null; amount_usd: Decimal | null;
         reason: string | null; occurred_at: Timestamp; imported_at: Timestamp; provider_metadata: Json; created_at: Timestamp;
       }>;
       b2b_deal_stages: Table<{ code: string; label: string; display_order: number; is_closed: boolean; is_won: boolean; created_at: Timestamp; updated_at: Timestamp }>;
@@ -386,7 +386,7 @@ export interface Database {
     };
     Enums: {
       access_role: "admin" | "viewer";
-      review_flag_type: "refunded" | "failed" | "possible_duplicate" | "unmapped_product" | "needs_follow_up";
+      review_flag_type: "refunded" | "failed" | "possible_duplicate" | "unmapped_product" | "needs_follow_up" | "needs_fx_review";
       review_flag_status: "open" | "resolved" | "dismissed";
       backfill_status: "not_started" | "partial" | "complete" | "unavailable";
       integration_status: "pending" | "processing" | "completed" | "failed" | "cancelled";

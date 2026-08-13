@@ -27,6 +27,7 @@ const flagTypeOptions: Array<{ value: "all" | ReviewQueueFlagType; label: string
   { value: "possible_duplicate", label: "Possible duplicate" },
   { value: "unmapped_product", label: "Unmapped product" },
   { value: "needs_follow_up", label: "Needs follow-up" },
+  { value: "needs_fx_review", label: "Needs FX review" },
 ];
 
 function errorMessage(payload: unknown, fallback: string): string {

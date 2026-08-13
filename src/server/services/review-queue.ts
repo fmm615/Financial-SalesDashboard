@@ -1,6 +1,6 @@
 export type ReviewQueueStatus = "open" | "resolved" | "dismissed";
 
-export type ReviewQueueFlagType = "refunded" | "failed" | "possible_duplicate" | "unmapped_product" | "needs_follow_up";
+export type ReviewQueueFlagType = "refunded" | "failed" | "possible_duplicate" | "unmapped_product" | "needs_follow_up" | "needs_fx_review";
 
 export type ReviewQueueFlagRecord = {
   id: string;
@@ -75,6 +75,7 @@ const flagLabels: Record<ReviewQueueFlagType, string> = {
   possible_duplicate: "Possible duplicate",
   unmapped_product: "Unmapped product",
   needs_follow_up: "Needs follow-up",
+  needs_fx_review: "Needs FX review",
 };
 
 const sourceLabels: Record<string, string> = {

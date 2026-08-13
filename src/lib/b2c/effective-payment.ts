@@ -9,7 +9,8 @@ export type B2cPaymentSourceValues = {
   customerPhone: string | null;
   categoryCode: string | null;
   membershipTier: string | null;
-  amountUsd: string;
+  /** Null means the provider supplied no Finance-approved USD conversion. */
+  amountUsd: string | null;
   occurredOn: string;
 };
 

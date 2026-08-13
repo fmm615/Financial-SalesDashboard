@@ -29,6 +29,7 @@ describe("Stripe normalisation and webhook security", () => {
   it("uses a canonical six-decimal amount in content fingerprints", () => {
     const baseline = { customerEmail: "member@example.com", categoryCode: "membership", occurredOn: "2026-08-04", providerTransactionId: "ch_123" };
     expect(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.9" })).toBe(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.900000" }));
+    expect(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.90", originalCurrency: "USD" })).not.toBe(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.90", originalCurrency: "BHD" }));
   });
 
   it("requires auditable, local-only product-mapping values", () => {
@@ -91,8 +92,13 @@ describe("Stripe normalisation and webhook security", () => {
     })).toBeNull();
   });
 
-  it("does not invent a foreign-currency conversion or accept a non-succeeded refund as a financial record", () => {
-    expect(() => normaliseStripeCharge({ ...charge, currency: "bhd" }, "product_id")).toThrow("no verified USD conversion rate");
+  it("retains foreign-currency source facts without inventing a USD conversion", () => {
+    expect(normaliseStripeCharge({ ...charge, currency: "bhd" }, "product_id")).toMatchObject({
+      originalAmount: "123.45", originalCurrency: "BHD", exchangeRateToUsd: null, amountUsd: null,
+    });
+    expect(normaliseStripeRefund({ ...succeededRefund, currency: "gbp" })).toMatchObject({
+      originalAmount: "12.00", originalCurrency: "GBP", exchangeRateToUsd: null, amountUsd: null,
+    });
     expect(() => normaliseStripeRefund({ ...succeededRefund, status: "pending" })).toThrow(StripeRefundNotSucceededError);
   });
 
@@ -277,7 +283,7 @@ describe("Stripe ingestion orchestration", () => {
     expect(source.fetchCharge).not.toHaveBeenCalled();
   });
 
-  it("reads exactly the required 48-hour reconciliation window and continues after an invalid source row", async () => {
+  it("reads exactly the required 48-hour reconciliation window and retains foreign-currency source rows", async () => {
     const now = new Date("2026-08-02T12:00:00.000Z");
     const repository = {
       startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }), completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn(), persistCharge: vi.fn().mockResolvedValue({ inserted: true }), persistRefund: vi.fn().mockResolvedValue({ inserted: true }),
@@ -286,8 +292,9 @@ describe("Stripe ingestion orchestration", () => {
     const result = await runStripeReconciliation({ source, productReferenceMetadataKey: "product_id", repository, now });
     expect(result.lookbackStart.toISOString()).toBe("2026-07-31T12:00:00.000Z");
     expect(source.listChargesCreatedSince).toHaveBeenCalledWith(result.lookbackStart);
-    expect(result).toMatchObject({ processed: 2, failed: 1, inserted: 2 });
-    expect(repository.recordSyncError).toHaveBeenCalledWith("run-1", expect.any(Error), "Stripe charge ch_bad");
+    expect(result).toMatchObject({ processed: 3, failed: 0, inserted: 3 });
+    expect(repository.persistCharge).toHaveBeenCalledWith(expect.objectContaining({ chargeId: "ch_bad", originalCurrency: "BHD", amountUsd: null, exchangeRateToUsd: null }));
+    expect(repository.recordSyncError).not.toHaveBeenCalled();
   });
 
   it("imports all Stripe history in resumable charge then refund phases", async () => {

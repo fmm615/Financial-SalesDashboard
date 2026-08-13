@@ -22,8 +22,8 @@ export type NormalisedB2cProviderCharge = {
   paymentStatus: "succeeded" | "failed" | "pending";
   originalAmount: string;
   originalCurrency: string;
-  exchangeRateToUsd: string;
-  amountUsd: string;
+  exchangeRateToUsd: string | null;
+  amountUsd: string | null;
   occurredAt: string;
   occurredOn: string;
   sourceMetadata: Record<string, string>;
@@ -34,8 +34,8 @@ export type NormalisedB2cProviderRefund = {
   chargeId: string;
   originalAmount: string;
   originalCurrency: string;
-  exchangeRateToUsd: string;
-  amountUsd: string;
+  exchangeRateToUsd: string | null;
+  amountUsd: string | null;
   occurredAt: string;
   reason: string | null;
   metadata: Record<string, string>;
@@ -164,7 +164,7 @@ export class SupabaseB2cProviderSyncRepository {
     const customerId = mergedEmail.value ? await this.upsertCustomer(mergedEmail.value, mergedName.value) : null;
     const mapping = await this.findProductMapping(input.productReference);
     const categoryCode = mapping?.categoryCode ?? "unmapped";
-    const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: mergedEmail.value, amountUsd: input.amountUsd, categoryCode, occurredOn: input.occurredOn, providerTransactionId: input.chargeId });
+    const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: mergedEmail.value, amountUsd: input.amountUsd ?? input.originalAmount, originalCurrency: input.originalCurrency, categoryCode, occurredOn: input.occurredOn, providerTransactionId: input.chargeId });
     const values = {
       source_system: this.provider, provider_transaction_id: input.chargeId, provider_event_id: input.providerEventId ?? existing?.provider_event_id ?? null,
       customer_id: customerId, customer_email: mergedEmail.value, customer_name: mergedName.value, customer_phone: mergedPhone.value, product_mapping_id: mapping?.id ?? null, category_code: categoryCode,
@@ -186,6 +186,7 @@ export class SupabaseB2cProviderSyncRepository {
     if (error) throw new Error(`Could not save ${this.providerLabel} charge: ${error.message}`);
 
     if (!mergedEmail.value) await this.openFlag(payment.id, "needs_follow_up", `${this.providerLabel} payment is missing a valid customer email. It is retained for traceability and excluded from financial totals until an Admin records a verified local correction.`);
+    if (input.originalCurrency !== "USD" || input.amountUsd === null) await this.openFlag(payment.id, "needs_fx_review", `${this.providerLabel} source payment is in ${input.originalCurrency}. Its source amount is retained, but a Finance-approved USD conversion is required before it can enter USD financial totals.`);
     if (mergedName.conflict || mergedEmail.conflict || mergedPhone.conflict) await this.openFlag(payment.id, "needs_follow_up", `${this.providerLabel} returned conflicting transaction contact evidence. The higher-priority retained value remains in use pending Admin review.`);
     if (!mapping) await this.openFlag(payment.id, "unmapped_product", `${this.providerLabel} payment has no approved product mapping. It is retained for traceability and excluded from financial totals until an Admin maps the product.`);
     if (input.paymentStatus === "failed") await this.openFlag(payment.id, "failed", `${this.providerLabel} payment failed. It is retained for follow-up and excluded from financial totals.`);
@@ -276,6 +277,9 @@ export class SupabaseB2cProviderSyncRepository {
     }).select("id").single();
     if (error) throw new Error(`Could not save ${this.providerLabel} refund: ${error.message}`);
     await this.openFlag(refund.id, "refunded", `${this.providerLabel} refund recorded separately from its original payment. Confirm the refund reason before month-end.`, "b2c_refund");
+    if (input.originalCurrency !== "USD" || input.amountUsd === null) {
+      await this.openFlag(refund.id, "needs_fx_review", `${this.providerLabel} source refund is in ${input.originalCurrency}. Its source amount is retained, but a Finance-approved USD conversion is required before it can reduce USD financial totals.`, "b2c_refund");
+    }
     return { refundId: refund.id, inserted: true };
   }
 
@@ -323,7 +327,7 @@ export class SupabaseB2cProviderSyncRepository {
     return (data ?? []).map((payment) => payment.id);
   }
 
-  private async openFlag(recordId: string, flagType: "unmapped_product" | "failed" | "possible_duplicate" | "refunded" | "needs_follow_up", reason: string, sourceArea: "b2c_payment" | "b2c_refund" = "b2c_payment"): Promise<void> {
+  private async openFlag(recordId: string, flagType: "unmapped_product" | "failed" | "possible_duplicate" | "refunded" | "needs_follow_up" | "needs_fx_review", reason: string, sourceArea: "b2c_payment" | "b2c_refund" = "b2c_payment"): Promise<void> {
     const { error } = await this.client.from("review_flags").upsert({ source_area: sourceArea, source_record_id: recordId, flag_type: flagType, status: "open", priority: 2, reason }, { onConflict: "source_area,source_record_id,flag_type,status", ignoreDuplicates: true });
     if (error) throw new Error(`Could not open Stripe review flag: ${error.message}`);
   }

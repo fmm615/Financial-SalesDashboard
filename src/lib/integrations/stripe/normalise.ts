@@ -51,11 +51,11 @@ export type StripeTransactionContactSource = "charge_receipt" | "charge_billing"
 export type NormalisedStripeCharge = {
   chargeId: string; customerEmail: string | null; customerName: string | null; customerPhone: string | null; productReference: string | null; paymentStatus: StripePaymentStatus;
   customerEmailSource: StripeTransactionContactSource | null; customerNameSource: StripeTransactionContactSource | null; customerPhoneSource: StripeTransactionContactSource | null;
-  originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; occurredOn: string;
+  originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1" | null; amountUsd: string | null; occurredAt: string; occurredOn: string;
   description: string | null; sellerMessage: string | null; cardholderName: string | null; amountRefunded: string;
   sourceMetadata: Record<string, string>;
 };
-export type NormalisedStripeRefund = { refundId: string; chargeId: string; originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; reason: string | null; balanceTransactionId: string | null; metadata: Record<string, string> };
+export type NormalisedStripeRefund = { refundId: string; chargeId: string; originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1" | null; amountUsd: string | null; occurredAt: string; reason: string | null; balanceTransactionId: string | null; metadata: Record<string, string> };
 export type StripeCheckoutPlan = {
   checkoutSessionId: string;
   priceId: string;
@@ -114,9 +114,15 @@ function bahrainBusinessDate(occurredAt: Date): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function requireUsd(currency: string): "USD" {
-  if (currency !== "USD") throw new StripeNormalisationError(`Stripe charge uses ${currency}; no verified USD conversion rate is available.`);
-  return "USD";
+/**
+ * Stripe may provide a charge in a non-USD source currency. Retain that
+ * source fact, but never treat Stripe settlement data as a Finance-approved
+ * reporting FX conversion.
+ */
+function usdReportingValues(amount: string, currency: string): { exchangeRateToUsd: "1" | null; amountUsd: string | null } {
+  return currency === "USD"
+    ? { exchangeRateToUsd: "1", amountUsd: amount }
+    : { exchangeRateToUsd: null, amountUsd: null };
 }
 
 function planMetadataValue(metadata: Record<string, string>): string | null {
@@ -179,7 +185,7 @@ export function addStripeCheckoutPlan(charge: NormalisedStripeCharge, plan: Stri
 /** Converts only the provider fields PLAYBOOK persists; raw Stripe payloads never enter the database. */
 export function normaliseStripeCharge(payload: unknown, productReferenceMetadataKey: string): NormalisedStripeCharge {
   const charge = chargeSchema.parse(payload);
-  const originalCurrency = requireUsd(charge.currency.toUpperCase());
+  const originalCurrency = charge.currency.toUpperCase();
   const occurredAt = new Date(charge.created * 1000);
   if (Number.isNaN(occurredAt.getTime())) throw new StripeNormalisationError("Stripe charge has an invalid created timestamp.");
   const receiptEmail = validatedStripeEmail(charge.receipt_email);
@@ -194,6 +200,7 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
   const customerPhone = billingPhone ?? shippingPhone;
   const amount = stripeMinorAmountToDecimal(charge.amount, originalCurrency);
   const amountRefunded = stripeMinorNonnegativeAmountToDecimal(charge.amount_refunded ?? 0, originalCurrency);
+  const reportingValues = usdReportingValues(amount, originalCurrency);
   if ((charge.amount_refunded ?? 0) > charge.amount) throw new StripeNormalisationError("Stripe returned a refunded amount greater than the charge amount.");
   const metadata = charge.metadata ?? {};
   const productReference = cleanStripeText(metadata[productReferenceMetadataKey], 255);
@@ -210,7 +217,7 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
     customerPhoneSource: billingPhone ? "charge_billing" : shippingPhone ? "charge_shipping" : null,
     productReference,
     paymentStatus,
-    originalAmount: amount, originalCurrency, exchangeRateToUsd: "1", amountUsd: amount, occurredAt: occurredAt.toISOString(), occurredOn: bahrainBusinessDate(occurredAt),
+    originalAmount: amount, originalCurrency, ...reportingValues, occurredAt: occurredAt.toISOString(), occurredOn: bahrainBusinessDate(occurredAt),
     description, sellerMessage, cardholderName: billingName, amountRefunded,
     sourceMetadata: {
       ...(stripeReferenceId(charge.payment_intent) ? { payment_intent_id: stripeReferenceId(charge.payment_intent)! } : {}),
@@ -231,10 +238,11 @@ export function normaliseStripeRefund(payload: unknown): NormalisedStripeRefund 
   const refund = refundSchema.parse(payload);
   if (refund.status && refund.status !== "succeeded") throw new StripeRefundNotSucceededError("Stripe refund is not succeeded.");
   if (!refund.charge) throw new StripeNormalisationError("Stripe refund is missing its source charge.");
-  const originalCurrency = requireUsd(refund.currency.toUpperCase());
+  const originalCurrency = refund.currency.toUpperCase();
   const occurredAt = new Date(refund.created * 1000);
   if (Number.isNaN(occurredAt.getTime())) throw new StripeNormalisationError("Stripe refund has an invalid created timestamp.");
-  return { refundId: refund.id, chargeId: refund.charge, originalAmount: stripeMinorAmountToDecimal(refund.amount, originalCurrency), originalCurrency, exchangeRateToUsd: "1", amountUsd: stripeMinorAmountToDecimal(refund.amount, originalCurrency), occurredAt: occurredAt.toISOString(), reason: cleanStripeText(refund.reason, 300), balanceTransactionId: stripeReferenceId(refund.balance_transaction), metadata: {} };
+  const originalAmount = stripeMinorAmountToDecimal(refund.amount, originalCurrency);
+  return { refundId: refund.id, chargeId: refund.charge, originalAmount, originalCurrency, ...usdReportingValues(originalAmount, originalCurrency), occurredAt: occurredAt.toISOString(), reason: cleanStripeText(refund.reason, 300), balanceTransactionId: stripeReferenceId(refund.balance_transaction), metadata: {} };
 }
 
 const stripeEventSchema = z.object({ id: z.string().min(1), type: z.string().min(1), data: z.object({ object: z.unknown() }) }).passthrough();

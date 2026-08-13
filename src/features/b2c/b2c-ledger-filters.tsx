@@ -12,16 +12,17 @@ export type B2cLedgerFiltersState = {
   source: string;
   category: string;
   issue: string;
+  foreignCurrencyOnly: boolean;
 };
 
 export const initialB2cLedgerFilters: B2cLedgerFiltersState = {
-  search: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "", status: "all", source: "all", category: "all", issue: "all",
+  search: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "", status: "all", source: "all", category: "all", issue: "all", foreignCurrencyOnly: false,
 };
 
 type Option = { value: string; label: string };
 
 /** Display-only controls for narrowing the already-loaded B2C source ledger. */
-export function B2cLedgerFilters({ filters, onChange, sources, categories, issues, shownCount, totalCount }: {
+export function B2cLedgerFilters({ filters, onChange, sources, categories, issues, shownCount, totalCount, foreignCurrencyCount }: {
   filters: B2cLedgerFiltersState;
   onChange: (filters: B2cLedgerFiltersState) => void;
   sources: Option[];
@@ -29,12 +30,16 @@ export function B2cLedgerFilters({ filters, onChange, sources, categories, issue
   issues: Option[];
   shownCount: number;
   totalCount: number;
+  foreignCurrencyCount: number;
 }) {
   function update(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     onChange({ ...filters, [event.target.name]: event.target.value });
   }
   const inputClass = "mt-1 h-10 w-full rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
-  const hasFilters = Object.entries(filters).some(([key, value]) => key === "status" || key === "source" || key === "category" || key === "issue" ? value !== "all" : value !== "");
+  const hasFilters = Object.entries(filters).some(([key, value]) => {
+    if (key === "foreignCurrencyOnly") return value === true;
+    return key === "status" || key === "source" || key === "category" || key === "issue" ? value !== "all" : value !== "";
+  });
   return <div className="mb-5 rounded-input border border-border bg-surface-muted/30 p-4">
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
       <label className="lg:col-span-2 xl:col-span-1">Search<input name="search" value={filters.search} onChange={update} className={inputClass} placeholder="Name, email, mobile, or ID" /></label>
@@ -49,7 +54,18 @@ export function B2cLedgerFilters({ filters, onChange, sources, categories, issue
     </div>
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
       <span>Showing {shownCount.toLocaleString()} of {totalCount.toLocaleString()} records</span>
-      <button type="button" onClick={() => onChange(initialB2cLedgerFilters)} disabled={!hasFilters} className="font-medium text-brand-accent disabled:cursor-not-allowed disabled:text-text-muted">Clear filters</button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onChange({ ...filters, foreignCurrencyOnly: !filters.foreignCurrencyOnly })}
+          aria-pressed={filters.foreignCurrencyOnly}
+          disabled={foreignCurrencyCount === 0}
+          className="rounded-input border border-warning/40 bg-warning/5 px-3 py-2 font-medium text-warning transition hover:bg-warning/10 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-text-muted"
+        >
+          {filters.foreignCurrencyOnly ? "Show all source records" : `Needs FX review (${foreignCurrencyCount.toLocaleString()})`}
+        </button>
+        <button type="button" onClick={() => onChange(initialB2cLedgerFilters)} disabled={!hasFilters} className="font-medium text-brand-accent disabled:cursor-not-allowed disabled:text-text-muted">Clear filters</button>
+      </div>
     </div>
   </div>;
 }

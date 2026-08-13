@@ -17,9 +17,14 @@ export type B2cLedgerRow = {
   customerPhoneEvidenceLabel: StripeContactFallbackLabel;
   date: string;
   dateValue: string;
+  /** Displayed reporting amount when one exists, otherwise the retained source amount/currency. */
   amountUsd: string;
-  amountValueUsd: string;
+  /** USD-only numeric value used for USD filtering and sorting. */
+  amountValueUsd: string | null;
   sourceAmountUsd: string;
+  sourceOriginalAmount?: string;
+  sourceOriginalCurrency?: string;
+  foreignCurrencyReview?: boolean;
   sourceDateValue: string;
   category: string;
   membershipTier: string | null;
@@ -33,7 +38,7 @@ export type B2cLedgerRow = {
   localCorrectionFields: string[];
   hasFinanceException: boolean;
   openReviewFlags: B2cOpenReviewFlag[];
-  issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Refunded" | null;
+  issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Needs FX review" | "Refunded" | null;
   /** Safe, read-only Stripe evidence. It never participates in reportability. */
   stripeEvidence?: B2cStripeEvidence | null;
 };
@@ -165,6 +170,12 @@ function formatUsd(value: bigint): string {
   return `${value < BigInt(0) ? "−" : ""}$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
 }
 
+/** A source amount is not a USD figure unless Stripe actually supplied USD. */
+function formatSourceAmount(value: string, currency: string, negative = false): string {
+  if (currency === "USD") return formatUsd((negative ? -BigInt(1) : BigInt(1)) * toScaledUsd(value));
+  return `${negative ? "−" : ""}${value} ${currency}`;
+}
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00.000Z`));
 }
@@ -178,6 +189,11 @@ function flagLabel(flags: Flag[]): B2cLedgerRow["issue"] {
   if (types.has("needs_follow_up")) return "Needs follow-up";
   if (types.has("refunded")) return "Refunded";
   return null;
+}
+
+function reviewFlagLabel(flag: Flag): Exclude<B2cLedgerRow["issue"], null> {
+  if (flag.flag_type === "needs_fx_review") return "Needs FX review";
+  return flagLabel([flag]) ?? "Needs follow-up";
 }
 
 function isMissingCustomerEmailFlag(flag: Flag): boolean {
@@ -336,7 +352,9 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         paymentStatus: payment.payment_status,
         customerEmail: effective.customerEmail,
         categoryCode: effective.categoryCode,
-        openFlagTypes: flagTypes,
+      openFlagTypes: flagTypes,
+        originalCurrency: payment.original_currency,
+        amountUsd: effective.amountUsd,
         hasFinanceException,
         hasBlockingNeedsFollowUp: openFlags.some((flag) => flag.flag_type === "needs_follow_up" && !isMissingCustomerEmailFlag(flag)),
       }),
@@ -345,6 +363,8 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         customerEmail: effective.customerEmail,
         categoryCode: effective.categoryCode,
         openFlagTypes: flagTypes,
+        originalCurrency: payment.original_currency,
+        amountUsd: effective.amountUsd,
         hasFinanceException,
         hasBlockingNeedsFollowUp: openFlags.some((flag) => flag.flag_type === "needs_follow_up" && !isMissingCustomerEmailFlag(flag)),
       }),
@@ -375,16 +395,17 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       nonSucceededPaymentCount += 1;
       continue;
     }
-    const amount = toScaledUsd(effective.amountUsd);
-    completedSourcePayments += amount;
     completedSourcePaymentCount += 1;
+    if (payment.amount_usd !== null) completedSourcePayments += toScaledUsd(payment.amount_usd);
     if (reportability.isReportable) {
+      if (effective.amountUsd === null) throw new Error("A reportable B2C payment requires a USD amount.");
+      const amount = toScaledUsd(effective.amountUsd);
       eligiblePayments += amount;
       reportablePaymentCount += 1;
       if (latestFinanceDecisionByPayment.get(payment.id)?.decision === "include") financeExceptionPaymentCount += 1;
       continue;
     }
-    excludedCompletedPayments += amount;
+    if (effective.amountUsd !== null) excludedCompletedPayments += toScaledUsd(effective.amountUsd);
     excludedCompletedPaymentCount += 1;
     if (reportability.exclusions.includes("missing_customer_email")) missingCustomerEmailCount += 1;
     if (reportability.exclusions.includes("unmapped_product")) unmappedProductCount += 1;
@@ -395,10 +416,10 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     const occurredOn = refund.occurred_at.slice(0, 10);
     const payment = paymentById.get(refund.payment_id);
     if (!isInB2cPeriod(occurredOn, period)) continue;
-    const amount = toScaledUsd(refund.amount_usd);
-    sourceRefunds += amount;
     sourceRefundCount += 1;
-    if (payment && paymentReportability(payment).isReportable) {
+    if (refund.amount_usd !== null) sourceRefunds += toScaledUsd(refund.amount_usd);
+    if (payment && refund.amount_usd !== null && paymentReportability(payment).isReportable) {
+      const amount = toScaledUsd(refund.amount_usd);
       refundsTotal += amount;
       eligibleRefundCount += 1;
     }
@@ -406,7 +427,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
 
   const rows: B2cLedgerRow[] = [
     ...payments.filter((payment) => isInB2cPeriod(effectivePayment(payment).occurredOn, period)).map((payment) => {
-      const reviewFlags = (flagsByRecord.get(payment.id) ?? []).map((flag) => ({ id: flag.id, type: flagLabel([flag])!, reason: flag.reason }));
+      const reviewFlags = (flagsByRecord.get(payment.id) ?? []).map((flag) => ({ id: flag.id, type: reviewFlagLabel(flag), reason: flag.reason }));
       const effective = effectivePayment(payment);
       const displayContact = resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id));
       return {
@@ -420,9 +441,14 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       customerPhoneEvidenceLabel: displayContact.customerPhoneLabel,
       date: formatDate(effective.occurredOn),
       dateValue: effective.occurredOn,
-      amountUsd: formatUsd(toScaledUsd(effective.amountUsd)),
+      amountUsd: effective.amountUsd === null
+        ? formatSourceAmount(payment.original_amount, payment.original_currency)
+        : formatUsd(toScaledUsd(effective.amountUsd)),
       amountValueUsd: effective.amountUsd,
-      sourceAmountUsd: formatUsd(toScaledUsd(payment.amount_usd)),
+      sourceAmountUsd: formatSourceAmount(payment.original_amount, payment.original_currency),
+      sourceOriginalAmount: payment.original_amount,
+      sourceOriginalCurrency: payment.original_currency,
+      foreignCurrencyReview: payment.original_currency !== "USD",
       sourceDateValue: payment.occurred_on,
       category: !effective.categoryCode || effective.categoryCode === "unmapped" ? "Unmapped" : effective.categoryCode,
       membershipTier: effective.membershipTier,
@@ -454,7 +480,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       const payment = paymentById.get(refund.payment_id);
       const effective = payment ? effectivePayment(payment) : null;
       const displayContact = payment && effective ? resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id)) : null;
-      const reviewFlags = (flagsByRecord.get(refund.id) ?? []).map((flag) => ({ id: flag.id, type: flagLabel([flag])!, reason: flag.reason }));
+      const reviewFlags = (flagsByRecord.get(refund.id) ?? []).map((flag) => ({ id: flag.id, type: reviewFlagLabel(flag), reason: flag.reason }));
       return {
         id: refund.id,
         recordType: "Refund" as const,
@@ -466,9 +492,14 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         customerPhoneEvidenceLabel: displayContact?.customerPhoneLabel ?? null,
         date: formatDate(refund.occurred_at.slice(0, 10)),
         dateValue: refund.occurred_at.slice(0, 10),
-        amountUsd: formatUsd(-toScaledUsd(refund.amount_usd)),
-        amountValueUsd: `-${refund.amount_usd}`,
-        sourceAmountUsd: formatUsd(-toScaledUsd(refund.amount_usd)),
+        amountUsd: refund.amount_usd === null
+          ? formatSourceAmount(refund.original_amount, refund.original_currency, true)
+          : formatUsd(-toScaledUsd(refund.amount_usd)),
+        amountValueUsd: refund.amount_usd === null ? null : `-${refund.amount_usd}`,
+        sourceAmountUsd: formatSourceAmount(refund.original_amount, refund.original_currency, true),
+        sourceOriginalAmount: refund.original_amount,
+        sourceOriginalCurrency: refund.original_currency,
+        foreignCurrencyReview: refund.original_currency !== "USD",
         sourceDateValue: refund.occurred_at.slice(0, 10),
         category: effective?.categoryCode === "unmapped" ? "Unmapped" : effective?.categoryCode ?? "Unavailable",
         membershipTier: effective?.membershipTier ?? null,

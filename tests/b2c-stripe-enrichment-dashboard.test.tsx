@@ -85,10 +85,13 @@ describe("B2C Stripe enrichment presentation", () => {
     };
 
     render(<B2cOperations snapshot={snapshot} />);
+    expect(screen.getByRole("columnheader", { name: "Description" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "PLAYBOOK category" })).not.toBeInTheDocument();
+    expect(screen.getByText("Founding Membership renewal")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "View Stripe details" }));
 
     expect(screen.getByRole("dialog", { name: "Stripe payment details" })).toBeInTheDocument();
-    expect(screen.getByText("Founding Membership renewal")).toBeInTheDocument();
+    expect(screen.getAllByText("Founding Membership renewal")).toHaveLength(2);
     expect(screen.getByText("10.00 USD")).toBeInTheDocument();
     expect(screen.getByText("48.67 BHD")).toBeInTheDocument();
     expect(screen.getByText("0.376")).toBeInTheDocument();
