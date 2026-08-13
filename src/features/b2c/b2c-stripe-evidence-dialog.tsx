@@ -3,13 +3,20 @@
 import { useState } from "react";
 import type { B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
 
-function valueOrDash(value: string | null | undefined): string { return value?.trim() || "—"; }
+type EvidenceValue = string | number | null | undefined;
 
-function money(value: string | null | undefined, currency: string | null | undefined): string {
-  return value != null && currency ? `${value} ${currency}` : "—";
+function valueOrDash(value: EvidenceValue): string {
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "—";
+  return value?.trim() || "—";
 }
 
-function EvidenceField({ label, value }: { label: string; value: string | null | undefined }) {
+function money(value: EvidenceValue, currency: EvidenceValue): string {
+  const shownValue = valueOrDash(value);
+  const shownCurrency = valueOrDash(currency);
+  return shownValue !== "—" && shownCurrency !== "—" ? `${shownValue} ${shownCurrency}` : "—";
+}
+
+function EvidenceField({ label, value }: { label: string; value: EvidenceValue }) {
   return <div className="min-w-0 rounded-lg border border-border bg-surface-muted px-3 py-2.5">
     <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">{label}</dt>
     <dd className="mt-1 break-words text-sm font-medium text-text-primary">{valueOrDash(value)}</dd>

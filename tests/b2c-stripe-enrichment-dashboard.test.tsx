@@ -73,7 +73,7 @@ describe("B2C Stripe enrichment presentation", () => {
       openReviewFlags: [], issue: null,
       stripeEvidence: {
         originalAmount: "50.42", originalCurrency: "USD", amountRefunded: "10.00", description: "Founding Membership renewal", sellerMessage: "Payment complete", cardholderName: "Stripe customer",
-        settlementGrossAmount: "50.42", settlementFeeAmount: "1.75", settlementFeeTaxAmount: "0.18", settlementNetAmount: "48.67", settlementCurrency: "BHD", settlementExchangeRate: "0.376", refunds: [{ refundId: "refund-1", originalAmount: "10.00", originalCurrency: "USD", settlementRefundAmount: "10.00", settlementCurrency: "BHD", settlementExchangeRate: "0.376" }],
+        settlementGrossAmount: "50.42", settlementFeeAmount: "1.75", settlementFeeTaxAmount: "0.18", settlementNetAmount: "48.67", settlementCurrency: "BHD", settlementExchangeRate: 0.376 as unknown as string, refunds: [{ refundId: "refund-1", originalAmount: "10.00", originalCurrency: "USD", settlementRefundAmount: "10.00", settlementCurrency: "BHD", settlementExchangeRate: "0.376" }],
       },
     };
     const snapshot: B2cDashboardSnapshot = {
@@ -91,6 +91,7 @@ describe("B2C Stripe enrichment presentation", () => {
     expect(screen.getByText("Founding Membership renewal")).toBeInTheDocument();
     expect(screen.getByText("10.00 USD")).toBeInTheDocument();
     expect(screen.getByText("48.67 BHD")).toBeInTheDocument();
+    expect(screen.getByText("0.376")).toBeInTheDocument();
     expect(screen.getByText("10.00 USD → 10.00 BHD")).toBeInTheDocument();
     // The pre-existing reportable metric remains the stored USD amount rather
     // than Stripe's separate BHD settlement/net-payout evidence.
