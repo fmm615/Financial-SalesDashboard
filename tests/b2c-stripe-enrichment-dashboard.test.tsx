@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import { B2cOperations } from "@/features/b2c/b2c-operations";
@@ -60,5 +60,40 @@ describe("B2C Stripe enrichment presentation", () => {
       customerEmail: "verified@example.com", customerEmailLabel: null,
       customerPhone: "+973 1800 0000", customerPhoneLabel: null,
     });
+  });
+
+  it("shows safe Stripe settlement evidence without changing the B2C reporting amount", () => {
+    const row = {
+      id: "payment-evidence-1", recordType: "Payment" as const,
+      customerName: "Stripe customer", customerEmail: "customer@example.com", customerPhone: null,
+      customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
+      date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceDateValue: "2026-08-09",
+      category: "membership", membershipTier: "Founding Membership", billingInterval: "Annual", source: "Stripe", paymentStatus: "Completed" as const,
+      providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
+      openReviewFlags: [], issue: null,
+      stripeEvidence: {
+        originalAmount: "50.42", originalCurrency: "USD", amountRefunded: "10.00", description: "Founding Membership renewal", sellerMessage: "Payment complete", cardholderName: "Stripe customer",
+        settlementGrossAmount: "50.42", settlementFeeAmount: "1.75", settlementFeeTaxAmount: "0.18", settlementNetAmount: "48.67", settlementCurrency: "BHD", settlementExchangeRate: "0.376", refunds: [{ refundId: "refund-1", originalAmount: "10.00", originalCurrency: "USD", settlementRefundAmount: "10.00", settlementCurrency: "BHD", settlementExchangeRate: "0.376" }],
+      },
+    };
+    const snapshot: B2cDashboardSnapshot = {
+      period: { month: "2026-08", monthLabel: "August 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31" },
+      sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-12T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
+      hasSourceRecords: true, eligiblePaymentsUsd: "$50.42", refundsUsd: "$10.00", netPaymentsUsd: "$40.42", completedSourcePaymentsUsd: "$50.42", sourceRefundsUsd: "$10.00",
+      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 1, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 1, eligibleRefundCount: 1, missingCustomerEmailCount: 0, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+      reviewItems: 0, rows: [row],
+    };
+
+    render(<B2cOperations snapshot={snapshot} />);
+    fireEvent.click(screen.getByRole("button", { name: "View Stripe details" }));
+
+    expect(screen.getByRole("dialog", { name: "Stripe payment details" })).toBeInTheDocument();
+    expect(screen.getByText("Founding Membership renewal")).toBeInTheDocument();
+    expect(screen.getByText("10.00 USD")).toBeInTheDocument();
+    expect(screen.getByText("48.67 BHD")).toBeInTheDocument();
+    expect(screen.getByText("10.00 USD → 10.00 BHD")).toBeInTheDocument();
+    // The pre-existing reportable metric remains the stored USD amount rather
+    // than Stripe's separate BHD settlement/net-payout evidence.
+    expect(screen.getAllByText("$50.42").length).toBeGreaterThan(1);
   });
 });

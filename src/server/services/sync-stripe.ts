@@ -1,5 +1,5 @@
 import { addStripeCheckoutPlan, normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, parseStripeWebhookEvent, StripeRefundNotSucceededError, type StripeWebhookEvent } from "@/lib/integrations/stripe/normalise";
-import { applyStripeTransactionEnrichment, normaliseStripeEnrichment, stripeChargeEnrichmentReferences, type NormalisedStripeEnrichment } from "@/lib/integrations/stripe/enrichment";
+import { applyStripeTransactionEnrichment, normaliseStripeEnrichment, normaliseStripeRefundSettlement, stripeChargeEnrichmentReferences, type NormalisedStripeEnrichment } from "@/lib/integrations/stripe/enrichment";
 import type { StripeBackfillRun, SupabaseStripeSyncRepository } from "@/server/repositories/stripe-sync-repository";
 
 export type StripeSource = {
@@ -14,12 +14,12 @@ export type StripeSource = {
   listRefundsCreatedSince(since: Date): Promise<unknown[]>;
 };
 
-export type StripeHistoricalSource = Pick<StripeSource, "fetchCharge"> & {
+export type StripeHistoricalSource = Pick<StripeSource, "fetchCharge" | "fetchBalanceTransaction"> & {
   listChargesPage(cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
   listRefundsPage(cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
 };
 
-type StripeRepository = Pick<SupabaseStripeSyncRepository, "persistCharge" | "persistRefund"> & Partial<Pick<SupabaseStripeSyncRepository, "persistStripeDetails" | "recordOptionalEnrichmentError">>;
+type StripeRepository = Pick<SupabaseStripeSyncRepository, "persistCharge" | "persistRefund"> & Partial<Pick<SupabaseStripeSyncRepository, "persistStripeDetails" | "persistStripeRefundDetails" | "recordOptionalEnrichmentError">>;
 type StripeWebhookRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "recordWebhookEvent" | "markEventCompleted" | "failEvent">;
 type StripeReconciliationRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "startSyncRun" | "completeSyncRun" | "failSyncRun" | "recordSyncError">;
 type StripeBackfillRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "getOrStartHistoricalBackfill" | "finishHistoricalBackfillBatch" | "failSyncRun" | "recordSyncError">;
@@ -105,12 +105,28 @@ async function persistCharge(input: { charge: unknown; source?: Pick<StripeSourc
   return result.inserted;
 }
 
-async function persistRefund(input: { refund: unknown; source: Pick<StripeSource, "fetchCharge">; productReferenceMetadataKey: string; repository: StripeRepository }): Promise<boolean> {
+async function persistRefund(input: { refund: unknown; source: Pick<StripeSource, "fetchCharge" | "fetchBalanceTransaction">; productReferenceMetadataKey: string; repository: StripeRepository }): Promise<boolean> {
   const refund = normaliseStripeRefund(input.refund);
   // A refund can arrive before the matching charge's webhook. Read the charge first
   // so the original B2C record always exists before its separate refund row.
   await persistCharge({ charge: await input.source.fetchCharge(refund.chargeId), source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository });
   const result = await input.repository.persistRefund(refund);
+  if (refund.balanceTransactionId && input.source.fetchBalanceTransaction && input.repository.persistStripeRefundDetails) {
+    try {
+      const evidence = normaliseStripeRefundSettlement(await input.source.fetchBalanceTransaction(refund.balanceTransactionId));
+      await input.repository.persistStripeRefundDetails(result.refundId, evidence);
+    } catch (error) {
+      // The source refund remains a valid, separate record if optional settlement
+      // evidence is unavailable. Keep a safe error for retry and never create a
+      // financial estimate from the missing conversion data.
+      if (input.repository.recordOptionalEnrichmentError) await input.repository.recordOptionalEnrichmentError({
+        chargeId: refund.chargeId,
+        sourceReference: `Stripe refund ${refund.refundId} balance_transaction enrichment`,
+        objectType: "balance_transaction",
+        error,
+      });
+    }
+  }
   return result.inserted;
 }
 

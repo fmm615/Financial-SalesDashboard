@@ -99,8 +99,10 @@ Stripe API enrichment normalization lives in
 `lib/integrations/stripe/enrichment.ts`. The GET-only client retrieves referenced
 Stripe objects, `server/services/sync-stripe.ts` coordinates optional reads, and
 the provider repository persists only typed one-to-one details. The general B2C
-dashboard consumes a protected contact-fallback function; Admin-only settlement
-evidence does not cross into its financial snapshot.
+dashboard consumes protected, read-only functions for contact fallbacks and a
+small selected Stripe-evidence set. Those values are traceability context only:
+they do not enter the financial snapshot or totals, and raw provider/payment
+data remains outside the general dashboard boundary.
 
 ### `lib/supabase/` and `lib/validation/`
 

@@ -4,7 +4,7 @@ import {
   normaliseStripeEnrichment,
   stripeChargeEnrichmentReferences,
 } from "@/lib/integrations/stripe/enrichment";
-import { normaliseStripeCharge } from "@/lib/integrations/stripe/normalise";
+import { normaliseStripeCharge, normaliseStripeRefund } from "@/lib/integrations/stripe/normalise";
 import { StripeClient } from "@/lib/integrations/stripe/client";
 
 const rawCharge = {
@@ -27,6 +27,33 @@ const rawCharge = {
 };
 
 describe("Stripe read-only enrichment normalisation", () => {
+  it("retains bounded charge evidence without retaining raw card or provider payloads", () => {
+    const charge = normaliseStripeCharge({
+      ...rawCharge,
+      amount_refunded: 1250,
+      description: "  Founding membership renewal  ",
+      outcome: { seller_message: "  Payment approved by Stripe.  " },
+      billing_details: { name: "  Khansa Khatoon  " },
+    }, "product_id");
+
+    expect(charge).toMatchObject({
+      description: "Founding membership renewal",
+      sellerMessage: "Payment approved by Stripe.",
+      cardholderName: "Khansa Khatoon",
+      amountRefunded: "12.50",
+    });
+    expect(normaliseStripeCharge(rawCharge, "product_id")).toMatchObject({
+      description: null,
+      sellerMessage: null,
+      cardholderName: null,
+      amountRefunded: "0.00",
+    });
+    expect(normaliseStripeRefund({
+      id: "re_123", charge: "ch_123", amount: 5042, currency: "usd", created: 1_754_000_100,
+      status: "succeeded", balance_transaction: "txn_refund_123",
+    })).toMatchObject({ balanceTransactionId: "txn_refund_123" });
+  });
+
   it("extracts only stable IDs from string or expanded Charge references", () => {
     expect(stripeChargeEnrichmentReferences({
       ...rawCharge,

@@ -11,16 +11,18 @@ const chargeContactSchema = z.object({
 const stripeIdReferenceSchema = z.union([z.string().min(1), z.object({ id: z.string().min(1) }).passthrough()]);
 const chargeSchema = z.object({
   id: z.string().min(1), amount: z.number().int().positive(), currency: z.string().length(3), created: z.number().int().nonnegative(),
-  status: z.string(), paid: z.boolean(), captured: z.boolean(), receipt_email: z.string().nullable().optional(),
+  status: z.string(), paid: z.boolean(), captured: z.boolean(), amount_refunded: z.number().int().nonnegative().optional(), receipt_email: z.string().nullable().optional(),
   billing_details: chargeContactSchema.optional(),
   shipping: chargeContactSchema.nullable().optional(),
   customer: stripeIdReferenceSchema.nullable().optional(),
   metadata: metadataSchema.optional(), payment_intent: stripeIdReferenceSchema.nullable().optional(), payment_method: stripeIdReferenceSchema.nullable().optional(),
   invoice: stripeIdReferenceSchema.nullable().optional(), balance_transaction: stripeIdReferenceSchema.nullable().optional(), description: z.string().nullable().optional(),
+  outcome: z.object({ seller_message: z.string().nullable().optional() }).nullable().optional(),
 }).passthrough();
 const refundSchema = z.object({
   id: z.string().min(1), charge: z.string().nullable(), amount: z.number().int().positive(), currency: z.string().length(3),
   created: z.number().int().nonnegative(), status: z.string().nullable().optional(), reason: z.string().nullable().optional(), metadata: metadataSchema.optional(),
+  balance_transaction: stripeIdReferenceSchema.nullable().optional(),
 }).passthrough();
 const stripeProductSchema = z.object({
   id: z.string().min(1),
@@ -50,9 +52,10 @@ export type NormalisedStripeCharge = {
   chargeId: string; customerEmail: string | null; customerName: string | null; customerPhone: string | null; productReference: string | null; paymentStatus: StripePaymentStatus;
   customerEmailSource: StripeTransactionContactSource | null; customerNameSource: StripeTransactionContactSource | null; customerPhoneSource: StripeTransactionContactSource | null;
   originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; occurredOn: string;
+  description: string | null; sellerMessage: string | null; cardholderName: string | null; amountRefunded: string;
   sourceMetadata: Record<string, string>;
 };
-export type NormalisedStripeRefund = { refundId: string; chargeId: string; originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; reason: string | null; metadata: Record<string, string> };
+export type NormalisedStripeRefund = { refundId: string; chargeId: string; originalAmount: string; originalCurrency: string; exchangeRateToUsd: "1"; amountUsd: string; occurredAt: string; reason: string | null; balanceTransactionId: string | null; metadata: Record<string, string> };
 export type StripeCheckoutPlan = {
   checkoutSessionId: string;
   priceId: string;
@@ -95,6 +98,12 @@ function stripeReferenceId(reference: string | { id: string } | null | undefined
 
 function stripeMinorAmountToDecimal(amount: number, currency: string): string {
   if (!Number.isSafeInteger(amount) || amount <= 0) throw new StripeNormalisationError("Stripe returned an invalid payment amount.");
+  if (ZERO_DECIMAL_CURRENCIES.has(currency)) return String(amount);
+  return `${Math.floor(amount / 100)}.${String(amount % 100).padStart(2, "0")}`;
+}
+
+function stripeMinorNonnegativeAmountToDecimal(amount: number, currency: string): string {
+  if (!Number.isSafeInteger(amount) || amount < 0) throw new StripeNormalisationError("Stripe returned an invalid refunded amount.");
   if (ZERO_DECIMAL_CURRENCIES.has(currency)) return String(amount);
   return `${Math.floor(amount / 100)}.${String(amount % 100).padStart(2, "0")}`;
 }
@@ -184,9 +193,13 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
   const shippingPhone = validatedStripePhone(charge.shipping?.phone);
   const customerPhone = billingPhone ?? shippingPhone;
   const amount = stripeMinorAmountToDecimal(charge.amount, originalCurrency);
+  const amountRefunded = stripeMinorNonnegativeAmountToDecimal(charge.amount_refunded ?? 0, originalCurrency);
+  if ((charge.amount_refunded ?? 0) > charge.amount) throw new StripeNormalisationError("Stripe returned a refunded amount greater than the charge amount.");
   const metadata = charge.metadata ?? {};
   const productReference = cleanStripeText(metadata[productReferenceMetadataKey], 255);
   const paymentStatus: StripePaymentStatus = charge.status === "succeeded" && charge.paid && charge.captured ? "succeeded" : charge.status === "failed" ? "failed" : "pending";
+  const description = cleanStripeText(charge.description, 300);
+  const sellerMessage = cleanStripeText(charge.outcome?.seller_message, 300);
   return {
     chargeId: charge.id,
     customerEmail,
@@ -198,6 +211,7 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
     productReference,
     paymentStatus,
     originalAmount: amount, originalCurrency, exchangeRateToUsd: "1", amountUsd: amount, occurredAt: occurredAt.toISOString(), occurredOn: bahrainBusinessDate(occurredAt),
+    description, sellerMessage, cardholderName: billingName, amountRefunded,
     sourceMetadata: {
       ...(stripeReferenceId(charge.payment_intent) ? { payment_intent_id: stripeReferenceId(charge.payment_intent)! } : {}),
       ...(stripeReferenceId(charge.payment_method) ? { payment_method_id: stripeReferenceId(charge.payment_method)! } : {}),
@@ -205,7 +219,7 @@ export function normaliseStripeCharge(payload: unknown, productReferenceMetadata
       ...(stripeReferenceId(charge.balance_transaction) ? { balance_transaction_id: stripeReferenceId(charge.balance_transaction)! } : {}),
       ...(stripeChargeCustomerId(charge) ? { stripe_customer_id: stripeChargeCustomerId(charge)! } : {}),
       ...(productReference ? { product_reference: productReference } : {}),
-      ...(cleanStripeText(charge.description, 300) ? { description: cleanStripeText(charge.description, 300)! } : {}),
+      ...(description ? { description } : {}),
       ...(customerName ? { customer_name_source: (billingName ? "charge_billing" : "charge_shipping") } : {}),
       ...(customerEmail ? { customer_email_source: receiptEmail ? "charge_receipt" : billingEmail ? "charge_billing" : "charge_shipping" } : {}),
       ...(customerPhone ? { customer_phone_source: billingPhone ? "charge_billing" : "charge_shipping" } : {}),
@@ -220,7 +234,7 @@ export function normaliseStripeRefund(payload: unknown): NormalisedStripeRefund 
   const originalCurrency = requireUsd(refund.currency.toUpperCase());
   const occurredAt = new Date(refund.created * 1000);
   if (Number.isNaN(occurredAt.getTime())) throw new StripeNormalisationError("Stripe refund has an invalid created timestamp.");
-  return { refundId: refund.id, chargeId: refund.charge, originalAmount: stripeMinorAmountToDecimal(refund.amount, originalCurrency), originalCurrency, exchangeRateToUsd: "1", amountUsd: stripeMinorAmountToDecimal(refund.amount, originalCurrency), occurredAt: occurredAt.toISOString(), reason: cleanStripeText(refund.reason, 300), metadata: {} };
+  return { refundId: refund.id, chargeId: refund.charge, originalAmount: stripeMinorAmountToDecimal(refund.amount, originalCurrency), originalCurrency, exchangeRateToUsd: "1", amountUsd: stripeMinorAmountToDecimal(refund.amount, originalCurrency), occurredAt: occurredAt.toISOString(), reason: cleanStripeText(refund.reason, 300), balanceTransactionId: stripeReferenceId(refund.balance_transaction), metadata: {} };
 }
 
 const stripeEventSchema = z.object({ id: z.string().min(1), type: z.string().min(1), data: z.object({ object: z.unknown() }) }).passthrough();

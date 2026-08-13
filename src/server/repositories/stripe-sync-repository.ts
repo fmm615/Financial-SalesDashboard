@@ -1,6 +1,6 @@
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
 import type { DatabaseClient } from "@/lib/supabase/server";
-import type { NormalisedStripeEnrichment } from "@/lib/integrations/stripe/enrichment";
+import type { NormalisedStripeEnrichment, StripeRefundSettlementEvidence } from "@/lib/integrations/stripe/enrichment";
 
 type ProviderSyncRun = { id: string };
 export type ProviderBackfillRun = { id: string; continuationCursor: string | null; recordsProcessed: number; recordsFailed: number; completed: boolean };
@@ -233,6 +233,10 @@ export class SupabaseB2cProviderSyncRepository {
       customer_profile_name: retained(details.customerProfileContact.name, existing?.customer_profile_name),
       customer_profile_email: retained(details.customerProfileContact.email, existing?.customer_profile_email),
       customer_profile_phone: retained(details.customerProfileContact.phone, existing?.customer_profile_phone),
+      charge_description: retained(details.chargeEvidence.description, existing?.charge_description),
+      seller_message: retained(details.chargeEvidence.sellerMessage, existing?.seller_message),
+      cardholder_name: retained(details.chargeEvidence.cardholderName, existing?.cardholder_name),
+      charge_refunded_amount: details.chargeEvidence.amountRefunded,
       settlement_gross_amount: retained(details.settlement?.grossAmount ?? null, existing?.settlement_gross_amount),
       settlement_fee_amount: retained(details.settlement?.feeAmount ?? null, existing?.settlement_fee_amount),
       settlement_fee_tax_amount: retained(details.settlement?.feeTaxAmount ?? null, existing?.settlement_fee_tax_amount),
@@ -250,24 +254,42 @@ export class SupabaseB2cProviderSyncRepository {
     if (details.issueCodes.some((code) => code.startsWith("contact_conflict_"))) await this.openFlag(paymentId, "needs_follow_up", "Stripe returned conflicting transaction contact evidence. The retained higher-priority value requires Admin review.");
   }
 
-  async recordOptionalEnrichmentError(input: { integrationEventId?: string; syncRunId?: string; chargeId: string; objectType: "checkout_session" | "invoice" | "payment_method" | "customer" | "balance_transaction"; error: unknown }): Promise<void> {
-    await this.recordIntegrationError({ integrationEventId: input.integrationEventId, syncRunId: input.syncRunId, error: input.error, sourceReference: `Stripe charge ${input.chargeId} ${input.objectType} enrichment` });
+  async recordOptionalEnrichmentError(input: { integrationEventId?: string; syncRunId?: string; chargeId: string; sourceReference?: string; objectType: "checkout_session" | "invoice" | "payment_method" | "customer" | "balance_transaction"; error: unknown }): Promise<void> {
+    await this.recordIntegrationError({
+      integrationEventId: input.integrationEventId,
+      syncRunId: input.syncRunId,
+      error: input.error,
+      sourceReference: input.sourceReference ?? `Stripe charge ${input.chargeId} ${input.objectType} enrichment`,
+    });
   }
 
-  async persistRefund(input: NormalisedB2cProviderRefund): Promise<{ inserted: boolean }> {
+  async persistRefund(input: NormalisedB2cProviderRefund): Promise<{ refundId: string; inserted: boolean }> {
     const { data: payment, error: paymentError } = await this.client.from("b2c_payments").select("id").eq("source_system", this.provider).eq("provider_transaction_id", input.chargeId).maybeSingle();
     if (paymentError) throw new Error(`Could not locate ${this.providerLabel} source payment for refund: ${paymentError.message}`);
     if (!payment) throw new Error(`${this.providerLabel} refund refers to charge ${input.chargeId}, which is not stored locally.`);
     const { data: existing, error: existingError } = await this.client.from("b2c_refunds").select("id").eq("source_system", this.provider).eq("provider_refund_id", input.refundId).maybeSingle();
     if (existingError) throw new Error(`Could not check existing ${this.providerLabel} refund: ${existingError.message}`);
-    if (existing) return { inserted: false };
+    if (existing) return { refundId: existing.id, inserted: false };
     const { data: refund, error } = await this.client.from("b2c_refunds").insert({
       payment_id: payment.id, source_system: this.provider, provider_refund_id: input.refundId, original_amount: input.originalAmount, original_currency: input.originalCurrency,
       exchange_rate_to_usd: input.exchangeRateToUsd, amount_usd: input.amountUsd, reason: input.reason, occurred_at: input.occurredAt, provider_metadata: input.metadata,
     }).select("id").single();
     if (error) throw new Error(`Could not save ${this.providerLabel} refund: ${error.message}`);
     await this.openFlag(refund.id, "refunded", `${this.providerLabel} refund recorded separately from its original payment. Confirm the refund reason before month-end.`, "b2c_refund");
-    return { inserted: true };
+    return { refundId: refund.id, inserted: true };
+  }
+
+  /** Persists only normalized refund settlement evidence; no provider payload is stored. */
+  async persistStripeRefundDetails(refundId: string, evidence: StripeRefundSettlementEvidence): Promise<void> {
+    if (this.provider !== "stripe") throw new Error("Only Stripe refunds can receive Stripe settlement evidence.");
+    const { error } = await this.client.from("b2c_stripe_refund_details").upsert({
+      refund_id: refundId,
+      settlement_refund_amount: evidence.refundAmount,
+      settlement_currency: evidence.currency,
+      settlement_exchange_rate: evidence.exchangeRate,
+      last_enriched_at: new Date().toISOString(),
+    }, { onConflict: "refund_id" });
+    if (error) throw new Error(`Could not save Stripe refund settlement evidence: ${error.message}`);
   }
 
   private async upsertCustomer(email: string, fullName: string | null): Promise<string> {

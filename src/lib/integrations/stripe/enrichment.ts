@@ -45,6 +45,8 @@ export type StripeTransactionContact = StripeContactEvidence & {
   nameSource: StripeTransactionContactSource | null; emailSource: StripeTransactionContactSource | null; phoneSource: StripeTransactionContactSource | null;
 };
 export type StripeSettlementEvidence = { grossAmount: string; feeAmount: string; feeTaxAmount: string; netAmount: string; currency: string; exchangeRate: string | null };
+export type StripeRefundSettlementEvidence = { refundAmount: string; currency: string; exchangeRate: string | null };
+export type StripeChargeEvidence = { description: string | null; sellerMessage: string | null; cardholderName: string | null; amountRefunded: string };
 export type NormalisedStripeEnrichment = {
   references: StripeChargeEnrichmentReferences;
   transactionContact: StripeTransactionContact;
@@ -54,6 +56,7 @@ export type NormalisedStripeEnrichment = {
   paymentMethodContact: StripeContactEvidence;
   customerProfileContact: StripeContactEvidence;
   settlement: StripeSettlementEvidence | null;
+  chargeEvidence: StripeChargeEvidence;
   providerTax: { amount: string; currency: string } | null;
   plan: StripeCheckoutPlan | null;
   issueCodes: string[];
@@ -78,6 +81,25 @@ function minorUnits(amount: number, currency: string): string {
   const zeroDecimal = new Set(["BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF"]);
   if (zeroDecimal.has(currency)) return String(amount);
   return `${Math.floor(amount / 100)}.${String(amount % 100).padStart(2, "0")}`;
+}
+
+/**
+ * Stripe represents refund balance transactions as signed ledger movements.
+ * PLAYBOOK exposes the refunded amount as a positive source-evidence value,
+ * while keeping it separate from the charge, local USD reporting, and Finance.
+ */
+export function normaliseStripeRefundSettlement(payload: unknown): StripeRefundSettlementEvidence {
+  const balance = z.object({
+    id: z.string().min(1), amount: z.number().int(), currency: z.string().length(3),
+    exchange_rate: z.number().positive().nullable().optional(), status: z.string(),
+  }).passthrough().parse(payload);
+  if (balance.amount >= 0) throw new Error("Stripe refund settlement must be a negative ledger movement.");
+  const currency = balance.currency.toUpperCase();
+  return {
+    refundAmount: minorUnits(Math.abs(balance.amount), currency),
+    currency,
+    exchangeRate: balance.exchange_rate == null ? null : String(balance.exchange_rate),
+  };
 }
 
 export function stripeChargeEnrichmentReferences(payload: unknown): StripeChargeEnrichmentReferences {
@@ -146,7 +168,9 @@ export function normaliseStripeEnrichment(input: StripeEnrichmentPayloads): Norm
   }
   return {
     references: { ...input.references, checkoutSessionId }, transactionContact, chargeContact, checkoutContact, invoiceContact,
-    paymentMethodContact, customerProfileContact, settlement, providerTax, plan,
+    paymentMethodContact, customerProfileContact, settlement,
+    chargeEvidence: { description: input.charge.description, sellerMessage: input.charge.sellerMessage, cardholderName: input.charge.cardholderName, amountRefunded: input.charge.amountRefunded },
+    providerTax, plan,
     issueCodes: conflicts([chargeContact, checkoutContact, invoiceContact], transactionContact),
   };
 }

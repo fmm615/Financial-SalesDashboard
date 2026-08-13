@@ -88,6 +88,10 @@ type B2cStripePaymentDetailsRow = {
   customer_profile_name: string | null;
   customer_profile_email: string | null;
   customer_profile_phone: string | null;
+  charge_description: string | null;
+  seller_message: string | null;
+  cardholder_name: string | null;
+  charge_refunded_amount: Decimal | null;
   settlement_gross_amount: Decimal | null;
   settlement_fee_amount: Decimal | null;
   settlement_fee_tax_amount: Decimal | null;
@@ -98,6 +102,16 @@ type B2cStripePaymentDetailsRow = {
   provider_tax_currency: string | null;
   enrichment_status: "complete" | "partial";
   enrichment_issue_codes: Json;
+  last_enriched_at: Timestamp | null;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+};
+
+type B2cStripeRefundDetailsRow = {
+  refund_id: Uuid;
+  settlement_refund_amount: Decimal | null;
+  settlement_currency: string | null;
+  settlement_exchange_rate: Decimal | null;
   last_enriched_at: Timestamp | null;
   created_at: Timestamp;
   updated_at: Timestamp;
@@ -177,6 +191,7 @@ export interface Database {
       }>;
       b2c_payments: Table<B2cPaymentRow>;
       b2c_stripe_payment_details: Table<B2cStripePaymentDetailsRow>;
+      b2c_stripe_refund_details: Table<B2cStripeRefundDetailsRow>;
       b2c_finance_imports: Table<{
         id: Uuid; source_kind: Database["public"]["Enums"]["b2c_finance_import_source_kind"]; source_file_name: string;
         source_file_sha256: string; source_storage_bucket: string; source_storage_path: string;
@@ -342,6 +357,30 @@ export interface Database {
           customer_email_label: "Stripe payment method" | "Stripe profile" | null;
           customer_phone: string | null;
           customer_phone_label: "Stripe payment method" | "Stripe profile" | null;
+        }>;
+      };
+      get_b2c_stripe_payment_evidence: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          payment_id: Uuid;
+          original_amount: Decimal;
+          original_currency: string;
+          charge_refunded_amount: Decimal | null;
+          charge_description: string | null;
+          seller_message: string | null;
+          cardholder_name: string | null;
+          settlement_gross_amount: Decimal | null;
+          settlement_fee_amount: Decimal | null;
+          settlement_fee_tax_amount: Decimal | null;
+          settlement_net_amount: Decimal | null;
+          settlement_currency: string | null;
+          settlement_exchange_rate: Decimal | null;
+          refund_id: Uuid | null;
+          refund_original_amount: Decimal | null;
+          refund_original_currency: string | null;
+          refund_settlement_amount: Decimal | null;
+          refund_settlement_currency: string | null;
+          refund_settlement_exchange_rate: Decimal | null;
         }>;
       };
     };

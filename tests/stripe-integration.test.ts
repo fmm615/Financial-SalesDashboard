@@ -166,6 +166,30 @@ describe("Stripe ingestion orchestration", () => {
     }));
   });
 
+  it("retains refund settlement evidence separately after a read-only balance transaction lookup", async () => {
+    const repository = {
+      persistCharge: vi.fn().mockResolvedValue({ paymentId: "payment-1", inserted: false }),
+      persistRefund: vi.fn().mockResolvedValue({ refundId: "refund-1", inserted: true }),
+      persistStripeRefundDetails: vi.fn(),
+      startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }),
+      completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn(),
+    };
+    const source = {
+      fetchCharge: vi.fn().mockResolvedValue(charge),
+      fetchBalanceTransaction: vi.fn().mockResolvedValue({ id: "txn_refund_123", amount: -1200, currency: "usd", exchange_rate: null, status: "available" }),
+      listChargesCreatedSince: vi.fn().mockResolvedValue([]),
+      listRefundsCreatedSince: vi.fn().mockResolvedValue([{ ...succeededRefund, balance_transaction: "txn_refund_123" }]),
+    };
+
+    const result = await runStripeReconciliation({ source, productReferenceMetadataKey: "product_id", repository, now: new Date("2026-08-02T12:00:00.000Z") });
+
+    expect(result).toMatchObject({ processed: 1, failed: 0, inserted: 1 });
+    expect(source.fetchBalanceTransaction).toHaveBeenCalledWith("txn_refund_123");
+    expect(repository.persistStripeRefundDetails).toHaveBeenCalledWith("refund-1", {
+      refundAmount: "12.00", currency: "USD", exchangeRate: null,
+    });
+  });
+
   it("retains the valid Charge and records partial enrichment failures safely", async () => {
     const repository = {
       persistCharge: vi.fn().mockResolvedValue({ paymentId: "payment-1", inserted: true }),

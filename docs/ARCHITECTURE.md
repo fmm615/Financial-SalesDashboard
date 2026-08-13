@@ -176,7 +176,10 @@ create another sale. Charge, completed-Checkout, and finalized-Invoice contacts
 are transaction evidence. Mutable Payment Method and Customer contacts are
 stored separately and exposed to approved users only through a narrow protected
 function with explicit source labels. Settlement, fee, conversion, and tax
-evidence is Admin-only and never enters dashboard totals.
+evidence is retained separately and never enters dashboard totals. Approved
+users may inspect a deliberately narrow, read-only list of source fields in B2C
+Operations; raw provider payloads, payment-method data, and card data never
+leave the Admin-only boundary.
 
 ## Authentication boundary
 
