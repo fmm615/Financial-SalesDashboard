@@ -38,6 +38,12 @@ type CorrectionDraft = {
   occurredOn: string;
 };
 
+type FxConversionDraft = {
+  exchangeRateToUsd: string;
+  conversionSource: string;
+  effectiveOn: string;
+};
+
 function draftFromRow(row: B2cLedgerRow): CorrectionDraft {
   return {
     customerName: editableValue(row.customerName),
@@ -68,6 +74,7 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
   const [mappingCategoryCode, setMappingCategoryCode] = useState("");
   const [mappingMembershipTier, setMappingMembershipTier] = useState("");
   const [draft, setDraft] = useState<CorrectionDraft>(() => draftFromRow(row));
+  const [fxDraft, setFxDraft] = useState<FxConversionDraft>({ exchangeRateToUsd: "", conversionSource: "", effectiveOn: row.sourceDateValue });
   const [reason, setReason] = useState("");
   const [confirmedProviderTransaction, setConfirmedProviderTransaction] = useState(false);
   const [confirmedNoKnownDuplicate, setConfirmedNoKnownDuplicate] = useState(false);
@@ -95,6 +102,7 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
   function openReview() {
     setDraft(draftFromRow(row));
     setReason("");
+    setFxDraft({ exchangeRateToUsd: "", conversionSource: "", effectiveOn: row.sourceDateValue });
     setConfirmedProviderTransaction(false);
     setConfirmedNoKnownDuplicate(false);
     setMessage(null);
@@ -145,7 +153,20 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
     } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The local B2C correction could not be saved."); } finally { setSaving(false); }
   }
 
-  const requiresFxReview = row.foreignCurrencyReview === true || row.amountValueUsd === null;
+  async function saveFxConversion() {
+    setSaving(true); setMessage(null);
+    try {
+      const response = await fetch(`/api/admin/b2c/payments/${row.id}/fx-conversion`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...fxDraft, reason }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "The Finance USD conversion could not be saved.");
+      setOpen(false); router.refresh();
+    } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The Finance USD conversion could not be saved."); } finally { setSaving(false); }
+  }
+
+  const requiresFxReview = row.foreignCurrencyReview === true;
   const canUseFinanceException = !requiresFxReview && row.paymentStatus === "Completed" && Boolean(row.providerReference) && row.category !== "Unmapped" && !row.hasFinanceException;
   const hasSourceReview = row.openReviewFlags.length > 0;
   const financeExceptionSourceGaps = Array.from(new Set(row.openReviewFlags.flatMap((flag) => {
@@ -182,7 +203,7 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
             <div className="mt-3 grid gap-x-5 gap-y-4 md:grid-cols-2">
             <label className={fieldClass}>PLAYBOOK reporting category<input className={inputClass} value={draft.categoryCode} onChange={(event) => updateDraft("categoryCode", event.target.value)} placeholder="Required for Finance, e.g. membership" /><span className="mt-1 block text-xs font-normal text-text-muted">Enter a verified category; do not use a dash.</span></label>
             <label className={fieldClass}>Plan / tier<input className={inputClass} value={draft.membershipTier} onChange={(event) => updateDraft("membershipTier", event.target.value)} placeholder="Unavailable from Stripe" /></label>
-            <label className={fieldClass}>Local B2C amount (USD)<input className={inputClass} type="number" min="0.000001" step="0.000001" value={draft.amountUsd} onChange={(event) => updateDraft("amountUsd", event.target.value)} disabled={requiresFxReview} /><span className="mt-1 block text-xs font-normal text-text-muted">{requiresFxReview ? "A Finance-approved FX conversion is required before a USD amount can be entered." : "Use only a Finance-verified USD amount."}</span></label>
+            <label className={fieldClass}>Local B2C amount (USD)<input className={inputClass} type="number" min="0.000001" step="0.000001" value={draft.amountUsd} onChange={(event) => updateDraft("amountUsd", event.target.value)} disabled={row.isForeignCurrency} /><span className="mt-1 block text-xs font-normal text-text-muted">{row.isForeignCurrency ? "Foreign-currency USD amounts are created only through the Finance conversion below." : "Use only a Finance-verified USD amount."}</span></label>
             <label className={fieldClass}>Local business date<input className={inputClass} type="date" value={draft.occurredOn} onChange={(event) => updateDraft("occurredOn", event.target.value)} /></label>
             </div>
           </div>
@@ -195,6 +216,19 @@ export function B2cPaymentReviewActions({ row }: { row: B2cLedgerRow }) {
         </div>
 
         <div className="mt-6 space-y-3 border-t border-border pt-5">
+          {row.isForeignCurrency && <details className="group rounded-input border border-brand-accent/25 bg-brand-accent/5" open={requiresFxReview}>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>Finance USD conversion {requiresFxReview ? <span className="ml-1 font-normal text-warning">(required before reporting)</span> : <span className="ml-1 font-normal text-success">(recorded)</span>}</span><span className="text-xs font-normal text-text-muted group-open:hidden">View</span><span className="hidden text-xs font-normal text-text-muted group-open:inline">Hide</span></summary>
+            <div className="border-t border-brand-accent/15 px-4 py-4">
+              <p className={`${copyClass} text-sm leading-6 text-text-secondary`}>The source payment is <strong>{row.sourceAmountUsd}</strong>. Enter the Finance-approved number of USD for one {row.sourceOriginalCurrency} and its evidence. PLAYBOOK calculates and stores the USD reporting amount; {row.source} is never changed.</p>
+              {row.hasFxConversion && <p className="mt-3 rounded-input border border-success/20 bg-success/5 p-3 text-sm text-success">Latest local USD conversion: <strong>{row.amountUsd}</strong>{row.fxConversionEffectiveOn ? `, effective ${row.fxConversionEffectiveOn}` : ""}{row.fxConversionSource ? ` · ${row.fxConversionSource}` : ""}.</p>}
+              <div className="mt-4 grid gap-x-5 gap-y-4 md:grid-cols-2">
+                <label className={fieldClass}>USD per 1 {row.sourceOriginalCurrency}<input className={inputClass} type="number" min="0.0000000001" step="0.0000000001" value={fxDraft.exchangeRateToUsd} onChange={(event) => setFxDraft((current) => ({ ...current, exchangeRateToUsd: event.target.value }))} placeholder="e.g. 2.6595744681" /></label>
+                <label className={fieldClass}>Finance conversion source<input className={inputClass} value={fxDraft.conversionSource} onChange={(event) => setFxDraft((current) => ({ ...current, conversionSource: event.target.value }))} placeholder="Approved Finance FX rate / accounting evidence" /></label>
+                <label className={fieldClass}>Conversion effective date<input className={inputClass} type="date" value={fxDraft.effectiveOn} onChange={(event) => setFxDraft((current) => ({ ...current, effectiveOn: event.target.value }))} /></label>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void saveFxConversion()} disabled={saving || !fxDraft.exchangeRateToUsd.trim() || !fxDraft.conversionSource.trim() || !fxDraft.effectiveOn || !hasMeaningfulAuditReason(reason)}>{saving ? "Saving…" : row.hasFxConversion ? "Record revised USD conversion" : "Save Finance USD conversion"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Uses the same required reason above and creates a new audited Finance record.</p></div>
+            </div>
+          </details>}
           <details className="group rounded-input border border-border bg-surface">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>Source details</span><span className="text-xs font-normal text-text-muted group-open:hidden">View</span><span className="hidden text-xs font-normal text-text-muted group-open:inline">Hide</span></summary>
             <div className="grid gap-x-6 gap-y-4 border-t border-border px-4 py-4 text-sm sm:grid-cols-2">

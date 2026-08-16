@@ -24,7 +24,13 @@ export type B2cLedgerRow = {
   sourceAmountUsd: string;
   sourceOriginalAmount?: string;
   sourceOriginalCurrency?: string;
+  /** True when the provider's original amount is not USD. */
+  isForeignCurrency?: boolean;
+  /** True only while a foreign source needs a Finance-approved local conversion. */
   foreignCurrencyReview?: boolean;
+  hasFxConversion?: boolean;
+  fxConversionSource?: string | null;
+  fxConversionEffectiveOn?: string | null;
   sourceDateValue: string;
   category: string;
   membershipTier: string | null;
@@ -116,6 +122,26 @@ type FinanceExceptionDecision = {
   decision: "include" | "revoke";
   created_at: string;
   id: string;
+};
+
+type PaymentFxConversion = {
+  id: string;
+  payment_id: string;
+  amount_usd: string;
+  exchange_rate_to_usd: string;
+  effective_on: string;
+  conversion_source: string;
+  created_at: string;
+};
+
+type RefundFxConversion = {
+  id: string;
+  refund_id: string;
+  amount_usd: string;
+  exchange_rate_to_usd: string;
+  effective_on: string;
+  conversion_source: string;
+  created_at: string;
 };
 
 type StripeEvidenceProjection = {
@@ -254,12 +280,14 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  */
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, financeExceptionResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = await Promise.all([
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = await Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,original_amount,original_currency,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,original_amount,original_currency,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
     client.from("b2c_payment_local_overrides").select("payment_id,customer_name,customer_email,customer_phone,category_code,membership_tier,local_amount_usd,local_occurred_on"),
+    client.from("b2c_payment_fx_conversions").select("id,payment_id,amount_usd,exchange_rate_to_usd,effective_on,conversion_source,created_at").order("created_at", { ascending: false }),
+    client.from("b2c_refund_fx_conversions").select("id,refund_id,amount_usd,exchange_rate_to_usd,effective_on,conversion_source,created_at").order("created_at", { ascending: false }),
     client.from("b2c_payment_finance_exception_decisions").select("id,payment_id,decision,created_at").order("created_at", { ascending: false }),
     client.rpc("get_b2c_stripe_payment_contact_fallbacks"),
     client.rpc("get_b2c_stripe_payment_evidence"),
@@ -268,7 +296,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "tap").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "tap").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? financeExceptionResult.error ?? stripeContactFallbacksResult.error ?? stripeEvidenceResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error) {
+  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? paymentFxConversionsResult.error ?? refundFxConversionsResult.error ?? financeExceptionResult.error ?? stripeContactFallbacksResult.error ?? stripeEvidenceResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error) {
     throw new Error("Could not load B2C source records.");
   }
 
@@ -279,6 +307,14 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     { provider: "tap", active: payments.some((payment) => payment.source_system === "tap") || refunds.some((refund) => refund.source_system === "tap") || Boolean(tapHistoricalResult.data), historicalBackfill: tapHistoricalResult.data ? { status: tapHistoricalResult.data.status, recordsFailed: tapHistoricalResult.data.records_failed, completedAt: tapHistoricalResult.data.completed_at } : null, latestReconciliation: tapReconciliationResult.data ? { status: tapReconciliationResult.data.status, requestedRangeEnd: tapReconciliationResult.data.requested_range_end, completedAt: tapReconciliationResult.data.completed_at } : null },
   ] });
   const overridesByPayment = new Map<string, LocalPaymentOverride>((localOverridesResult.data ?? []).map((override) => [override.payment_id, override]));
+  const latestPaymentFxConversionByPayment = new Map<string, PaymentFxConversion>();
+  for (const conversion of (paymentFxConversionsResult.data ?? []) as PaymentFxConversion[]) {
+    if (!latestPaymentFxConversionByPayment.has(conversion.payment_id)) latestPaymentFxConversionByPayment.set(conversion.payment_id, conversion);
+  }
+  const latestRefundFxConversionByRefund = new Map<string, RefundFxConversion>();
+  for (const conversion of (refundFxConversionsResult.data ?? []) as RefundFxConversion[]) {
+    if (!latestRefundFxConversionByRefund.has(conversion.refund_id)) latestRefundFxConversionByRefund.set(conversion.refund_id, conversion);
+  }
   const stripeFallbacksByPayment = new Map<string, B2cStripeContactFallback>((stripeContactFallbacksResult.data ?? []).map((fallback) => [fallback.payment_id, {
     customerName: fallback.customer_name, customerNameLabel: fallback.customer_name_label,
     customerEmail: fallback.customer_email, customerEmailLabel: fallback.customer_email_label,
@@ -324,6 +360,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   const paymentById = new Map(payments.map((payment) => [payment.id, payment]));
   const effectivePayment = (payment: typeof payments[number]) => {
     const override = overridesByPayment.get(payment.id);
+    const conversion = latestPaymentFxConversionByPayment.get(payment.id);
     return resolveEffectiveB2cPayment({
       customerName: payment.customer_name,
       customerEmail: payment.customer_email,
@@ -331,6 +368,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       categoryCode: payment.category_code,
       membershipTier: payment.membership_tier,
       amountUsd: payment.amount_usd,
+      originalCurrency: payment.original_currency,
       occurredOn: payment.occurred_on,
     }, override ? {
       customerName: override.customer_name,
@@ -338,9 +376,12 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       customerPhone: override.customer_phone,
       categoryCode: override.category_code,
       membershipTier: override.membership_tier,
-      amountUsd: override.local_amount_usd,
+      // A provider's foreign-currency amount can never be bypassed with the
+      // generic local-USD overlay. Only the append-only Finance conversion
+      // may supply USD for that source.
+      amountUsd: payment.original_currency === "USD" ? override.local_amount_usd : null,
       occurredOn: override.local_occurred_on,
-    } : null);
+    } : null, conversion ? { amountUsd: conversion.amount_usd } : null);
   };
   const paymentReportability = (payment: typeof payments[number]) => {
     const openFlags = flagsByRecord.get(payment.id) ?? [];
@@ -396,7 +437,9 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       continue;
     }
     completedSourcePaymentCount += 1;
-    if (payment.amount_usd !== null) completedSourcePayments += toScaledUsd(payment.amount_usd);
+    // This card is intentionally source USD only. Foreign provider amounts
+    // do not become a USD source total merely because they were retained.
+    if (payment.original_currency === "USD" && payment.amount_usd !== null) completedSourcePayments += toScaledUsd(payment.amount_usd);
     if (reportability.isReportable) {
       if (effective.amountUsd === null) throw new Error("A reportable B2C payment requires a USD amount.");
       const amount = toScaledUsd(effective.amountUsd);
@@ -417,9 +460,11 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     const payment = paymentById.get(refund.payment_id);
     if (!isInB2cPeriod(occurredOn, period)) continue;
     sourceRefundCount += 1;
-    if (refund.amount_usd !== null) sourceRefunds += toScaledUsd(refund.amount_usd);
-    if (payment && refund.amount_usd !== null && paymentReportability(payment).isReportable) {
-      const amount = toScaledUsd(refund.amount_usd);
+    const convertedRefund = latestRefundFxConversionByRefund.get(refund.id);
+    const effectiveRefundAmountUsd = refund.original_currency === "USD" ? refund.amount_usd : convertedRefund?.amount_usd ?? null;
+    if (refund.original_currency === "USD" && refund.amount_usd !== null) sourceRefunds += toScaledUsd(refund.amount_usd);
+    if (payment && effectiveRefundAmountUsd !== null && paymentReportability(payment).isReportable) {
+      const amount = toScaledUsd(effectiveRefundAmountUsd);
       refundsTotal += amount;
       eligibleRefundCount += 1;
     }
@@ -429,6 +474,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     ...payments.filter((payment) => isInB2cPeriod(effectivePayment(payment).occurredOn, period)).map((payment) => {
       const reviewFlags = (flagsByRecord.get(payment.id) ?? []).map((flag) => ({ id: flag.id, type: reviewFlagLabel(flag), reason: flag.reason }));
       const effective = effectivePayment(payment);
+      const conversion = latestPaymentFxConversionByPayment.get(payment.id);
       const displayContact = resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id));
       return {
       id: payment.id,
@@ -448,7 +494,11 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       sourceAmountUsd: formatSourceAmount(payment.original_amount, payment.original_currency),
       sourceOriginalAmount: payment.original_amount,
       sourceOriginalCurrency: payment.original_currency,
-      foreignCurrencyReview: payment.original_currency !== "USD",
+      isForeignCurrency: payment.original_currency !== "USD",
+      foreignCurrencyReview: payment.original_currency !== "USD" && effective.amountUsd === null,
+      hasFxConversion: Boolean(conversion),
+      fxConversionSource: conversion?.conversion_source ?? null,
+      fxConversionEffectiveOn: conversion?.effective_on ?? null,
       sourceDateValue: payment.occurred_on,
       category: !effective.categoryCode || effective.categoryCode === "unmapped" ? "Unmapped" : effective.categoryCode,
       membershipTier: effective.membershipTier,
@@ -481,6 +531,8 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       const effective = payment ? effectivePayment(payment) : null;
       const displayContact = payment && effective ? resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id)) : null;
       const reviewFlags = (flagsByRecord.get(refund.id) ?? []).map((flag) => ({ id: flag.id, type: reviewFlagLabel(flag), reason: flag.reason }));
+      const conversion = latestRefundFxConversionByRefund.get(refund.id);
+      const effectiveRefundAmountUsd = refund.original_currency === "USD" ? refund.amount_usd : conversion?.amount_usd ?? null;
       return {
         id: refund.id,
         recordType: "Refund" as const,
@@ -492,14 +544,18 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         customerPhoneEvidenceLabel: displayContact?.customerPhoneLabel ?? null,
         date: formatDate(refund.occurred_at.slice(0, 10)),
         dateValue: refund.occurred_at.slice(0, 10),
-        amountUsd: refund.amount_usd === null
+        amountUsd: effectiveRefundAmountUsd === null
           ? formatSourceAmount(refund.original_amount, refund.original_currency, true)
-          : formatUsd(-toScaledUsd(refund.amount_usd)),
-        amountValueUsd: refund.amount_usd === null ? null : `-${refund.amount_usd}`,
+          : formatUsd(-toScaledUsd(effectiveRefundAmountUsd)),
+        amountValueUsd: effectiveRefundAmountUsd === null ? null : `-${effectiveRefundAmountUsd}`,
         sourceAmountUsd: formatSourceAmount(refund.original_amount, refund.original_currency, true),
         sourceOriginalAmount: refund.original_amount,
         sourceOriginalCurrency: refund.original_currency,
-        foreignCurrencyReview: refund.original_currency !== "USD",
+        isForeignCurrency: refund.original_currency !== "USD",
+        foreignCurrencyReview: refund.original_currency !== "USD" && effectiveRefundAmountUsd === null,
+        hasFxConversion: Boolean(conversion),
+        fxConversionSource: conversion?.conversion_source ?? null,
+        fxConversionEffectiveOn: conversion?.effective_on ?? null,
         sourceDateValue: refund.occurred_at.slice(0, 10),
         category: effective?.categoryCode === "unmapped" ? "Unmapped" : effective?.categoryCode ?? "Unavailable",
         membershipTier: effective?.membershipTier ?? null,

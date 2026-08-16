@@ -240,10 +240,20 @@ export interface Database {
         confirmed_provider_transaction: boolean; confirmed_no_known_duplicate: boolean;
         created_by: Uuid; created_at: Timestamp;
       }>;
+      b2c_payment_fx_conversions: Table<{
+        id: Uuid; payment_id: Uuid; original_amount: Decimal; original_currency: string;
+        exchange_rate_to_usd: Decimal; amount_usd: Decimal; effective_on: string;
+        conversion_source: string; reason: string; created_by: Uuid; created_at: Timestamp;
+      }>;
       b2c_refunds: Table<{
         id: Uuid; payment_id: Uuid; source_system: B2cPaymentRow["source_system"]; provider_refund_id: string | null;
         original_amount: Decimal; original_currency: string; exchange_rate_to_usd: Decimal | null; amount_usd: Decimal | null;
         reason: string | null; occurred_at: Timestamp; imported_at: Timestamp; provider_metadata: Json; created_at: Timestamp;
+      }>;
+      b2c_refund_fx_conversions: Table<{
+        id: Uuid; refund_id: Uuid; original_amount: Decimal; original_currency: string;
+        exchange_rate_to_usd: Decimal; amount_usd: Decimal; effective_on: string;
+        conversion_source: string; reason: string; created_by: Uuid; created_at: Timestamp;
       }>;
       b2b_deal_stages: Table<{ code: string; label: string; display_order: number; is_closed: boolean; is_won: boolean; created_at: Timestamp; updated_at: Timestamp }>;
       b2b_companies: Table<{ id: Uuid; source_system: "hubspot" | "manual_finance"; external_company_id: string | null; legal_name: string; domain: string | null; created_at: Timestamp; updated_at: Timestamp }>;
@@ -332,6 +342,14 @@ export interface Database {
       include_b2c_payment_with_finance_exception: {
         Args: { p_payment_id: Uuid; p_reason: string; p_confirmed_provider_transaction: boolean; p_confirmed_no_known_duplicate: boolean };
         Returns: undefined;
+      };
+      record_b2c_payment_fx_conversion: {
+        Args: { p_payment_id: Uuid; p_exchange_rate_to_usd: Decimal; p_conversion_source: string; p_effective_on: string; p_reason: string };
+        Returns: Decimal;
+      };
+      record_b2c_refund_fx_conversion: {
+        Args: { p_refund_id: Uuid; p_exchange_rate_to_usd: Decimal; p_conversion_source: string; p_effective_on: string; p_reason: string };
+        Returns: Decimal;
       };
       finalize_b2c_finance_import: {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };

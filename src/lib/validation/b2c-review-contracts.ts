@@ -48,3 +48,23 @@ export const b2cFinanceExceptionSchema = z.object({
 }).strict();
 
 export type B2cFinanceExceptionInput = z.infer<typeof b2cFinanceExceptionSchema>;
+
+const requiredDecimalRate = z.string().trim()
+  .regex(/^\d{1,10}(?:\.\d{1,10})?$/, "Enter a valid exchange rate with up to 10 decimal places.")
+  .refine((value) => Number(value) > 0, "Enter an exchange rate greater than zero.");
+
+/**
+ * Finance must explicitly attest to a non-USD source conversion. The supplied
+ * rate is USD per one original-currency unit; the server calculates USD.
+ */
+export const b2cFxConversionSchema = z.object({
+  exchangeRateToUsd: requiredDecimalRate,
+  conversionSource: z.string().trim().min(3, "Enter the Finance-approved conversion source.").max(300)
+    .refine((value) => !isPlaceholder(value), "Enter a real conversion source, not a placeholder dash."),
+  effectiveOn: z.string().trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid conversion effective date.")
+    .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`)), "Enter a valid conversion effective date."),
+  reason: requiredAuditReason,
+}).strict();
+
+export type B2cFxConversionInput = z.infer<typeof b2cFxConversionSchema>;

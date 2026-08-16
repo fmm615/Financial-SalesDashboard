@@ -83,9 +83,21 @@ function timestampToDate(value: string | number | null | undefined): Date {
   return date;
 }
 
-function requireUsd(currency: string): "USD" {
-  if (currency !== "USD") throw new TapNormalisationError(`Tap charge uses ${currency}; no Finance-approved USD conversion rate is available.`);
-  return "USD";
+function normaliseCurrency(value: string): string {
+  const currency = value.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new TapNormalisationError("Tap returned an invalid payment currency.");
+  return currency;
+}
+
+/**
+ * A provider USD amount is retained only when Tap charged in USD. For a
+ * foreign source currency, the original amount remains source evidence and
+ * Finance records any future USD conversion locally and separately.
+ */
+function usdReportingValues(amount: string, currency: string): { exchangeRateToUsd: "1" | null; amountUsd: string | null } {
+  return currency === "USD"
+    ? { exchangeRateToUsd: "1", amountUsd: amount }
+    : { exchangeRateToUsd: null, amountUsd: null };
 }
 
 function metadataAsText(metadata: Record<string, string | number | boolean>): Record<string, string> {
@@ -123,7 +135,7 @@ function chargeStatus(status: string): NormalisedB2cProviderCharge["paymentStatu
 /** Converts only Tap source fields into the local B2C contract. No value is guessed. */
 export function normaliseTapCharge(payload: unknown, productReferenceMetadataKey: string): NormalisedB2cProviderCharge {
   const charge = tapChargeSchema.parse(payload);
-  const originalCurrency = requireUsd(charge.currency.toUpperCase());
+  const originalCurrency = normaliseCurrency(charge.currency);
   const occurredAt = timestampToDate(charge.transaction?.created ?? charge.created);
   const metadata = metadataAsText(charge.metadata ?? {});
   const productReference = sourceProductReference({ metadata, product: charge.product, metadataKey: productReferenceMetadataKey });
@@ -137,8 +149,7 @@ export function normaliseTapCharge(payload: unknown, productReferenceMetadataKey
     paymentStatus: chargeStatus(charge.status),
     originalAmount: amount,
     originalCurrency,
-    exchangeRateToUsd: "1",
-    amountUsd: amount,
+    ...usdReportingValues(amount, originalCurrency),
     occurredAt: occurredAt.toISOString(),
     occurredOn: bahrainBusinessDate(occurredAt),
     sourceMetadata: {
@@ -159,7 +170,7 @@ export function normaliseTapRefund(payload: unknown): NormalisedB2cProviderRefun
   if (!["REFUNDED", "SUCCEEDED", "CAPTURED"].includes(status)) throw new TapRefundNotSucceededError("Tap refund is not completed.");
   const chargeId = typeof refund.charge === "string" ? refund.charge : refund.charge?.id ?? null;
   if (!chargeId) throw new TapNormalisationError("Tap refund is missing its source charge.");
-  const originalCurrency = requireUsd(refund.currency.toUpperCase());
+  const originalCurrency = normaliseCurrency(refund.currency);
   const occurredAt = timestampToDate(refund.transaction?.created ?? refund.created);
   const amount = tapDecimal(refund.amount);
   const metadata = metadataAsText(refund.metadata ?? {});
@@ -168,8 +179,7 @@ export function normaliseTapRefund(payload: unknown): NormalisedB2cProviderRefun
     chargeId,
     originalAmount: amount,
     originalCurrency,
-    exchangeRateToUsd: "1",
-    amountUsd: amount,
+    ...usdReportingValues(amount, originalCurrency),
     occurredAt: occurredAt.toISOString(),
     reason: cleanText(refund.description, 300),
     metadata: {

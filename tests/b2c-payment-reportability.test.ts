@@ -45,4 +45,15 @@ describe("B2C payment reportability", () => {
     expect(b2cPaymentExclusionReasons(foreignCurrencyPayment)).toContain("needs_fx_review");
     expect(isReportableB2cPayment(foreignCurrencyPayment)).toBe(false);
   });
+
+  it("allows a foreign-currency payment into USD totals only after its local USD conversion exists", () => {
+    const convertedForeignCurrencyPayment = {
+      ...completePayment,
+      originalCurrency: "BHD",
+      amountUsd: "132.94",
+    };
+
+    expect(b2cPaymentExclusionReasons(convertedForeignCurrencyPayment)).not.toContain("needs_fx_review");
+    expect(isReportableB2cPayment(convertedForeignCurrencyPayment)).toBe(true);
+  });
 });

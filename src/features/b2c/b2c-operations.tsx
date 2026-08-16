@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { B2cLedgerFilters, initialB2cLedgerFilters } from "@/features/b2c/b2c-ledger-filters";
 import { B2cPaymentReviewActions } from "@/features/b2c/b2c-payment-review-actions";
+import { B2cRefundFxReviewActions } from "@/features/b2c/b2c-refund-fx-review-actions";
 import { B2cPeriodSelector } from "@/features/b2c/b2c-period-selector";
 import { B2cStripeEvidenceDialog } from "@/features/b2c/b2c-stripe-evidence-dialog";
 import type { B2cDashboardSnapshot, B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
@@ -117,7 +118,7 @@ function LedgerTable({
         <TableHeader>Mobile</TableHeader>
         <TableHeader>Record</TableHeader>
         <LedgerSortHeader label="Date" sortKey="date" sort={sort} onSort={onSort} />
-        <LedgerSortHeader label="Source amount" sortKey="amount" sort={sort} onSort={onSort} />
+        <LedgerSortHeader label="USD reporting amount" sortKey="amount" sort={sort} onSort={onSort} />
         <TableHeader>Description</TableHeader>
         <TableHeader>Plan / tier</TableHeader>
         <TableHeader>Source</TableHeader>
@@ -161,6 +162,7 @@ function LedgerTable({
             <TableCell className="font-medium tabular-nums">
               {row.amountUsd}
               {row.foreignCurrencyReview && <span className="mt-1 block text-xs font-normal text-warning">USD conversion pending</span>}
+              {row.hasFxConversion && <span className="mt-1 block text-xs font-normal text-success">Local Finance conversion</span>}
             </TableCell>
             <TableCell>{row.stripeEvidence?.description ?? "—"}</TableCell>
             <TableCell>
@@ -181,6 +183,7 @@ function LedgerTable({
               <div className="flex min-w-max flex-col items-start gap-2">
                 <B2cStripeEvidenceDialog row={row} />
                 <B2cPaymentReviewActions row={row} />
+                <B2cRefundFxReviewActions row={row} />
               </div>
             </TableCell>
           </tr>

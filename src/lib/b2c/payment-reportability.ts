@@ -7,7 +7,7 @@ export type B2cPaymentReportabilityInput = {
   customerEmail: string | null;
   categoryCode: string | null;
   openFlagTypes: ReadonlySet<string>;
-  /** A non-USD source record needs a Finance-approved USD conversion before reporting. */
+  /** A null value means no Finance-approved USD source or local conversion exists yet. */
   originalCurrency?: string | null;
   amountUsd?: string | null;
   /** A separately audited, Admin-confirmed local inclusion decision. */
@@ -27,7 +27,7 @@ export type B2cPaymentExclusionReason =
 export function b2cPaymentExclusionReasons(input: B2cPaymentReportabilityInput): B2cPaymentExclusionReason[] {
   const reasons: B2cPaymentExclusionReason[] = [];
   const exceptionApproved = input.hasFinanceException === true;
-  if ((input.originalCurrency && input.originalCurrency !== "USD") || input.amountUsd === null) reasons.push("needs_fx_review");
+  if (input.amountUsd === null) reasons.push("needs_fx_review");
   if (input.paymentStatus !== "succeeded") reasons.push("not_succeeded");
   if (!input.customerEmail && !exceptionApproved) reasons.push("missing_customer_email");
   if ((!input.categoryCode || input.categoryCode === "unmapped" || input.openFlagTypes.has("unmapped_product")) && !exceptionApproved) reasons.push("unmapped_product");

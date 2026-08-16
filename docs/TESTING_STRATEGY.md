@@ -54,6 +54,10 @@ Test:
 - Tap statement upload: full CSV line retention and classification, original
   currency preservation, atomic evidence staging, private Storage cleanup, and
   no BHD/USD conversion or `b2c_payments` write
+- B2C foreign-currency conversion: no USD amount at provider ingestion, an
+  Admin-only append-only Finance conversion with source/rate/effective-date/
+  reason, server-calculated USD amount, generic foreign-currency USD override
+  rejection, and converted-refund total not exceeding the converted payment
 - Stripe Charges CSV upload: separate linked refund evidence, minimized stored
   source fields, typed Admin-only contacts, original-currency retention,
   source-hash confirmation, and no B2C payment/revenue creation

@@ -20,8 +20,16 @@ describe("Tap normalisation and signed event processing", () => {
     expect(payment.occurredOn).toMatch(/^2026-08-04$/);
   });
 
-  it("does not invent foreign-currency reporting or treat a pending refund as completed", () => {
-    expect(() => normaliseTapCharge({ ...charge, currency: "BHD" }, "product_id")).toThrow("no Finance-approved USD conversion rate");
+  it("retains a foreign-currency Tap charge without inventing a USD amount", () => {
+    expect(normaliseTapCharge({ ...charge, currency: "BHD" }, "product_id")).toMatchObject({
+      originalCurrency: "BHD",
+      originalAmount: "50.42",
+      exchangeRateToUsd: null,
+      amountUsd: null,
+    });
+  });
+
+  it("does not treat a pending Tap refund as completed", () => {
     expect(() => normaliseTapRefund({ ...refund, status: "PENDING" })).toThrow(TapRefundNotSucceededError);
   });
 
@@ -57,12 +65,12 @@ describe("Tap normalisation and signed event processing", () => {
     expect(repository.persistCharge).not.toHaveBeenCalled();
   });
 
-  it("uses a 48-hour Tap read window and records individual source errors", async () => {
+  it("uses a 48-hour Tap read window and retains valid foreign-currency source records", async () => {
     const repository = { startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }), completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn(), persistCharge: vi.fn().mockResolvedValue({ inserted: true }), persistRefund: vi.fn().mockResolvedValue({ inserted: true }) };
     const source = { fetchCharge: vi.fn().mockResolvedValue(charge), listChargesCreatedSince: vi.fn().mockResolvedValue([charge, { ...charge, id: "bad", currency: "BHD" }]), listRefundsCreatedSince: vi.fn().mockResolvedValue([refund]) };
     const result = await runTapReconciliation({ source, productReferenceMetadataKey: "product_id", repository, now: new Date("2026-08-05T12:00:00.000Z") });
     expect(source.listChargesCreatedSince).toHaveBeenCalledWith(new Date("2026-08-03T12:00:00.000Z"));
-    expect(result).toMatchObject({ processed: 2, failed: 1, inserted: 2 });
+    expect(result).toMatchObject({ processed: 3, failed: 0, inserted: 3 });
   });
 
   it("imports charge then refund history in resumable pages", async () => {

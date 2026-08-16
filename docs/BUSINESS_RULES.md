@@ -59,6 +59,8 @@ B2B and B2C reporting is in USD.
 
 If a source record uses another currency, preserve the original currency and source amount for audit purposes. Never invent a USD value from a provider settlement rate. It remains outside USD reporting until Finance approves a conversion source and accounting rule.
 
+For a B2C foreign-currency provider payment or refund, that approval is a separate, append-only local FX conversion. An Admin records the USD-per-unit rate, source of the rate, effective date, and reason; PLAYBOOK calculates and retains the USD reporting amount locally. A normal local correction cannot enter a USD amount for a foreign provider record. The conversion never updates Stripe, Tap, or the source row.
+
 ## Missing data
 
 Empty is not zero.

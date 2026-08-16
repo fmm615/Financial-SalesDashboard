@@ -44,6 +44,18 @@ Requirements:
 - support refunds without deleting original payments
 - support reconciliation
 
+### Foreign-currency B2C handling
+
+PLAYBOOK imports the source currency and source amount exactly as Stripe or Tap
+returns them. A foreign-currency source payment or refund is visible in B2C
+Operations with a **Finance FX review** status, but contributes nothing to
+USD-only reporting. An Admin can record a local Finance-approved USD
+conversion by entering the USD-per-unit rate, rate source, effective date, and
+reason. The server calculates the USD amount from the preserved source amount,
+appends a conversion and audit record, and can then include the converted
+source record under the normal B2C reportability rules. No flow issues a
+create, update, refund, or delete request to Stripe or Tap.
+
 ### Current clean-rebuild boundary
 
 The Stripe boundary lives in `src/lib/integrations/stripe/`; trusted persistence and orchestration live in `src/server/`. It is read-only against Stripe: PLAYBOOK only makes `GET` requests and never creates, edits, or deletes anything in Stripe.

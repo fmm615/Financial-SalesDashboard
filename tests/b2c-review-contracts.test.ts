@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { b2cFinanceExceptionSchema, b2cPaymentLocalCorrectionSchema } from "@/lib/validation/b2c-review-contracts";
+import { b2cFinanceExceptionSchema, b2cFxConversionSchema, b2cPaymentLocalCorrectionSchema } from "@/lib/validation/b2c-review-contracts";
 
 describe("B2C local correction contract", () => {
   it("accepts an audited local USD amount or business-date correction", () => {
@@ -25,5 +25,22 @@ describe("B2C Finance exception contract", () => {
     expect(b2cFinanceExceptionSchema.safeParse({ reason: "Verified against Finance evidence", confirmedProviderTransaction: true, confirmedNoKnownDuplicate: true }).success).toBe(true);
     expect(b2cFinanceExceptionSchema.safeParse({ reason: "Verified against Finance evidence", confirmedProviderTransaction: false, confirmedNoKnownDuplicate: true }).success).toBe(false);
     expect(b2cFinanceExceptionSchema.safeParse({ reason: "no", confirmedProviderTransaction: true, confirmedNoKnownDuplicate: true }).success).toBe(false);
+  });
+});
+
+describe("B2C Finance FX conversion contract", () => {
+  it("accepts a precise, Finance-approved USD conversion with its evidence", () => {
+    expect(b2cFxConversionSchema.safeParse({
+      exchangeRateToUsd: "2.6595744681",
+      conversionSource: "Finance-approved August 2026 BHD/USD rate",
+      effectiveOn: "2026-08-11",
+      reason: "Finance verified the provider statement and approved this conversion.",
+    }).success).toBe(true);
+  });
+
+  it("rejects zero rates, missing conversion evidence, and placeholder reasons", () => {
+    expect(b2cFxConversionSchema.safeParse({ exchangeRateToUsd: "0", conversionSource: "Finance", effectiveOn: "2026-08-11", reason: "Verified" }).success).toBe(false);
+    expect(b2cFxConversionSchema.safeParse({ exchangeRateToUsd: "2.65", conversionSource: "", effectiveOn: "2026-08-11", reason: "Verified" }).success).toBe(false);
+    expect(b2cFxConversionSchema.safeParse({ exchangeRateToUsd: "2.65", conversionSource: "Finance rate", effectiveOn: "", reason: "---" }).success).toBe(false);
   });
 });

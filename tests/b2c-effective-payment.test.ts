@@ -1,46 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { resolveEffectiveB2cPayment } from "@/lib/b2c/effective-payment";
 
-describe("effective B2C payment", () => {
-  const source = {
-    customerName: "Stripe source name",
-    customerEmail: "source@example.com",
+describe("effective B2C payment values", () => {
+  const foreignSource = {
+    customerName: null,
+    customerEmail: "member@example.com",
     customerPhone: null,
-    categoryCode: "unmapped",
+    categoryCode: "membership",
     membershipTier: null,
-    amountUsd: "100.000000",
-    occurredOn: "2026-08-01",
+    amountUsd: null,
+    occurredOn: "2026-08-13",
   };
 
-  it("uses a local reporting overlay without altering the immutable source values", () => {
-    const effective = resolveEffectiveB2cPayment(source, {
-      customerEmail: "verified@example.com",
-      categoryCode: "membership",
-      amountUsd: "120.000000",
-      occurredOn: "2026-08-03",
-    });
+  it("uses the latest Finance FX conversion without overwriting the BHD source", () => {
+    const effective = resolveEffectiveB2cPayment(foreignSource, null, { amountUsd: "132.940000" });
 
-    expect(effective).toMatchObject({
-      customerName: "Stripe source name",
-      customerEmail: "verified@example.com",
-      categoryCode: "membership",
-      amountUsd: "120.000000",
-      occurredOn: "2026-08-03",
-      hasLocalCorrection: true,
-    });
-    expect(effective.correctedFields).toEqual(["customerEmail", "categoryCode", "amountUsd", "occurredOn"]);
-    expect(source).toEqual({
-      customerName: "Stripe source name",
-      customerEmail: "source@example.com",
-      customerPhone: null,
-      categoryCode: "unmapped",
-      membershipTier: null,
-      amountUsd: "100.000000",
-      occurredOn: "2026-08-01",
-    });
+    expect(effective.amountUsd).toBe("132.940000");
+    expect(effective.hasLocalCorrection).toBe(false);
+    expect(effective.correctedFields).toEqual([]);
   });
 
-  it("keeps the source view unchanged when no local correction exists", () => {
-    expect(resolveEffectiveB2cPayment(source, null)).toMatchObject({ ...source, hasLocalCorrection: false, correctedFields: [] });
+  it("does not use a generic local USD override for a foreign source", () => {
+    const effective = resolveEffectiveB2cPayment(
+      { ...foreignSource, originalCurrency: "BHD" },
+      { amountUsd: "132.940000" },
+    );
+
+    expect(effective.amountUsd).toBeNull();
   });
 });

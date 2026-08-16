@@ -181,6 +181,15 @@ users may inspect a deliberately narrow, read-only list of source fields in B2C
 Operations; raw provider payloads, payment-method data, and card data never
 leave the Admin-only boundary.
 
+When a Stripe or Tap source transaction is non-USD, its original amount remains
+visible in the operating ledger but it has no USD reporting value at ingestion.
+An Admin must use the narrow Finance FX-conversion API to supply an approved
+USD-per-unit rate, source, effective date, and audit reason. The security-
+definer database routine calculates the local USD value from the immutable
+source amount, appends conversion history, and does not call a provider. The
+generic B2C local-correction path is intentionally unable to create a USD
+amount for a foreign source record.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

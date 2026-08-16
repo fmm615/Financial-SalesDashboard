@@ -67,3 +67,5 @@ The schema has only `admin` and `viewer` roles. Every user-initiated write is Ad
 ## Money, dates, and types
 
 Store money as `numeric(20,6)` and FX rates as `numeric(20,10)`. Do not use floating point. Store system timestamps as UTC `timestamptz`; store business/reporting dates separately as `date`. The database retains source currency and USD amount rather than inventing conversion or rounding values.
+
+Foreign-currency B2C source rows keep their provider amount and have no USD amount until Finance records an append-only conversion in `b2c_payment_fx_conversions` or `b2c_refund_fx_conversions`. These tables are read-only to approved users; only authenticated Admin RPCs may insert. The RPC locks the source record, computes the USD amount from the source amount and entered rate, creates a `financial_corrections` record, and records the authenticated actor. Direct generic USD overrides for foreign source rows are rejected.
