@@ -8,7 +8,7 @@ const USD_SCALE = BigInt(1_000_000);
 export type B2cReportingPeriod = { month: string; monthLabel: string; monthStart: string; monthEnd: string; isAllTime?: boolean };
 export type B2cLedgerRow = {
   id: string;
-  recordType: "Payment" | "Refund";
+  recordType: "Payment" | "Refund" | "Tap statement sale";
   customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
@@ -38,7 +38,7 @@ export type B2cLedgerRow = {
   membershipTier: string | null;
   billingInterval: string | null;
   source: string;
-  paymentStatus: "Completed" | "Failed" | "Pending" | "Refunded";
+  paymentStatus: "Completed" | "Failed" | "Pending" | "Refunded" | "Not matched";
   providerReference: string | null;
   sourceSystem: "stripe" | "tap" | "manual_bank_transfer";
   productReference: string | null;
@@ -46,7 +46,9 @@ export type B2cLedgerRow = {
   localCorrectionFields: string[];
   hasFinanceException: boolean;
   openReviewFlags: B2cOpenReviewFlag[];
-  issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Needs FX review" | "Refunded" | null;
+  issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Needs FX review" | "Refunded" | "Tap statement unmatched" | null;
+  /** Tap statement evidence that has no matching locally imported Tap API payment. Never reportable. */
+  tapStatementUnmatched?: boolean;
   /** Safe, read-only Stripe evidence. It never participates in reportability. */
   stripeEvidence?: B2cStripeEvidence | null;
 };
@@ -105,6 +107,11 @@ export type B2cDashboardSnapshot = {
   };
   reviewItems: number;
   rows: B2cLedgerRow[];
+};
+
+export type B2cDashboardSnapshotOptions = {
+  /** Raw Tap statement-only evidence is deliberately loaded for Finance Admins only. */
+  includeTapStatementUnmatched?: boolean;
 };
 
 type Flag = { id: string; source_area: string; source_record_id: string; flag_type: string; reason: string };
@@ -291,7 +298,7 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  * succeeded and has neither an open duplicate nor an unmapped-product flag.
  * Refunds remain separate source records and reduce only the net-payment metric.
  */
-export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
+export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string, options: B2cDashboardSnapshotOptions = {}): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
   const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = await Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,original_amount,original_currency,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
@@ -315,6 +322,58 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
 
   const payments = paymentsResult.data ?? [];
   const refunds = refundsResult.data ?? [];
+  const importedTapPaymentIds = new Set(
+    payments
+      .filter((payment) => payment.source_system === "tap" && Boolean(payment.provider_transaction_id))
+      .map((payment) => payment.provider_transaction_id!),
+  );
+  let tapStatementUnmatchedRows: B2cLedgerRow[] = [];
+  if (options.includeTapStatementUnmatched) {
+    const latestStatementImportResult = await client
+      .from("b2c_finance_imports")
+      .select("id")
+      .eq("source_kind", "tap_statement")
+      .eq("import_status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestStatementImportResult.error) throw new Error("Could not load Tap statement evidence.");
+
+    if (latestStatementImportResult.data) {
+      const statementEvidenceResult = await client
+        .from("b2c_provider_evidence")
+        .select("id,provider_payment_id,description_raw,occurred_at,original_currency,credit_amount,debit_amount")
+        .eq("import_id", latestStatementImportResult.data.id)
+        .eq("provider", "tap")
+        .eq("transaction_kind", "sale");
+      if (statementEvidenceResult.error) throw new Error("Could not load Tap statement evidence.");
+
+      tapStatementUnmatchedRows = (statementEvidenceResult.data ?? [])
+        .filter((evidence) => evidence.provider_payment_id && !importedTapPaymentIds.has(evidence.provider_payment_id))
+        .flatMap((evidence): B2cLedgerRow[] => {
+          const dateValue = evidence.occurred_at?.slice(0, 10);
+          if (!dateValue || !isInB2cPeriod(dateValue, period)) return [];
+          const amount = evidence.credit_amount ?? evidence.debit_amount;
+          const amountText = amount === null ? "—" : formatSourceAmount(amount, evidence.original_currency);
+          return [{
+            id: evidence.id,
+            recordType: "Tap statement sale",
+            customerName: null, customerEmail: null, customerPhone: null,
+            customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
+            date: formatDate(dateValue), dateValue,
+            amountUsd: amountText, amountValueUsd: null, sourceAmountUsd: amountText,
+            sourceOriginalAmount: amount ?? undefined, sourceOriginalCurrency: evidence.original_currency,
+            sourceDescription: evidence.description_raw,
+            sourceDateValue: dateValue,
+            category: "Unavailable", membershipTier: null, billingInterval: null,
+            source: "Tap", paymentStatus: "Not matched", providerReference: evidence.provider_payment_id,
+            sourceSystem: "tap", productReference: null,
+            hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
+            openReviewFlags: [], issue: "Tap statement unmatched", tapStatementUnmatched: true,
+          }];
+        });
+    }
+  }
   const sourceCoverage = resolveB2cSourceCoverage({ providers: [
     { provider: "stripe", active: payments.some((payment) => payment.source_system === "stripe") || refunds.some((refund) => refund.source_system === "stripe") || Boolean(stripeHistoricalResult.data), historicalBackfill: stripeHistoricalResult.data ? { status: stripeHistoricalResult.data.status, recordsFailed: stripeHistoricalResult.data.records_failed, completedAt: stripeHistoricalResult.data.completed_at } : null, latestReconciliation: stripeReconciliationResult.data ? { status: stripeReconciliationResult.data.status, requestedRangeEnd: stripeReconciliationResult.data.requested_range_end, completedAt: stripeReconciliationResult.data.completed_at } : null },
     { provider: "tap", active: payments.some((payment) => payment.source_system === "tap") || refunds.some((refund) => refund.source_system === "tap") || Boolean(tapHistoricalResult.data), historicalBackfill: tapHistoricalResult.data ? { status: tapHistoricalResult.data.status, recordsFailed: tapHistoricalResult.data.records_failed, completedAt: tapHistoricalResult.data.completed_at } : null, latestReconciliation: tapReconciliationResult.data ? { status: tapReconciliationResult.data.status, requestedRangeEnd: tapReconciliationResult.data.requested_range_end, completedAt: tapReconciliationResult.data.completed_at } : null },
@@ -588,6 +647,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         issue: flagLabel(flagsByRecord.get(refund.id) ?? []),
       };
     }),
+    ...tapStatementUnmatchedRows,
   ].sort((first, second) => second.date.localeCompare(first.date));
 
   return {

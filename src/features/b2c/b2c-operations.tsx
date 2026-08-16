@@ -53,6 +53,7 @@ function filterRows(rows: B2cLedgerRow[], filters: typeof initialB2cLedgerFilter
       (filters.source === "all" || row.source === filters.source) &&
       (filters.category === "all" || row.category === filters.category) &&
       (!filters.foreignCurrencyOnly || row.foreignCurrencyReview) &&
+      (!filters.tapStatementUnmatchedOnly || row.tapStatementUnmatched === true) &&
       (filters.issue === "all" || filters.issue === "none"
         ? filters.issue !== "none" || row.issue === null
         : row.issue === filters.issue)
@@ -164,6 +165,7 @@ function LedgerTable({
               {row.amountUsd}
               {row.foreignCurrencyReview && <span className="mt-1 block text-xs font-normal text-warning">USD conversion pending</span>}
               {row.hasFxConversion && <span className="mt-1 block text-xs font-normal text-success">Local Finance conversion</span>}
+              {row.tapStatementUnmatched && <span className="mt-1 block text-xs font-normal text-warning">No USD reporting amount</span>}
             </TableCell>
             <TableCell>{row.sourceOriginalCurrency ?? "—"}</TableCell>
             <TableCell>{row.sourceDescription ?? "—"}</TableCell>
@@ -173,7 +175,7 @@ function LedgerTable({
             </TableCell>
             <TableCell>{row.source}</TableCell>
             <TableCell>
-              <StatusBadge status={row.paymentStatus} />
+              {row.tapStatementUnmatched ? <span className="text-sm text-warning">Not matched to Tap API</span> : <StatusBadge status={row.paymentStatus} />}
             </TableCell>
             <TableCell className="space-y-1">
               {row.hasFinanceException && <StatusBadge status="Finance exception" />}
@@ -183,9 +185,11 @@ function LedgerTable({
             <TableCell className="font-mono text-xs">{row.providerReference ?? "—"}</TableCell>
             <TableCell>
               <div className="flex min-w-max flex-col items-start gap-2">
-                <B2cStripeEvidenceDialog row={row} />
-                <B2cPaymentReviewActions row={row} />
-                <B2cRefundFxReviewActions row={row} />
+                {row.tapStatementUnmatched ? <span className="text-xs text-text-muted">Statement evidence only</span> : <>
+                  <B2cStripeEvidenceDialog row={row} />
+                  <B2cPaymentReviewActions row={row} />
+                  <B2cRefundFxReviewActions row={row} />
+                </>}
               </div>
             </TableCell>
           </tr>
@@ -223,6 +227,10 @@ export function B2cOperations({
   );
   const foreignCurrencyCount = useMemo(
     () => snapshot?.rows.filter((row) => row.foreignCurrencyReview).length ?? 0,
+    [snapshot],
+  );
+  const tapStatementUnmatchedCount = useMemo(
+    () => snapshot?.rows.filter((row) => row.tapStatementUnmatched).length ?? 0,
     [snapshot],
   );
 
@@ -274,12 +282,12 @@ export function B2cOperations({
             <p className="mt-5 border-t border-border pt-4 text-sm leading-6 text-text-secondary">Current exclusions: {foreignCurrencyCount} foreign-currency record{foreignCurrencyCount === 1 ? "" : "s"} awaiting approved FX, {snapshot.calculation.unmappedProductCount} unmapped product{snapshot.calculation.unmappedProductCount === 1 ? "" : "s"}, {snapshot.calculation.missingCustomerEmailCount} missing customer email{snapshot.calculation.missingCustomerEmailCount === 1 ? "" : "s"}, {snapshot.calculation.possibleDuplicateCount} possible duplicate{snapshot.calculation.possibleDuplicateCount === 1 ? "" : "s"}, {snapshot.calculation.otherReviewCount} other review item{snapshot.calculation.otherReviewCount === 1 ? "" : "s"}, and {snapshot.calculation.nonSucceededPaymentCount} failed or pending payment{snapshot.calculation.nonSucceededPaymentCount === 1 ? "" : "s"}. {snapshot.calculation.financeExceptionPaymentCount} payment{snapshot.calculation.financeExceptionPaymentCount === 1 ? " is" : "s are"} included by a Finance exception. Categories can overlap, so these reason counts do not add up to the excluded-payment count.</p>
           </SectionCard>
 
-          <SectionCard title={`B2C source ledger · ${snapshot.period.monthLabel}`} description="Provider IDs are retained for traceability. Use the filters to inspect source records; filtering does not alter reporting totals or Stripe data." className="mt-4">
+          <SectionCard title={`B2C source ledger · ${snapshot.period.monthLabel}`} description="Provider IDs are retained for traceability. Use the filters to inspect source records; filtering does not alter reporting totals or provider data." className="mt-4">
             {!snapshot.hasSourceRecords ? (
               <EmptyState title="No B2C source records yet" description="Configure the Stripe webhook, send a test payment, or run the 48-hour reconciliation. PLAYBOOK will not display missing source data as zero." />
             ) : (
               <>
-                <B2cLedgerFilters filters={filters} onChange={setFilters} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={snapshot.rows.length} foreignCurrencyCount={foreignCurrencyCount} />
+                <B2cLedgerFilters filters={filters} onChange={setFilters} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={snapshot.rows.length} foreignCurrencyCount={foreignCurrencyCount} tapStatementUnmatchedCount={tapStatementUnmatchedCount} />
                 {visibleRows.length === 0 ? (
                   <EmptyState title={snapshot.period.isAllTime ? "No B2C records match these filters" : "No B2C records in this month match these filters"} description="Change or clear a filter to see the remaining source records." />
                 ) : (
