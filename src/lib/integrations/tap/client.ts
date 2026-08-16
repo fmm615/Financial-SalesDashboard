@@ -4,6 +4,15 @@ export type TapPage = { records: unknown[]; nextCursor: string | null };
 export type TapDateRange = { from: Date; to: Date };
 
 type TapListResponse = Record<string, unknown>;
+const TAP_TRANSIENT_READ_RETRIES = 2;
+
+function isTransientTapResponse(response: Response): boolean {
+  return response.status === 429 || response.status >= 500;
+}
+
+function waitForTapRetry(attempt: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+}
 
 function extractRecords(payload: TapListResponse, collection: "charges" | "refunds"): unknown[] {
   const nestedData = payload.data && typeof payload.data === "object" && !Array.isArray(payload.data)
@@ -28,8 +37,24 @@ async function safeErrorMessage(response: Response): Promise<string> {
 export class TapClient {
   constructor(private readonly config: TapConfig) {}
 
+  private async request(path: string, init: RequestInit): Promise<Response> {
+    let lastFailure: unknown;
+    for (let attempt = 0; attempt <= TAP_TRANSIENT_READ_RETRIES; attempt += 1) {
+      try {
+        const response = await fetch(`${this.config.apiBaseUrl}${path}`, init);
+        if (!isTransientTapResponse(response) || attempt === TAP_TRANSIENT_READ_RETRIES) return response;
+        lastFailure = new Error(`Tap API request failed (${response.status}).`);
+      } catch (error) {
+        lastFailure = error;
+        if (attempt === TAP_TRANSIENT_READ_RETRIES) throw error;
+      }
+      await waitForTapRetry(attempt);
+    }
+    throw lastFailure instanceof Error ? lastFailure : new Error("Tap read request failed.");
+  }
+
   private async get(path: `/v2/charges/${string}`): Promise<unknown> {
-    const response = await fetch(`${this.config.apiBaseUrl}${path}`, {
+    const response = await this.request(path, {
       method: "GET",
       headers: { Authorization: `Bearer ${this.config.apiKey}` },
       cache: "no-store",
@@ -39,7 +64,7 @@ export class TapClient {
   }
 
   private async list(path: "/v2/charges/list" | "/v2/refunds/list", body: Record<string, unknown>): Promise<TapListResponse> {
-    const response = await fetch(`${this.config.apiBaseUrl}${path}`, {
+    const response = await this.request(path, {
       method: "POST",
       headers: { Authorization: `Bearer ${this.config.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),

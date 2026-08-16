@@ -64,6 +64,20 @@ describe("Tap normalisation and signed event processing", () => {
     vi.unstubAllGlobals();
   });
 
+  it("retries a transient Tap read failure without changing the selected period", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ charges: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new TapClient({ apiBaseUrl: "https://api.tap.company", apiKey: "sk_test", productReferenceMetadataKey: "product_id" });
+
+    await expect(client.listChargesPage({ from: new Date("2026-08-03T12:00:00.000Z"), to: new Date("2026-08-05T12:00:00.000Z") })).resolves.toEqual({ records: [], nextCursor: null });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(fetchMock.mock.calls[1]?.[1]);
+    vi.unstubAllGlobals();
+  });
+
   it("treats Tap's explicit no-refunds response as an empty refund history", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Refunds not found" }), { status: 400 })));
     const client = new TapClient({ apiBaseUrl: "https://api.tap.company", apiKey: "sk_test", productReferenceMetadataKey: "product_id" });
