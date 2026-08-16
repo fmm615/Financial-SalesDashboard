@@ -23,9 +23,10 @@ export const initialB2cLedgerFilters: B2cLedgerFiltersState = {
 type Option = { value: string; label: string };
 
 /** Display-only controls for narrowing the already-loaded B2C source ledger. */
-export function B2cLedgerFilters({ filters, onChange, sources, categories, issues, shownCount, totalCount, foreignCurrencyCount, tapStatementUnmatchedCount }: {
+export function B2cLedgerFilters({ filters, onChange, onTapStatementUnmatchedToggle, sources, categories, issues, shownCount, totalCount, foreignCurrencyCount, tapStatementUnmatchedCount }: {
   filters: B2cLedgerFiltersState;
   onChange: (filters: B2cLedgerFiltersState) => void;
+  onTapStatementUnmatchedToggle?: () => void;
   sources: Option[];
   categories: Option[];
   issues: Option[];
@@ -68,7 +69,13 @@ export function B2cLedgerFilters({ filters, onChange, sources, categories, issue
         </button>
         <button
           type="button"
-          onClick={() => onChange({ ...filters, tapStatementUnmatchedOnly: !filters.tapStatementUnmatchedOnly })}
+          onClick={() => {
+            if (onTapStatementUnmatchedToggle) {
+              onTapStatementUnmatchedToggle();
+              return;
+            }
+            onChange({ ...filters, tapStatementUnmatchedOnly: !filters.tapStatementUnmatchedOnly });
+          }}
           aria-pressed={filters.tapStatementUnmatchedOnly}
           disabled={tapStatementUnmatchedCount === 0}
           className={`rounded-input border px-3 py-2 font-medium transition ${filters.tapStatementUnmatchedOnly ? "border-warning/50 bg-warning/10 text-warning" : "border-warning/40 bg-warning/5 text-warning hover:bg-warning/10"} disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-text-muted`}

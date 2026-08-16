@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import {
   DataTable,
@@ -203,11 +204,18 @@ function LedgerTable({
 export function B2cOperations({
   snapshot = null,
   loadError,
+  initialTapStatementUnmatchedOnly = false,
 }: {
   snapshot?: B2cDashboardSnapshot | null;
   loadError?: string;
+  initialTapStatementUnmatchedOnly?: boolean;
 }) {
-  const [filters, setFilters] = useState(initialB2cLedgerFilters);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [filters, setFilters] = useState(() => ({
+    ...initialB2cLedgerFilters,
+    tapStatementUnmatchedOnly: initialTapStatementUnmatchedOnly,
+  }));
   const [sort, setSort] = useState<LedgerSort>({ key: "date", direction: "descending" });
   const visibleRows = useMemo(
     () => (snapshot ? sortRows(filterRows(snapshot.rows, filters), sort) : []),
@@ -230,9 +238,19 @@ export function B2cOperations({
     [snapshot],
   );
   const tapStatementUnmatchedCount = useMemo(
-    () => snapshot?.rows.filter((row) => row.tapStatementUnmatched).length ?? 0,
+    () => snapshot?.tapStatementUnmatchedCount ?? snapshot?.rows.filter((row) => row.tapStatementUnmatched).length ?? 0,
     [snapshot],
   );
+
+  function toggleTapStatementUnmatchedOnly() {
+    if (!snapshot) return;
+    if (!snapshot.period.isAllTime) {
+      setFilters({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: true });
+      router.push(`${pathname}?period=all&review=tap_statement_unmatched`);
+      return;
+    }
+    setFilters((current) => ({ ...current, tapStatementUnmatchedOnly: !current.tapStatementUnmatchedOnly }));
+  }
 
   function changeSort(key: LedgerSort["key"]) {
     setSort((current) =>
@@ -282,12 +300,12 @@ export function B2cOperations({
             <p className="mt-5 border-t border-border pt-4 text-sm leading-6 text-text-secondary">Current exclusions: {foreignCurrencyCount} foreign-currency record{foreignCurrencyCount === 1 ? "" : "s"} awaiting approved FX, {snapshot.calculation.unmappedProductCount} unmapped product{snapshot.calculation.unmappedProductCount === 1 ? "" : "s"}, {snapshot.calculation.missingCustomerEmailCount} missing customer email{snapshot.calculation.missingCustomerEmailCount === 1 ? "" : "s"}, {snapshot.calculation.possibleDuplicateCount} possible duplicate{snapshot.calculation.possibleDuplicateCount === 1 ? "" : "s"}, {snapshot.calculation.otherReviewCount} other review item{snapshot.calculation.otherReviewCount === 1 ? "" : "s"}, and {snapshot.calculation.nonSucceededPaymentCount} failed or pending payment{snapshot.calculation.nonSucceededPaymentCount === 1 ? "" : "s"}. {snapshot.calculation.financeExceptionPaymentCount} payment{snapshot.calculation.financeExceptionPaymentCount === 1 ? " is" : "s are"} included by a Finance exception. Categories can overlap, so these reason counts do not add up to the excluded-payment count.</p>
           </SectionCard>
 
-          <SectionCard title={`B2C source ledger · ${snapshot.period.monthLabel}`} description="Provider IDs are retained for traceability. Use the filters to inspect source records; filtering does not alter reporting totals or provider data." className="mt-4">
+          <SectionCard title={`B2C source ledger · ${snapshot.period.monthLabel}`} description={`Provider IDs are retained for traceability. Use the filters to inspect source records; filtering does not alter reporting totals or provider data.${tapStatementUnmatchedCount > 0 ? " Tap statement items without a usable date are available through the unmatched filter in All time and never enter financial totals." : ""}`} className="mt-4">
             {!snapshot.hasSourceRecords ? (
               <EmptyState title="No B2C source records yet" description="Configure the Stripe webhook, send a test payment, or run the 48-hour reconciliation. PLAYBOOK will not display missing source data as zero." />
             ) : (
               <>
-                <B2cLedgerFilters filters={filters} onChange={setFilters} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={snapshot.rows.length} foreignCurrencyCount={foreignCurrencyCount} tapStatementUnmatchedCount={tapStatementUnmatchedCount} />
+                <B2cLedgerFilters filters={filters} onChange={setFilters} onTapStatementUnmatchedToggle={toggleTapStatementUnmatchedOnly} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={snapshot.rows.length} foreignCurrencyCount={foreignCurrencyCount} tapStatementUnmatchedCount={tapStatementUnmatchedCount} />
                 {visibleRows.length === 0 ? (
                   <EmptyState title={snapshot.period.isAllTime ? "No B2C records match these filters" : "No B2C records in this month match these filters"} description="Change or clear a filter to see the remaining source records." />
                 ) : (

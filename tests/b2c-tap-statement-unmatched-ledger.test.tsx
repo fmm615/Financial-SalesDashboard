@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { B2cOperations } from "@/features/b2c/b2c-operations";
-import type { B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
+import {
+  mapTapStatementUnmatchedLedgerRows,
+  resolveB2cReportingPeriod,
+  type B2cDashboardSnapshot,
+} from "@/server/repositories/b2c-dashboard-repository";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/operations/b2c",
@@ -10,6 +14,29 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("Tap statement unmatched ledger review", () => {
+  it("retains undated Tap statement evidence in All time review without inventing a business date", () => {
+    const rows = mapTapStatementUnmatchedLedgerRows([
+      {
+        evidence_id: "tap-evidence-undated",
+        provider_payment_id: "chg_statement_without_date",
+        description_raw: "Sale - Date unavailable",
+        occurred_at: null,
+        original_currency: "BHD",
+        original_amount: "207.110000",
+      },
+    ], resolveB2cReportingPeriod("all", new Date("2026-08-16T00:00:00.000Z")));
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      date: "Date unavailable",
+      dateValue: "",
+      sourceDateValue: "",
+      amountUsd: "207.110000 BHD",
+      issue: "Tap statement unmatched",
+      tapStatementUnmatched: true,
+    });
+  });
+
   it("keeps the Tap statement filter visible when no unmatched statement rows are loaded", () => {
     const snapshot = {
       period: { month: "all", monthLabel: "All time", monthStart: "2026-08-01", monthEnd: "2026-08-31", isAllTime: true },
@@ -24,6 +51,23 @@ describe("Tap statement unmatched ledger review", () => {
     render(<B2cOperations snapshot={snapshot} />);
 
     expect(screen.getByRole("button", { name: "Tap statement unmatched (0)" })).toBeDisabled();
+  });
+
+  it("shows the retained global count even when an undated statement item is outside the selected month", () => {
+    const snapshot = {
+      period: { month: "2026-08", monthLabel: "August 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31" },
+      sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-16T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
+      hasSourceRecords: true,
+      eligiblePaymentsUsd: "$0.00", refundsUsd: "$0.00", netPaymentsUsd: "$0.00", completedSourcePaymentsUsd: "$0.00", sourceRefundsUsd: "$0.00",
+      calculation: { completedSourcePaymentCount: 0, reportablePaymentCount: 0, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 0, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+      reviewItems: 0,
+      tapStatementUnmatchedCount: 3,
+      rows: [],
+    } as unknown as B2cDashboardSnapshot;
+
+    render(<B2cOperations snapshot={snapshot} />);
+
+    expect(screen.getByRole("button", { name: "Tap statement unmatched (3)" })).toBeEnabled();
   });
 
   it("shows unmatched Tap statement sales through the existing ledger filter", () => {

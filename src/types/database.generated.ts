@@ -371,7 +371,7 @@ export interface Database {
           evidence_id: Uuid;
           provider_payment_id: string;
           description_raw: string | null;
-          occurred_at: Timestamp;
+          occurred_at: Timestamp | null;
           original_currency: string;
           original_amount: Decimal;
         }>;

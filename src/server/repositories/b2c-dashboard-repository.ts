@@ -106,7 +106,19 @@ export type B2cDashboardSnapshot = {
     financeExceptionPaymentCount: number;
   };
   reviewItems: number;
+  /** Global count of retained Tap-statement sales with no imported Tap API payment. */
+  tapStatementUnmatchedCount?: number;
   rows: B2cLedgerRow[];
+};
+
+export type TapStatementUnmatchedLedgerEvidence = {
+  evidence_id: string;
+  provider_payment_id: string;
+  description_raw: string | null;
+  /** The statement may retain a sale without a usable business date. */
+  occurred_at: string | null;
+  original_currency: string;
+  original_amount: string;
 };
 
 type Flag = { id: string; source_area: string; source_record_id: string; flag_type: string; reason: string };
@@ -289,6 +301,39 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
 }
 
 /**
+ * Statement-only Tap sales never become B2C payments or USD totals. A missing
+ * source date is preserved as unavailable and only surfaced in All time review;
+ * it is never guessed into a reporting month.
+ */
+export function mapTapStatementUnmatchedLedgerRows(
+  evidenceRows: TapStatementUnmatchedLedgerEvidence[],
+  period: B2cReportingPeriod,
+): B2cLedgerRow[] {
+  return evidenceRows.flatMap((evidence): B2cLedgerRow[] => {
+    const dateValue = evidence.occurred_at?.slice(0, 10) ?? "";
+    if (!period.isAllTime && (!dateValue || !isInB2cPeriod(dateValue, period))) return [];
+    const amountText = formatSourceAmount(evidence.original_amount, evidence.original_currency);
+    return [{
+      id: evidence.evidence_id,
+      recordType: "Tap statement sale",
+      customerName: null, customerEmail: null, customerPhone: null,
+      customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
+      date: dateValue ? formatDate(dateValue) : "Date unavailable",
+      dateValue,
+      amountUsd: amountText, amountValueUsd: null, sourceAmountUsd: amountText,
+      sourceOriginalAmount: evidence.original_amount, sourceOriginalCurrency: evidence.original_currency,
+      sourceDescription: evidence.description_raw,
+      sourceDateValue: dateValue,
+      category: "Unavailable", membershipTier: null, billingInterval: null,
+      source: "Tap", paymentStatus: "Not matched", providerReference: evidence.provider_payment_id,
+      sourceSystem: "tap", productReference: null,
+      hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
+      openReviewFlags: [], issue: "Tap statement unmatched", tapStatementUnmatched: true,
+    }];
+  });
+}
+
+/**
  * Produces a ledger-oriented B2C snapshot. A payment is reportable only when it
  * succeeded and has neither an open duplicate nor an unmapped-product flag.
  * Refunds remain separate source records and reduce only the net-payment metric.
@@ -312,34 +357,14 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "tap").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.rpc("get_b2c_tap_statement_unmatched_ledger_rows"),
   ]);
-  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? paymentFxConversionsResult.error ?? refundFxConversionsResult.error ?? financeExceptionResult.error ?? stripeContactFallbacksResult.error ?? stripeEvidenceResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error) {
+  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? paymentFxConversionsResult.error ?? refundFxConversionsResult.error ?? financeExceptionResult.error ?? stripeContactFallbacksResult.error ?? stripeEvidenceResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error ?? tapStatementUnmatchedResult.error) {
     throw new Error("Could not load B2C source records.");
   }
 
   const payments = paymentsResult.data ?? [];
   const refunds = refundsResult.data ?? [];
-  const tapStatementUnmatchedRows = (tapStatementUnmatchedResult.data ?? [])
-    .flatMap((evidence): B2cLedgerRow[] => {
-      const dateValue = evidence.occurred_at?.slice(0, 10);
-      if (!dateValue || !isInB2cPeriod(dateValue, period)) return [];
-      const amountText = formatSourceAmount(evidence.original_amount, evidence.original_currency);
-      return [{
-        id: evidence.evidence_id,
-        recordType: "Tap statement sale",
-        customerName: null, customerEmail: null, customerPhone: null,
-        customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
-        date: formatDate(dateValue), dateValue,
-        amountUsd: amountText, amountValueUsd: null, sourceAmountUsd: amountText,
-        sourceOriginalAmount: evidence.original_amount, sourceOriginalCurrency: evidence.original_currency,
-        sourceDescription: evidence.description_raw,
-        sourceDateValue: dateValue,
-        category: "Unavailable", membershipTier: null, billingInterval: null,
-        source: "Tap", paymentStatus: "Not matched", providerReference: evidence.provider_payment_id,
-        sourceSystem: "tap", productReference: null,
-        hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
-        openReviewFlags: [], issue: "Tap statement unmatched", tapStatementUnmatched: true,
-      }];
-    });
+  const tapStatementUnmatchedEvidence = (tapStatementUnmatchedResult.data ?? []) as TapStatementUnmatchedLedgerEvidence[];
+  const tapStatementUnmatchedRows = mapTapStatementUnmatchedLedgerRows(tapStatementUnmatchedEvidence, period);
   const sourceCoverage = resolveB2cSourceCoverage({ providers: [
     { provider: "stripe", active: payments.some((payment) => payment.source_system === "stripe") || refunds.some((refund) => refund.source_system === "stripe") || Boolean(stripeHistoricalResult.data), historicalBackfill: stripeHistoricalResult.data ? { status: stripeHistoricalResult.data.status, recordsFailed: stripeHistoricalResult.data.records_failed, completedAt: stripeHistoricalResult.data.completed_at } : null, latestReconciliation: stripeReconciliationResult.data ? { status: stripeReconciliationResult.data.status, requestedRangeEnd: stripeReconciliationResult.data.requested_range_end, completedAt: stripeReconciliationResult.data.completed_at } : null },
     { provider: "tap", active: payments.some((payment) => payment.source_system === "tap") || refunds.some((refund) => refund.source_system === "tap") || Boolean(tapHistoricalResult.data), historicalBackfill: tapHistoricalResult.data ? { status: tapHistoricalResult.data.status, recordsFailed: tapHistoricalResult.data.records_failed, completedAt: tapHistoricalResult.data.completed_at } : null, latestReconciliation: tapReconciliationResult.data ? { status: tapReconciliationResult.data.status, requestedRangeEnd: tapReconciliationResult.data.requested_range_end, completedAt: tapReconciliationResult.data.completed_at } : null },
@@ -619,7 +644,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   return {
     period,
     sourceCoverage,
-    hasSourceRecords: payments.length > 0 || refunds.length > 0,
+    hasSourceRecords: payments.length > 0 || refunds.length > 0 || tapStatementUnmatchedEvidence.length > 0,
     eligiblePaymentsUsd: formatUsd(eligiblePayments),
     refundsUsd: formatUsd(refundsTotal),
     netPaymentsUsd: formatUsd(eligiblePayments - refundsTotal),
@@ -640,6 +665,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       financeExceptionPaymentCount,
     },
     reviewItems: [...flagsByRecord.values()].reduce((sum, flags) => sum + flags.length, 0),
+    tapStatementUnmatchedCount: tapStatementUnmatchedEvidence.length,
     rows,
   };
 }
