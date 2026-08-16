@@ -118,7 +118,8 @@ function LedgerTable({
         <TableHeader>Mobile</TableHeader>
         <TableHeader>Record</TableHeader>
         <LedgerSortHeader label="Date" sortKey="date" sort={sort} onSort={onSort} />
-        <LedgerSortHeader label="USD reporting amount" sortKey="amount" sort={sort} onSort={onSort} />
+        <LedgerSortHeader label="Reporting amount" sortKey="amount" sort={sort} onSort={onSort} />
+        <TableHeader>Source currency</TableHeader>
         <TableHeader>Description</TableHeader>
         <TableHeader>Plan / tier</TableHeader>
         <TableHeader>Source</TableHeader>
@@ -164,7 +165,8 @@ function LedgerTable({
               {row.foreignCurrencyReview && <span className="mt-1 block text-xs font-normal text-warning">USD conversion pending</span>}
               {row.hasFxConversion && <span className="mt-1 block text-xs font-normal text-success">Local Finance conversion</span>}
             </TableCell>
-            <TableCell>{row.stripeEvidence?.description ?? "—"}</TableCell>
+            <TableCell>{row.sourceOriginalCurrency ?? "—"}</TableCell>
+            <TableCell>{row.sourceDescription ?? "—"}</TableCell>
             <TableCell>
               <span>{row.membershipTier ?? "—"}</span>
               {row.billingInterval && <span className="mt-0.5 block text-xs text-text-muted">{row.billingInterval}</span>}

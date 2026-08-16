@@ -28,7 +28,7 @@ describe("B2C Stripe enrichment presentation", () => {
       id: "payment-1", recordType: "Payment" as const,
       customerName: display.customerName, customerEmail: display.customerEmail, customerPhone: display.customerPhone,
       customerNameEvidenceLabel: display.customerNameLabel, customerEmailEvidenceLabel: display.customerEmailLabel, customerPhoneEvidenceLabel: display.customerPhoneLabel,
-      date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceDateValue: "2026-08-09",
+      date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2026-08-09",
       category: "membership", membershipTier: "Monthly", billingInterval: "Monthly", source: "Stripe", paymentStatus: "Completed" as const,
       providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
       openReviewFlags: [], issue: "Missing customer email" as const,
@@ -67,7 +67,7 @@ describe("B2C Stripe enrichment presentation", () => {
       id: "payment-evidence-1", recordType: "Payment" as const,
       customerName: "Stripe customer", customerEmail: "customer@example.com", customerPhone: null,
       customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
-      date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceDateValue: "2026-08-09",
+      date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceOriginalCurrency: "USD", sourceDescription: "Founding Membership renewal", sourceDateValue: "2026-08-09",
       category: "membership", membershipTier: "Founding Membership", billingInterval: "Annual", source: "Stripe", paymentStatus: "Completed" as const,
       providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
       openReviewFlags: [], issue: null,
@@ -85,6 +85,7 @@ describe("B2C Stripe enrichment presentation", () => {
     };
 
     render(<B2cOperations snapshot={snapshot} />);
+    expect(screen.getByRole("columnheader", { name: "Source currency" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Description" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "PLAYBOOK category" })).not.toBeInTheDocument();
     expect(screen.getByText("Founding Membership renewal")).toBeInTheDocument();

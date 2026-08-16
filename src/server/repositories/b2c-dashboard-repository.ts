@@ -24,6 +24,8 @@ export type B2cLedgerRow = {
   sourceAmountUsd: string;
   sourceOriginalAmount?: string;
   sourceOriginalCurrency?: string;
+  /** Provider-supplied description retained from the local source record. */
+  sourceDescription: string | null;
   /** True when the provider's original amount is not USD. */
   isForeignCurrency?: boolean;
   /** True only while a foreign source needs a Finance-approved local conversion. */
@@ -236,6 +238,17 @@ function sourceMetadataText(value: unknown, key: string): string | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = (value as Record<string, unknown>)[key];
   return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
+}
+
+/**
+ * Exposes provider details already retained locally. Stripe's evidence
+ * projection is richer when it exists; Tap uses its retained source metadata.
+ */
+export function resolveLedgerSourceDescription(
+  sourceMetadata: unknown,
+  stripeDescription: string | null | undefined,
+): string | null {
+  return stripeDescription?.trim() || sourceMetadataText(sourceMetadata, "description");
 }
 
 function billingIntervalLabel(sourceMetadata: unknown): string | null {
@@ -476,6 +489,14 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       const effective = effectivePayment(payment);
       const conversion = latestPaymentFxConversionByPayment.get(payment.id);
       const displayContact = resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id));
+      const stripeEvidence = payment.source_system === "stripe" ? stripeEvidenceByPayment.get(payment.id) ?? {
+        originalAmount: payment.original_amount,
+        originalCurrency: payment.original_currency,
+        amountRefunded: null,
+        description: null, sellerMessage: null, cardholderName: null,
+        settlementGrossAmount: null, settlementFeeAmount: null, settlementFeeTaxAmount: null, settlementNetAmount: null,
+        settlementCurrency: null, settlementExchangeRate: null, refunds: [],
+      } : null;
       return {
       id: payment.id,
       recordType: "Payment" as const,
@@ -494,6 +515,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       sourceAmountUsd: formatSourceAmount(payment.original_amount, payment.original_currency),
       sourceOriginalAmount: payment.original_amount,
       sourceOriginalCurrency: payment.original_currency,
+      sourceDescription: resolveLedgerSourceDescription(payment.source_metadata, stripeEvidence?.description),
       isForeignCurrency: payment.original_currency !== "USD",
       foreignCurrencyReview: payment.original_currency !== "USD" && effective.amountUsd === null,
       hasFxConversion: Boolean(conversion),
@@ -507,14 +529,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       paymentStatus: displayPaymentStatus(payment.payment_status),
       providerReference: payment.provider_transaction_id,
       sourceSystem: payment.source_system,
-      stripeEvidence: payment.source_system === "stripe" ? stripeEvidenceByPayment.get(payment.id) ?? {
-        originalAmount: payment.original_amount,
-        originalCurrency: payment.original_currency,
-        amountRefunded: null,
-        description: null, sellerMessage: null, cardholderName: null,
-        settlementGrossAmount: null, settlementFeeAmount: null, settlementFeeTaxAmount: null, settlementNetAmount: null,
-        settlementCurrency: null, settlementExchangeRate: null, refunds: [],
-      } : null,
+      stripeEvidence,
       productReference: sourceMetadataText(payment.source_metadata, "product_reference"),
       hasLocalCorrection: effective.hasLocalCorrection,
       localCorrectionFields: effective.correctedFields,
@@ -551,6 +566,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         sourceAmountUsd: formatSourceAmount(refund.original_amount, refund.original_currency, true),
         sourceOriginalAmount: refund.original_amount,
         sourceOriginalCurrency: refund.original_currency,
+        sourceDescription: null,
         isForeignCurrency: refund.original_currency !== "USD",
         foreignCurrencyReview: refund.original_currency !== "USD" && effectiveRefundAmountUsd === null,
         hasFxConversion: Boolean(conversion),
