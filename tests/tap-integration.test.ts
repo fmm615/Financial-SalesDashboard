@@ -33,22 +33,48 @@ describe("Tap normalisation and signed event processing", () => {
     expect(() => normaliseTapRefund({ ...refund, status: "PENDING" })).toThrow(TapRefundNotSucceededError);
   });
 
-  it("uses only the documented fields for Tap refund list requests", async () => {
+  it("sends a selected period with the Tap refund list request", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ refunds: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     const client = new TapClient({ apiBaseUrl: "https://api.tap.company", apiKey: "sk_test", productReferenceMetadataKey: "product_id" });
-    await client.listRefundsPage();
+    await client.listRefundsPage({ from: new Date("2026-08-03T12:00:00.000Z"), to: new Date("2026-08-05T12:00:00.000Z") });
     expect(fetchMock).toHaveBeenCalledWith("https://api.tap.company/v2/refunds/list", expect.objectContaining({
       method: "POST",
-      body: JSON.stringify({ limit: 50 }),
+      body: JSON.stringify({ period: { date: { from: "1785758400000", to: "1785931200000" }, type: "1" }, limit: 50 }),
     }));
+    vi.unstubAllGlobals();
+  });
+
+  it("sends Tap a selected period for a 48-hour charge reconciliation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ charges: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new TapClient({ apiBaseUrl: "https://api.tap.company", apiKey: "sk_test", productReferenceMetadataKey: "product_id" });
+
+    await client.listChargesCreatedSince(new Date("2026-08-03T12:00:00.000Z"));
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      limit: 50,
+      order: "reverse_chronological",
+      period: {
+        date: { from: "1785758400000", to: expect.stringMatching(/^\d+$/) },
+        type: "1",
+      },
+    });
     vi.unstubAllGlobals();
   });
 
   it("treats Tap's explicit no-refunds response as an empty refund history", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Refunds not found" }), { status: 400 })));
     const client = new TapClient({ apiBaseUrl: "https://api.tap.company", apiKey: "sk_test", productReferenceMetadataKey: "product_id" });
-    await expect(client.listRefundsPage()).resolves.toEqual({ records: [], nextCursor: null });
+    await expect(client.listRefundsPage({ from: new Date("2026-08-03T12:00:00.000Z"), to: new Date("2026-08-05T12:00:00.000Z") })).resolves.toEqual({ records: [], nextCursor: null });
+    vi.unstubAllGlobals();
+  });
+
+  it("treats Tap's explicit no-charges response as an empty selected period", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Charges not found" }), { status: 400 })));
+    const client = new TapClient({ apiBaseUrl: "https://api.tap.company", apiKey: "sk_test", productReferenceMetadataKey: "product_id" });
+    await expect(client.listChargesCreatedSince(new Date("2026-08-03T12:00:00.000Z"))).resolves.toEqual([]);
     vi.unstubAllGlobals();
   });
 
@@ -76,11 +102,12 @@ describe("Tap normalisation and signed event processing", () => {
   it("imports charge then refund history in resumable pages", async () => {
     const repository = {
       persistCharge: vi.fn().mockResolvedValue({ inserted: true }), persistRefund: vi.fn().mockResolvedValue({ inserted: true }),
-      getOrStartHistoricalBackfill: vi.fn().mockResolvedValueOnce({ id: "history", continuationCursor: null, recordsProcessed: 0, recordsFailed: 0, completed: false }).mockResolvedValueOnce({ id: "history", continuationCursor: "refunds:", recordsProcessed: 1, recordsFailed: 0, completed: false }),
+      getOrStartHistoricalBackfill: vi.fn().mockResolvedValueOnce({ id: "history", continuationCursor: null, recordsProcessed: 0, recordsFailed: 0, completed: false }).mockResolvedValueOnce({ id: "history", continuationCursor: JSON.stringify({ version: 1, phase: "refunds", range: { from: 1783296000000, to: 1785888000000 } }), recordsProcessed: 1, recordsFailed: 0, completed: false }),
       finishHistoricalBackfillBatch: vi.fn().mockResolvedValueOnce({ id: "history", recordsProcessed: 1, recordsFailed: 0, completed: false }).mockResolvedValueOnce({ id: "history", recordsProcessed: 2, recordsFailed: 0, completed: true }), failSyncRun: vi.fn(), recordSyncError: vi.fn(),
     };
     const source = { fetchCharge: vi.fn().mockResolvedValue(charge), listChargesPage: vi.fn().mockResolvedValue({ records: [charge], nextCursor: null }), listRefundsPage: vi.fn().mockResolvedValue({ records: [refund], nextCursor: null }) };
-    expect(await runTapHistoricalBackfillBatch({ source, productReferenceMetadataKey: "product_id", repository })).toMatchObject({ hasMore: true, totalProcessed: 1 });
-    expect(await runTapHistoricalBackfillBatch({ source, productReferenceMetadataKey: "product_id", repository })).toMatchObject({ hasMore: false, totalProcessed: 2 });
+    expect(await runTapHistoricalBackfillBatch({ source, productReferenceMetadataKey: "product_id", repository, now: new Date("2026-08-05T12:00:00.000Z") })).toMatchObject({ hasMore: true, totalProcessed: 1 });
+    expect(source.listChargesPage).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(Date), to: expect.any(Date) }), undefined);
+    expect(await runTapHistoricalBackfillBatch({ source, productReferenceMetadataKey: "product_id", repository, now: new Date("2026-08-05T12:00:00.000Z") })).toMatchObject({ hasMore: false, totalProcessed: 2 });
   });
 });

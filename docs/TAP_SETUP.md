@@ -28,7 +28,7 @@ This creates a local Tap product-mapping function and an index. It makes no conn
 Restart `npm run dev`, then open **Admin → Integration status**:
 
 1. Select **Sync Tap now** to read the last 48 hours.
-2. Select **Start or restart historical Tap import** to load prior Tap charges/refunds in resumable pages.
+2. Select **Start or resume historical Tap import** to load prior Tap charges/refunds in resumable pages. Tap's list API requires a selected date period and accepts a maximum 31-day period, so PLAYBOOK reads history in persisted 30-day windows. Empty windows are skipped locally; closing the browser is safe because the next window and provider cursor are stored in PLAYBOOK.
 
 Tap list endpoints use a `POST` request only to submit a query. PLAYBOOK's Tap client permits only `/v2/charges/list`, `/v2/refunds/list`, and `/v2/charges/{id}` retrieval; it has no write endpoints.
 
@@ -44,4 +44,4 @@ Tap cannot deliver to `localhost`; use a temporary HTTPS tunnel for local testin
 
 ## Reporting rule
 
-Tap payments/refunds in non-USD are held for review because PLAYBOOK has no Finance-approved Tap FX source. Add a Finance-approved FX policy/source before allowing non-USD Tap amounts into USD financial totals.
+Tap payments and refunds in non-USD remain in their original currency and are held out of USD reporting until Finance records a separate, audited local FX conversion. That conversion stores the rate, source, effective date, and reason in PLAYBOOK only; it never changes Tap.

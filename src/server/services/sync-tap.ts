@@ -1,4 +1,5 @@
 import { normaliseTapCharge, normaliseTapRefund, TapRefundNotSucceededError } from "@/lib/integrations/tap/normalise";
+import type { TapDateRange } from "@/lib/integrations/tap/client";
 import type { ProviderBackfillRun, SupabaseTapSyncRepository } from "@/server/repositories/stripe-sync-repository";
 
 export type TapSource = {
@@ -8,8 +9,8 @@ export type TapSource = {
 };
 
 export type TapHistoricalSource = Pick<TapSource, "fetchCharge"> & {
-  listChargesPage(cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
-  listRefundsPage(cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
+  listChargesPage(range: TapDateRange, cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
+  listRefundsPage(range: TapDateRange, cursor?: string): Promise<{ records: unknown[]; nextCursor: string | null }>;
 };
 
 type TapRepository = Pick<SupabaseTapSyncRepository, "persistCharge" | "persistRefund">;
@@ -130,10 +131,42 @@ export async function runTapReconciliation(input: {
   }
 }
 
-function parseHistoricalCursor(cursor: string | null): { phase: "charges" | "refunds"; providerCursor?: string } {
-  if (cursor?.startsWith("refunds:")) return { phase: "refunds", providerCursor: cursor.slice("refunds:".length) || undefined };
-  if (cursor?.startsWith("charges:")) return { phase: "charges", providerCursor: cursor.slice("charges:".length) || undefined };
-  return { phase: "charges" };
+const TAP_HISTORICAL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const TAP_HISTORICAL_START = new Date("2021-06-01T00:00:00.000Z");
+
+type TapHistoricalCursor = { version: 1; phase: "charges" | "refunds"; range: { from: number; to: number }; providerCursor?: string };
+
+function newHistoricalRange(now: Date): TapDateRange {
+  const to = now;
+  const from = new Date(Math.max(TAP_HISTORICAL_START.getTime(), to.getTime() - TAP_HISTORICAL_WINDOW_MS));
+  return { from, to };
+}
+
+function previousHistoricalRange(range: TapDateRange): TapDateRange | null {
+  if (range.from.getTime() <= TAP_HISTORICAL_START.getTime()) return null;
+  const to = new Date(range.from.getTime() - 1);
+  const from = new Date(Math.max(TAP_HISTORICAL_START.getTime(), to.getTime() - TAP_HISTORICAL_WINDOW_MS));
+  return { from, to };
+}
+
+function parseHistoricalCursor(cursor: string | null, now: Date): { phase: "charges" | "refunds"; range: TapDateRange; providerCursor?: string } {
+  if (cursor) {
+    try {
+      const parsed = JSON.parse(cursor) as Partial<TapHistoricalCursor>;
+      const range = parsed.range;
+      if (parsed.version === 1 && (parsed.phase === "charges" || parsed.phase === "refunds") && range && Number.isFinite(range.from) && Number.isFinite(range.to)) {
+        return { phase: parsed.phase, range: { from: new Date(range.from), to: new Date(range.to) }, providerCursor: parsed.providerCursor };
+      }
+    } catch {
+      // Legacy cursors did not retain a Tap period. Restart from the most
+      // recent bounded window; provider IDs keep already-saved rows safe.
+    }
+  }
+  return { phase: "charges", range: newHistoricalRange(now) };
+}
+
+function encodeHistoricalCursor(input: { phase: "charges" | "refunds"; range: TapDateRange; providerCursor?: string }): string {
+  return JSON.stringify({ version: 1, phase: input.phase, range: { from: input.range.from.getTime(), to: input.range.to.getTime() }, ...(input.providerCursor ? { providerCursor: input.providerCursor } : {}) } satisfies TapHistoricalCursor);
 }
 
 /** Read-only, resumable all-history Tap import in pages of at most 50 records. */
@@ -142,6 +175,7 @@ export async function runTapHistoricalBackfillBatch(input: {
   productReferenceMetadataKey: string;
   repository: TapBackfillRepository;
   restartCompleted?: boolean;
+  now?: Date;
 }): Promise<{ runId: string; processed: number; failed: number; totalProcessed: number; totalFailed: number; hasMore: boolean }> {
   const run: ProviderBackfillRun = await input.repository.getOrStartHistoricalBackfill({ restartCompleted: input.restartCompleted });
   if (run.completed) return { runId: run.id, processed: 0, failed: 0, totalProcessed: run.recordsProcessed, totalFailed: run.recordsFailed, hasMore: false };
@@ -149,9 +183,9 @@ export async function runTapHistoricalBackfillBatch(input: {
   let processed = 0;
   let failed = 0;
   try {
-    const cursor = parseHistoricalCursor(run.continuationCursor);
+    const cursor = parseHistoricalCursor(run.continuationCursor, input.now ?? new Date());
     if (cursor.phase === "charges") {
-      const page = await input.source.listChargesPage(cursor.providerCursor);
+      const page = await input.source.listChargesPage(cursor.range, cursor.providerCursor);
       for (const charge of page.records) {
         try {
           await persistCharge({ charge, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "tap_historical_backfill" });
@@ -161,11 +195,16 @@ export async function runTapHistoricalBackfillBatch(input: {
           failed += 1;
         }
       }
-      const saved = await input.repository.finishHistoricalBackfillBatch({ runId: run.id, processed, failed, nextCursor: page.nextCursor ? `charges:${page.nextCursor}` : "refunds:" });
+      const saved = await input.repository.finishHistoricalBackfillBatch({
+        runId: run.id,
+        processed,
+        failed,
+        nextCursor: encodeHistoricalCursor({ phase: page.nextCursor ? "charges" : "refunds", range: cursor.range, providerCursor: page.nextCursor ?? undefined }),
+      });
       return { runId: saved.id, processed, failed, totalProcessed: saved.recordsProcessed, totalFailed: saved.recordsFailed, hasMore: true };
     }
 
-    const page = await input.source.listRefundsPage(cursor.providerCursor);
+    const page = await input.source.listRefundsPage(cursor.range, cursor.providerCursor);
     for (const refund of page.records) {
       try {
         await persistRefund({ refund, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository });
@@ -176,7 +215,15 @@ export async function runTapHistoricalBackfillBatch(input: {
         failed += 1;
       }
     }
-    const saved = await input.repository.finishHistoricalBackfillBatch({ runId: run.id, processed, failed, nextCursor: page.nextCursor ? `refunds:${page.nextCursor}` : null });
+    const previousRange = page.nextCursor ? null : previousHistoricalRange(cursor.range);
+    const saved = await input.repository.finishHistoricalBackfillBatch({
+      runId: run.id,
+      processed,
+      failed,
+      nextCursor: page.nextCursor
+        ? encodeHistoricalCursor({ phase: "refunds", range: cursor.range, providerCursor: page.nextCursor })
+        : previousRange ? encodeHistoricalCursor({ phase: "charges", range: previousRange }) : null,
+    });
     return { runId: saved.id, processed, failed, totalProcessed: saved.recordsProcessed, totalFailed: saved.recordsFailed, hasMore: !saved.completed };
   } catch (error) {
     // A page-level provider failure has no individual charge/refund row to

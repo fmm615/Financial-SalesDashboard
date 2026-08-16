@@ -15,7 +15,7 @@ export function TapBackfillControl() {
     try {
       let next: BackfillResult | null = null;
       do {
-        const response = await fetch("/api/admin/tap/backfill", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restartCompleted: true }) });
+        const response = await fetch("/api/admin/tap/backfill", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
         const body = await response.json() as BackfillResult & { error?: string };
         if (!response.ok || !("runId" in body)) throw new Error(body.error ?? "Tap backfill could not be completed.");
         next = body; setResult(next);
@@ -26,7 +26,7 @@ export function TapBackfillControl() {
   return <div className="border border-line bg-stone p-6">
     <p className="font-medium text-ink">Historical Tap B2C backfill</p>
     <p className="mt-2 max-w-2xl text-sm text-slate-600">Imports Tap charges and refunds in persisted pages of up to 50 provider records. It can be safely resumed and never writes to Tap.</p>
-    <div className="mt-5"><PrimaryButton onClick={runBackfill} disabled={running}>{running ? "Importing historical Tap payments…" : "Start or restart historical Tap import"}</PrimaryButton></div>
+    <div className="mt-5"><PrimaryButton onClick={runBackfill} disabled={running}>{running ? "Importing historical Tap payments…" : "Start or resume historical Tap import"}</PrimaryButton></div>
     {result && <p className="mt-4 text-sm text-emerald-700">Latest page: {result.processed} processed, {result.failed} flagged. Total: {result.totalProcessed} processed, {result.totalFailed} flagged.{result.hasMore ? " More records remain; continuing automatically." : " Historical Tap import complete."}</p>}
     {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
   </div>;
