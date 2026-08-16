@@ -109,11 +109,6 @@ export type B2cDashboardSnapshot = {
   rows: B2cLedgerRow[];
 };
 
-export type B2cDashboardSnapshotOptions = {
-  /** Raw Tap statement-only evidence is deliberately loaded for Finance Admins only. */
-  includeTapStatementUnmatched?: boolean;
-};
-
 type Flag = { id: string; source_area: string; source_record_id: string; flag_type: string; reason: string };
 type LocalPaymentOverride = {
   payment_id: string;
@@ -298,9 +293,9 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  * succeeded and has neither an open duplicate nor an unmapped-product flag.
  * Refunds remain separate source records and reduce only the net-payment metric.
  */
-export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string, options: B2cDashboardSnapshotOptions = {}): Promise<B2cDashboardSnapshot> {
+export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = await Promise.all([
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult, tapStatementUnmatchedResult] = await Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,original_amount,original_currency,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,original_amount,original_currency,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
@@ -315,6 +310,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "stripe").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "tap").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "tap").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.rpc("get_b2c_tap_statement_unmatched_ledger_rows"),
   ]);
   if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? paymentFxConversionsResult.error ?? refundFxConversionsResult.error ?? financeExceptionResult.error ?? stripeContactFallbacksResult.error ?? stripeEvidenceResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error) {
     throw new Error("Could not load B2C source records.");
@@ -322,58 +318,28 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
 
   const payments = paymentsResult.data ?? [];
   const refunds = refundsResult.data ?? [];
-  const importedTapPaymentIds = new Set(
-    payments
-      .filter((payment) => payment.source_system === "tap" && Boolean(payment.provider_transaction_id))
-      .map((payment) => payment.provider_transaction_id!),
-  );
-  let tapStatementUnmatchedRows: B2cLedgerRow[] = [];
-  if (options.includeTapStatementUnmatched) {
-    const latestStatementImportResult = await client
-      .from("b2c_finance_imports")
-      .select("id")
-      .eq("source_kind", "tap_statement")
-      .eq("import_status", "completed")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (latestStatementImportResult.error) throw new Error("Could not load Tap statement evidence.");
-
-    if (latestStatementImportResult.data) {
-      const statementEvidenceResult = await client
-        .from("b2c_provider_evidence")
-        .select("id,provider_payment_id,description_raw,occurred_at,original_currency,credit_amount,debit_amount")
-        .eq("import_id", latestStatementImportResult.data.id)
-        .eq("provider", "tap")
-        .eq("transaction_kind", "sale");
-      if (statementEvidenceResult.error) throw new Error("Could not load Tap statement evidence.");
-
-      tapStatementUnmatchedRows = (statementEvidenceResult.data ?? [])
-        .filter((evidence) => evidence.provider_payment_id && !importedTapPaymentIds.has(evidence.provider_payment_id))
-        .flatMap((evidence): B2cLedgerRow[] => {
-          const dateValue = evidence.occurred_at?.slice(0, 10);
-          if (!dateValue || !isInB2cPeriod(dateValue, period)) return [];
-          const amount = evidence.credit_amount ?? evidence.debit_amount;
-          const amountText = amount === null ? "—" : formatSourceAmount(amount, evidence.original_currency);
-          return [{
-            id: evidence.id,
-            recordType: "Tap statement sale",
-            customerName: null, customerEmail: null, customerPhone: null,
-            customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
-            date: formatDate(dateValue), dateValue,
-            amountUsd: amountText, amountValueUsd: null, sourceAmountUsd: amountText,
-            sourceOriginalAmount: amount ?? undefined, sourceOriginalCurrency: evidence.original_currency,
-            sourceDescription: evidence.description_raw,
-            sourceDateValue: dateValue,
-            category: "Unavailable", membershipTier: null, billingInterval: null,
-            source: "Tap", paymentStatus: "Not matched", providerReference: evidence.provider_payment_id,
-            sourceSystem: "tap", productReference: null,
-            hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
-            openReviewFlags: [], issue: "Tap statement unmatched", tapStatementUnmatched: true,
-          }];
-        });
-    }
-  }
+  const tapStatementUnmatchedRows = (tapStatementUnmatchedResult.data ?? [])
+    .flatMap((evidence): B2cLedgerRow[] => {
+      const dateValue = evidence.occurred_at?.slice(0, 10);
+      if (!dateValue || !isInB2cPeriod(dateValue, period)) return [];
+      const amountText = formatSourceAmount(evidence.original_amount, evidence.original_currency);
+      return [{
+        id: evidence.evidence_id,
+        recordType: "Tap statement sale",
+        customerName: null, customerEmail: null, customerPhone: null,
+        customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
+        date: formatDate(dateValue), dateValue,
+        amountUsd: amountText, amountValueUsd: null, sourceAmountUsd: amountText,
+        sourceOriginalAmount: evidence.original_amount, sourceOriginalCurrency: evidence.original_currency,
+        sourceDescription: evidence.description_raw,
+        sourceDateValue: dateValue,
+        category: "Unavailable", membershipTier: null, billingInterval: null,
+        source: "Tap", paymentStatus: "Not matched", providerReference: evidence.provider_payment_id,
+        sourceSystem: "tap", productReference: null,
+        hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
+        openReviewFlags: [], issue: "Tap statement unmatched", tapStatementUnmatched: true,
+      }];
+    });
   const sourceCoverage = resolveB2cSourceCoverage({ providers: [
     { provider: "stripe", active: payments.some((payment) => payment.source_system === "stripe") || refunds.some((refund) => refund.source_system === "stripe") || Boolean(stripeHistoricalResult.data), historicalBackfill: stripeHistoricalResult.data ? { status: stripeHistoricalResult.data.status, recordsFailed: stripeHistoricalResult.data.records_failed, completedAt: stripeHistoricalResult.data.completed_at } : null, latestReconciliation: stripeReconciliationResult.data ? { status: stripeReconciliationResult.data.status, requestedRangeEnd: stripeReconciliationResult.data.requested_range_end, completedAt: stripeReconciliationResult.data.completed_at } : null },
     { provider: "tap", active: payments.some((payment) => payment.source_system === "tap") || refunds.some((refund) => refund.source_system === "tap") || Boolean(tapHistoricalResult.data), historicalBackfill: tapHistoricalResult.data ? { status: tapHistoricalResult.data.status, recordsFailed: tapHistoricalResult.data.records_failed, completedAt: tapHistoricalResult.data.completed_at } : null, latestReconciliation: tapReconciliationResult.data ? { status: tapReconciliationResult.data.status, requestedRangeEnd: tapReconciliationResult.data.requested_range_end, completedAt: tapReconciliationResult.data.completed_at } : null },

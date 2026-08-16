@@ -365,6 +365,17 @@ export interface Database {
       };
       create_b2c_exact_duplicate_groups: { Args: Record<string, never>; Returns: number };
       get_b2c_reconciliation_safe_summary: { Args: Record<string, never>; Returns: Json };
+      get_b2c_tap_statement_unmatched_ledger_rows: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          evidence_id: Uuid;
+          provider_payment_id: string;
+          description_raw: string | null;
+          occurred_at: Timestamp;
+          original_currency: string;
+          original_amount: Decimal;
+        }>;
+      };
       get_b2c_stripe_payment_contact_fallbacks: {
         Args: Record<string, never>;
         Returns: Array<{

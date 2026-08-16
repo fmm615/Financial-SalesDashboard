@@ -10,6 +10,22 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("Tap statement unmatched ledger review", () => {
+  it("keeps the Tap statement filter visible when no unmatched statement rows are loaded", () => {
+    const snapshot = {
+      period: { month: "all", monthLabel: "All time", monthStart: "2026-08-01", monthEnd: "2026-08-31", isAllTime: true },
+      sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-16T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
+      hasSourceRecords: true,
+      eligiblePaymentsUsd: "$50.42", refundsUsd: "$0.00", netPaymentsUsd: "$50.42", completedSourcePaymentsUsd: "$50.42", sourceRefundsUsd: "$0.00",
+      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 1, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 0, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+      reviewItems: 0,
+      rows: [],
+    } as unknown as B2cDashboardSnapshot;
+
+    render(<B2cOperations snapshot={snapshot} />);
+
+    expect(screen.getByRole("button", { name: "Tap statement unmatched (0)" })).toBeDisabled();
+  });
+
   it("shows unmatched Tap statement sales through the existing ledger filter", () => {
     const snapshot = {
       period: { month: "all", monthLabel: "All time", monthStart: "2026-08-01", monthEnd: "2026-08-31", isAllTime: true },

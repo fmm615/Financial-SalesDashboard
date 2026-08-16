@@ -66,16 +66,15 @@ export function B2cLedgerFilters({ filters, onChange, sources, categories, issue
         >
           {filters.foreignCurrencyOnly ? "Show all source records" : `Needs FX review (${foreignCurrencyCount.toLocaleString()})`}
         </button>
-        {tapStatementUnmatchedCount > 0 && (
-          <button
-            type="button"
-            onClick={() => onChange({ ...filters, tapStatementUnmatchedOnly: !filters.tapStatementUnmatchedOnly })}
-            aria-pressed={filters.tapStatementUnmatchedOnly}
-            className={`rounded-input border px-3 py-2 font-medium transition ${filters.tapStatementUnmatchedOnly ? "border-warning/50 bg-warning/10 text-warning" : "border-warning/40 bg-warning/5 text-warning hover:bg-warning/10"}`}
-          >
-            Tap statement unmatched ({tapStatementUnmatchedCount.toLocaleString()})
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => onChange({ ...filters, tapStatementUnmatchedOnly: !filters.tapStatementUnmatchedOnly })}
+          aria-pressed={filters.tapStatementUnmatchedOnly}
+          disabled={tapStatementUnmatchedCount === 0}
+          className={`rounded-input border px-3 py-2 font-medium transition ${filters.tapStatementUnmatchedOnly ? "border-warning/50 bg-warning/10 text-warning" : "border-warning/40 bg-warning/5 text-warning hover:bg-warning/10"} disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-text-muted`}
+        >
+          Tap statement unmatched ({tapStatementUnmatchedCount.toLocaleString()})
+        </button>
         <button type="button" onClick={() => onChange(initialB2cLedgerFilters)} disabled={!hasFilters} className="font-medium text-brand-accent disabled:cursor-not-allowed disabled:text-text-muted">Clear filters</button>
       </div>
     </div>
