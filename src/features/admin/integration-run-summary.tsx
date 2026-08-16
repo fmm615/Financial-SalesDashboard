@@ -66,7 +66,7 @@ export function IntegrationRunSummary({ refreshToken }: { refreshToken: number }
       <div className="flex items-center justify-between gap-3"><h3 className="font-semibold text-text-primary">{providerLabels[summary.provider]}</h3><span className="rounded-full bg-surface px-2 py-1 text-xs font-medium text-text-secondary">{statusLabels[summary.status]}</span></div>
       {summary.totalProcessed === null ? <p className="mt-3 text-sm text-text-muted">No historical backfill has run.</p> : <p className="mt-3 text-sm text-text-secondary">{summary.totalProcessed.toLocaleString("en-US")} processed · {summary.totalFailed?.toLocaleString("en-US") ?? "0"} flagged</p>}
       {summary.completedAt && <p className="mt-2 text-xs text-text-muted">Completed {formatCompletion(summary.completedAt)}</p>}
-      {summary.safeErrorSummary && <p role="alert" className="mt-2 text-xs leading-5 text-danger">{summary.safeErrorSummary}</p>}
+      {summary.status === "failed" && summary.safeErrorSummary && <p role="alert" className="mt-2 text-xs leading-5 text-danger">{summary.safeErrorSummary}</p>}
     </article>)}
   </section>;
 }

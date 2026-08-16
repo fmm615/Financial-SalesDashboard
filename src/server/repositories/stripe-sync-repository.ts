@@ -104,6 +104,8 @@ export class SupabaseB2cProviderSyncRepository {
         records_failed: current.records_failed + input.failed,
         status: completed ? "completed" : "processing",
         completed_at: completed ? new Date().toISOString() : null,
+        failed_at: null,
+        safe_error_summary: null,
       })
       .eq("id", input.runId)
       .select("id,continuation_cursor,records_processed,records_failed")

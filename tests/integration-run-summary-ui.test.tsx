@@ -7,7 +7,7 @@ import { TapBackfillControl } from "@/features/admin/tap-backfill-control";
 import { HubSpotBackfillControl } from "@/features/admin/hubspot-backfill-control";
 
 const summaries = [
-  { provider: "stripe", status: "completed", totalProcessed: 230, totalFailed: 0, completedAt: "2026-08-16T12:00:00.000Z", safeErrorSummary: null },
+  { provider: "stripe", status: "completed", totalProcessed: 230, totalFailed: 0, completedAt: "2026-08-16T12:00:00.000Z", safeErrorSummary: "fetch failed" },
   { provider: "tap", status: "not_started", totalProcessed: null, totalFailed: null, completedAt: null, safeErrorSummary: null },
   { provider: "hubspot", status: "failed", totalProcessed: 51, totalFailed: 2, completedAt: null, safeErrorSummary: "Safe source error." },
 ];
@@ -25,6 +25,7 @@ describe("IntegrationRunSummary", () => {
     expect(screen.getByText(/230 processed/)).toBeInTheDocument();
     expect(screen.getByText("Not started")).toBeInTheDocument();
     expect(screen.getByText("Safe source error.")).toBeInTheDocument();
+    expect(screen.queryByText("fetch failed")).not.toBeInTheDocument();
 
     view.rerender(<IntegrationRunSummary refreshToken={1} />);
 
