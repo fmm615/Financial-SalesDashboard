@@ -1,7 +1,7 @@
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 export type IntegrationProvider = "stripe" | "tap" | "hubspot";
-export type IntegrationBackfillStatus = "not_started" | "processing" | "completed" | "failed";
+export type IntegrationBackfillStatus = "not_started" | "pending" | "processing" | "completed" | "failed" | "cancelled";
 
 export type IntegrationBackfillSummary = {
   provider: IntegrationProvider;

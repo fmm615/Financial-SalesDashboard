@@ -6,7 +6,7 @@ import { PrimaryButton } from "@/components/ui";
 type BackfillResult = { runId: string; processed: number; failed: number; totalProcessed: number; totalFailed: number; hasMore: boolean };
 
 /** Runs small persisted Tap history pages so closing the browser is safe. */
-export function TapBackfillControl() {
+export function TapBackfillControl({ onRunSettled }: { onRunSettled?: () => void }) {
   const [result, setResult] = useState<BackfillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -21,7 +21,7 @@ export function TapBackfillControl() {
         next = body; setResult(next);
         if (next.hasMore) await new Promise((resolve) => window.setTimeout(resolve, 300));
       } while (next.hasMore);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Tap backfill could not be completed."); } finally { setRunning(false); }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Tap backfill could not be completed."); } finally { setRunning(false); onRunSettled?.(); }
   }
   return <div className="border border-line bg-stone p-6">
     <p className="font-medium text-ink">Historical Tap B2C backfill</p>

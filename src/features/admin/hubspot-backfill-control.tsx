@@ -6,7 +6,7 @@ import { PrimaryButton } from "@/components/ui";
 type BackfillResult = { runId: string; processed: number; failed: number; totalProcessed: number; totalFailed: number; hasMore: boolean };
 
 /** Operator control for bounded, resumable all-history B2B backfill batches. */
-export function HubSpotBackfillControl() {
+export function HubSpotBackfillControl({ onRunSettled }: { onRunSettled?: () => void }) {
   const [result, setResult] = useState<BackfillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -34,6 +34,7 @@ export function HubSpotBackfillControl() {
       setError(caught instanceof Error ? caught.message : "HubSpot backfill could not be completed.");
     } finally {
       setRunning(false);
+      onRunSettled?.();
     }
   }
 

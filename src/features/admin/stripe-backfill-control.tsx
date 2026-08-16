@@ -6,7 +6,7 @@ import { PrimaryButton } from "@/components/ui";
 type BackfillResult = { runId: string; processed: number; failed: number; totalProcessed: number; totalFailed: number; hasMore: boolean };
 
 /** Operator control for bounded, resumable, all-history Stripe B2C imports. */
-export function StripeBackfillControl() {
+export function StripeBackfillControl({ onRunSettled }: { onRunSettled?: () => void }) {
   const [result, setResult] = useState<BackfillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -32,6 +32,7 @@ export function StripeBackfillControl() {
       setError(caught instanceof Error ? caught.message : "Stripe backfill could not be completed.");
     } finally {
       setRunning(false);
+      onRunSettled?.();
     }
   }
 
