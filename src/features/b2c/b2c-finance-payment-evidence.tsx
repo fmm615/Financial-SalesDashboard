@@ -1,6 +1,10 @@
 import type { B2cFinanceSourceEvidence } from "@/server/services/b2c-finance-action-center";
 
-const display = (value: string | null) => value?.trim() || "Not provided";
+const display = (value: unknown) => {
+  if (typeof value === "string") return value.trim() || "Not provided";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "Not provided";
+};
 
 /** Read-only workbook facts that make a Finance decision understandable without exposing raw provider data. */
 export function B2cFinancePaymentEvidence({ evidence, heading }: { evidence: B2cFinanceSourceEvidence; heading: string }) {

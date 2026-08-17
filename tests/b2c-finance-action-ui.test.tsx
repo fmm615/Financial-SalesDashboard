@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { B2cFinanceActionModule } from "@/features/b2c/b2c-finance-action-module";
 import { B2cFinanceDuplicateActions } from "@/features/b2c/b2c-finance-duplicate-actions";
 import { B2cFinanceDataQualityActions } from "@/features/b2c/b2c-finance-data-quality-actions";
+import { B2cFinancePaymentEvidence } from "@/features/b2c/b2c-finance-payment-evidence";
 import type { B2cFinanceActionOverview } from "@/server/services/b2c-finance-action-center";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -87,5 +88,11 @@ describe("B2C Finance action module", () => {
     expect(screen.getAllByText("Source workbook details")).toHaveLength(2);
     expect(screen.getAllByText("Female Founder Club")).toHaveLength(1);
     expect(screen.getAllByText("05/10/2025")).toHaveLength(2);
+  });
+
+  it("renders a numeric provider amount without crashing", () => {
+    render(<B2cFinancePaymentEvidence heading="Source workbook details" evidence={{ ...duplicateGroups[0].rows[0], amountUsd: 475 as unknown as string }} />);
+
+    expect(screen.getByText("475")).toBeInTheDocument();
   });
 });
