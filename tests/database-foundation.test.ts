@@ -235,6 +235,15 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("'effective_category', rows.category_raw");
   });
 
+  it("adds an all-or-nothing B2C Finance duplicate-decision function for selected rows", () => {
+    const sql = migration("20260817113000_b2c_finance_selected_duplicate_decisions.sql");
+
+    expect(sql).toContain("create or replace function public.apply_b2c_finance_selected_duplicate_decisions");
+    expect(sql).toContain("for update");
+    expect(sql).toContain("The selected Finance row must belong to the duplicate group");
+    expect(sql).toContain("insert into public.b2c_reconciliation_decisions");
+  });
+
   it("posts only valid effective Finance rows while retaining duplicate controls", () => {
     const resolutionMigration = () => migration("20260817110000_b2c_finance_action_resolutions.sql");
 

@@ -12,6 +12,18 @@ export const b2cFinanceBulkCanonicalDecisionSchema = z.object({
 
 export type B2cFinanceBulkCanonicalDecisionInput = z.infer<typeof b2cFinanceBulkCanonicalDecisionSchema>;
 
+/** Each reviewed exact duplicate pair names the exact Finance row that Finance chose to retain. */
+export const b2cFinanceSelectedDuplicateDecisionSchema = z.object({
+  decisions: z.array(z.object({
+    groupId: z.string().uuid("Select valid B2C Finance duplicate groups."),
+    financeRowId: z.string().uuid("Select valid B2C Finance rows."),
+  }).strict()).min(1, "Select at least one duplicate payment pair.").max(200, "Select no more than 200 duplicate payment pairs at once.")
+    .refine((decisions) => new Set(decisions.map(({ groupId }) => groupId)).size === decisions.length, "Select each duplicate pair only once."),
+  reason: decisionReason,
+}).strict();
+
+export type B2cFinanceSelectedDuplicateDecisionInput = z.infer<typeof b2cFinanceSelectedDuplicateDecisionSchema>;
+
 export const b2cFinanceDateAuthoritySchema = z.object({
   financeRowIds: z.array(z.string().uuid("Select valid B2C Finance rows.")).min(1, "Select at least one Finance row.").max(200, "Select no more than 200 Finance rows at once.")
     .refine((rowIds) => new Set(rowIds).size === rowIds.length, "Select each Finance row only once."),

@@ -4,6 +4,7 @@ import { POST } from "@/app/api/admin/b2c/finance-actions/duplicates/bulk-canoni
 import { GET } from "@/app/api/admin/b2c/finance-actions/route";
 import { POST as applyDateAuthority } from "@/app/api/admin/b2c/finance-actions/date-authority/route";
 import { POST as applyCorrection } from "@/app/api/admin/b2c/finance-actions/[rowId]/correction/route";
+import { POST as applySelectedDuplicateDecisions } from "@/app/api/admin/b2c/finance-actions/duplicates/selected/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getApprovedRole } from "@/lib/auth/access";
 
@@ -14,6 +15,7 @@ const createServerClientMock = vi.mocked(createServerSupabaseClient);
 const getApprovedRoleMock = vi.mocked(getApprovedRole);
 const adminUser = { id: "11111111-1111-4111-8111-111111111111" };
 const groupIds = ["22222222-2222-4222-8222-222222222222"];
+const selectedDecisions = [{ groupId: groupIds[0], financeRowId: "33333333-3333-4333-8333-333333333333" }];
 
 describe("bulk B2C Finance duplicate decision API", () => {
   beforeEach(() => vi.resetAllMocks());
@@ -49,6 +51,24 @@ describe("bulk B2C Finance duplicate decision API", () => {
       p_group_ids: groupIds,
       p_source_tab: "B2C Cons",
       p_reason: "B2C Cons contains the fuller verified contact record.",
+    });
+  });
+
+  it("saves the Admin's selected duplicate rows in one audited request", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: 1, error: null });
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: adminUser } }) }, rpc } as never);
+    getApprovedRoleMock.mockResolvedValue("admin");
+
+    const response = await applySelectedDuplicateDecisions(new NextRequest("http://localhost/api/admin/b2c/finance-actions/duplicates/selected", {
+      method: "POST",
+      body: JSON.stringify({ decisions: selectedDecisions, reason: "Finance reviewed the payment details and selected the retained record." }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ decidedGroups: 1 });
+    expect(rpc).toHaveBeenCalledWith("apply_b2c_finance_selected_duplicate_decisions", {
+      p_decisions: selectedDecisions,
+      p_reason: "Finance reviewed the payment details and selected the retained record.",
     });
   });
 

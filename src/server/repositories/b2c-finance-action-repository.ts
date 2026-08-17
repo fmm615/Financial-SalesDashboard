@@ -3,6 +3,7 @@ import type {
   B2cFinanceBulkCanonicalDecisionInput,
   B2cFinanceDateAuthorityInput,
   B2cFinanceRowCorrectionInput,
+  B2cFinanceSelectedDuplicateDecisionInput,
 } from "@/lib/validation/b2c-finance-action-contracts";
 import type {
   B2cFinanceDuplicateCandidate,
@@ -39,6 +40,17 @@ export class B2cFinanceActionRepository {
     });
     if (error || typeof data !== "number" || data < 0) {
       throw new Error("Could not save the B2C Finance duplicate decisions.");
+    }
+    return data;
+  }
+
+  async applySelectedDuplicateDecisions(input: B2cFinanceSelectedDuplicateDecisionInput): Promise<number> {
+    const { data, error } = await this.client.rpc("apply_b2c_finance_selected_duplicate_decisions", {
+      p_decisions: input.decisions,
+      p_reason: input.reason,
+    });
+    if (error || typeof data !== "number" || data < 0) {
+      throw new Error("Could not save the selected B2C Finance duplicate decisions.");
     }
     return data;
   }
