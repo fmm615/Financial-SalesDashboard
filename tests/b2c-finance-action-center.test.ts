@@ -13,6 +13,12 @@ const completeB2cConsPair: B2cFinanceDuplicateCandidate = {
     {
       financeRowId: "22222222-2222-4222-8222-222222222222",
       sourceTab: "B2C",
+      sourceRowNumber: 12,
+      reportedDateRaw: "05/10/2025",
+      declaredMonth: "October",
+      declaredYear: "2025",
+      occurredOn: "2025-10-05",
+      amountUsd: "475",
       customerName: "Reham Garash",
       customerEmail: null,
       customerPhone: null,
@@ -20,10 +26,18 @@ const completeB2cConsPair: B2cFinanceDuplicateCandidate = {
       membershipType: null,
       paymentStatus: null,
       note: null,
+      paymentMethod: "Stripe",
+      qualityIssues: [],
     },
     {
       financeRowId: "33333333-3333-4333-8333-333333333333",
       sourceTab: "B2C Cons",
+      sourceRowNumber: 33,
+      reportedDateRaw: "05/10/2025",
+      declaredMonth: "October",
+      declaredYear: "2025",
+      occurredOn: "2025-10-05",
+      amountUsd: "475",
       customerName: "Reham Garash",
       customerEmail: "reham@example.com",
       customerPhone: "+973 3000 0000",
@@ -31,6 +45,8 @@ const completeB2cConsPair: B2cFinanceDuplicateCandidate = {
       membershipType: "Female Founder Club",
       paymentStatus: "Received",
       note: "Full payment",
+      paymentMethod: "Stripe",
+      qualityIssues: [],
     },
   ],
 };
@@ -67,7 +83,19 @@ describe("B2C Finance duplicate recommendations", () => {
         financeRowId: "44444444-4444-4444-8444-444444444444",
         sourceTab: "B2C Cons",
         sourceRowNumber: 14,
+        reportedDateRaw: "05/10/2025",
+        declaredMonth: "September",
+        declaredYear: "2025",
         occurredOn: "2025-10-05",
+        amountUsd: "275",
+        customerName: "Member name",
+        customerEmail: null,
+        customerPhone: null,
+        category: "Membership",
+        membershipType: null,
+        paymentMethod: "Bank transfer",
+        paymentStatus: "Received",
+        note: null,
         qualityIssues: ["declared_month_conflicts_with_date"],
       }],
       countPostedFinancePayments: async () => 161,
@@ -76,6 +104,11 @@ describe("B2C Finance duplicate recommendations", () => {
     const overview = await createB2cFinanceActionCenter(repository).overview();
 
     expect(overview.counts).toMatchObject({ duplicateDecisions: 1, duplicateSourceRows: 2, dateAuthorityActions: 1, correctionActions: 0, postedFinancePayments: 161 });
+    expect(overview.duplicateGroups[0]?.groupId).toBe(completeB2cConsPair.groupId);
+    expect(overview.duplicateGroups[0]?.rows[0]).toMatchObject({ sourceTab: "B2C", customerName: "Reham Garash", amountUsd: "475" });
     expect(overview.items).toContainEqual(expect.objectContaining({ actionLabel: "Use the verified Date", sourceRowNumber: 14 }));
+    expect(overview.items.find((item) => item.actionType === "date_authority")?.evidence).toMatchObject({
+      sourceTab: "B2C Cons", sourceRowNumber: 14, occurredOn: "2025-10-05", qualityIssues: ["declared_month_conflicts_with_date"],
+    });
   });
 });

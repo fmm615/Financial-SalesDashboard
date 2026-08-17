@@ -24,6 +24,7 @@ const overview: B2cFinanceActionOverview = {
     correctionActions: 5,
     postedFinancePayments: 161,
   },
+  duplicateGroups: [],
   items: [
     ...duplicateItems,
     { id: "date-authority:22222222-2222-4222-8222-222222222222", actionType: "date_authority", actionLabel: "Use the verified Date", explanation: "The Date is valid, but the Month label conflicts with it.", sourceTab: "B2C", sourceRowNumber: 12 },

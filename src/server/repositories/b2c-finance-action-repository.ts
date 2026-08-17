@@ -17,13 +17,21 @@ type PendingDuplicateGroupRecord = {
     finance_row_id: string;
     b2c_finance_staging_rows: {
       source_tab: "B2C" | "B2C Cons";
+      source_row_number: number;
+      reported_date_raw: string;
+      declared_month_raw: string | null;
+      declared_year_raw: string | null;
+      occurred_on: string | null;
+      amount_usd: string | null;
       customer_name_raw: string | null;
       customer_email_raw: string | null;
       customer_phone_raw: string | null;
       category_raw: string | null;
       membership_type_raw: string | null;
+      payment_method_raw: string | null;
       payment_status_raw: string | null;
       note_raw: string | null;
+      quality_issues: unknown;
     } | null;
   }>;
 };
@@ -57,7 +65,7 @@ export class B2cFinanceActionRepository {
 
   async listPendingExactDuplicateGroups(): Promise<B2cFinanceDuplicateCandidate[]> {
     const { data, error } = await this.client.from("b2c_reconciliation_groups")
-      .select("id,reconciliation_state,b2c_reconciliation_finance_rows(finance_row_id,b2c_finance_staging_rows(source_tab,customer_name_raw,customer_email_raw,customer_phone_raw,category_raw,membership_type_raw,payment_status_raw,note_raw))")
+      .select("id,reconciliation_state,b2c_reconciliation_finance_rows(finance_row_id,b2c_finance_staging_rows(source_tab,source_row_number,reported_date_raw,declared_month_raw,declared_year_raw,occurred_on,amount_usd,customer_name_raw,customer_email_raw,customer_phone_raw,category_raw,membership_type_raw,payment_method_raw,payment_status_raw,note_raw,quality_issues))")
       .eq("reconciliation_state", "exact_duplicate_candidate");
     if (error) throw new Error("Could not load B2C Finance duplicate actions.");
 
@@ -67,13 +75,21 @@ export class B2cFinanceActionRepository {
         return row ? [{
           financeRowId: link.finance_row_id,
           sourceTab: row.source_tab,
+          sourceRowNumber: row.source_row_number,
+          reportedDateRaw: row.reported_date_raw,
+          declaredMonth: row.declared_month_raw,
+          declaredYear: row.declared_year_raw,
+          occurredOn: row.occurred_on,
+          amountUsd: row.amount_usd,
           customerName: row.customer_name_raw,
           customerEmail: row.customer_email_raw,
           customerPhone: row.customer_phone_raw,
           category: row.category_raw,
           membershipType: row.membership_type_raw,
+          paymentMethod: row.payment_method_raw,
           paymentStatus: row.payment_status_raw,
           note: row.note_raw,
+          qualityIssues: Array.isArray(row.quality_issues) && row.quality_issues.every((issue: unknown) => typeof issue === "string") ? row.quality_issues : [],
         }] : [];
       });
       return rows.length === 2 ? [{ groupId: group.id, state: group.reconciliation_state, rows }] : [];
@@ -82,7 +98,7 @@ export class B2cFinanceActionRepository {
 
   async listNeedsReviewRows(): Promise<B2cFinanceNeedsReviewRow[]> {
     const { data, error } = await this.client.from("b2c_finance_staging_rows")
-      .select("id,source_tab,source_row_number,occurred_on,quality_issues,b2c_finance_imports!inner(import_status)")
+      .select("id,source_tab,source_row_number,reported_date_raw,declared_month_raw,declared_year_raw,occurred_on,amount_usd,customer_name_raw,customer_email_raw,customer_phone_raw,category_raw,membership_type_raw,payment_method_raw,payment_status_raw,note_raw,quality_issues,b2c_finance_imports!inner(import_status)")
       .eq("row_quality", "needs_review")
       .eq("b2c_finance_imports.import_status", "completed");
     if (error) throw new Error("Could not load B2C Finance data-quality actions.");
@@ -94,7 +110,19 @@ export class B2cFinanceActionRepository {
         financeRowId: row.id,
         sourceTab: row.source_tab,
         sourceRowNumber: row.source_row_number,
+        reportedDateRaw: row.reported_date_raw,
+        declaredMonth: row.declared_month_raw,
+        declaredYear: row.declared_year_raw,
         occurredOn: row.occurred_on,
+        amountUsd: row.amount_usd,
+        customerName: row.customer_name_raw,
+        customerEmail: row.customer_email_raw,
+        customerPhone: row.customer_phone_raw,
+        category: row.category_raw,
+        membershipType: row.membership_type_raw,
+        paymentMethod: row.payment_method_raw,
+        paymentStatus: row.payment_status_raw,
+        note: row.note_raw,
         qualityIssues: issues,
       }];
     });

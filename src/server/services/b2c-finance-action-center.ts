@@ -1,19 +1,30 @@
 export type B2cFinanceSourceTab = "B2C" | "B2C Cons";
 
+/** The safe workbook facts Finance needs to review a current B2C decision. */
+export type B2cFinanceSourceEvidence = {
+  financeRowId: string;
+  sourceTab: B2cFinanceSourceTab;
+  sourceRowNumber: number;
+  reportedDateRaw: string;
+  declaredMonth: string | null;
+  declaredYear: string | null;
+  occurredOn: string | null;
+  amountUsd: string | null;
+  customerName: string | null;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  category: string | null;
+  membershipType: string | null;
+  paymentMethod: string | null;
+  paymentStatus: string | null;
+  note: string | null;
+  qualityIssues: string[];
+};
+
 export type B2cFinanceDuplicateCandidate = {
   groupId: string;
   state: "exact_duplicate_candidate";
-  rows: Array<{
-    financeRowId: string;
-    sourceTab: B2cFinanceSourceTab;
-    customerName: string | null;
-    customerEmail: string | null;
-    customerPhone: string | null;
-    category: string | null;
-    membershipType: string | null;
-    paymentStatus: string | null;
-    note: string | null;
-  }>;
+  rows: B2cFinanceSourceEvidence[];
 };
 
 export type B2cFinanceCanonicalRecommendation = {
@@ -25,13 +36,7 @@ export type B2cFinanceCanonicalRecommendation = {
   otherCompleteness: number;
 };
 
-export type B2cFinanceNeedsReviewRow = {
-  financeRowId: string;
-  sourceTab: B2cFinanceSourceTab;
-  sourceRowNumber: number;
-  occurredOn: string | null;
-  qualityIssues: string[];
-};
+export type B2cFinanceNeedsReviewRow = B2cFinanceSourceEvidence;
 
 export type B2cFinanceActionCenterRepository = {
   listPendingExactDuplicateGroups(): Promise<B2cFinanceDuplicateCandidate[]>;
@@ -46,6 +51,7 @@ export type B2cFinanceActionItem = {
   explanation: string;
   sourceTab: B2cFinanceSourceTab | null;
   sourceRowNumber: number | null;
+  evidence?: B2cFinanceSourceEvidence;
 };
 
 export type B2cFinanceActionOverview = {
@@ -57,6 +63,7 @@ export type B2cFinanceActionOverview = {
     correctionActions: number;
     postedFinancePayments: number;
   };
+  duplicateGroups: Array<B2cFinanceDuplicateCandidate & { recommendation: B2cFinanceCanonicalRecommendation }>;
   items: B2cFinanceActionItem[];
 };
 
@@ -148,6 +155,7 @@ export function createB2cFinanceActionCenter(repository: B2cFinanceActionCenterR
           explanation: "The Date is valid, but the Month or Year label conflicts with it. Keep the Date as the financial record.",
           sourceTab: row.sourceTab,
           sourceRowNumber: row.sourceRowNumber,
+          evidence: row,
         })),
         ...correctionRows.map((row) => ({
           id: `correction:${row.financeRowId}`,
@@ -156,6 +164,7 @@ export function createB2cFinanceActionCenter(repository: B2cFinanceActionCenterR
           explanation: correctionExplanation(row),
           sourceTab: row.sourceTab,
           sourceRowNumber: row.sourceRowNumber,
+          evidence: row,
         })),
       ];
 
@@ -168,6 +177,7 @@ export function createB2cFinanceActionCenter(repository: B2cFinanceActionCenterR
           correctionActions: correctionRows.length,
           postedFinancePayments,
         },
+        duplicateGroups: duplicateGroups.map((group, index) => ({ ...group, recommendation: recommendations[index] })),
         items,
       };
     },
