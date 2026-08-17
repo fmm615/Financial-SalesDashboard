@@ -10,6 +10,7 @@ import type { TapStatementPreview } from "@/server/services/tap-statement-upload
 import type { StripeChargesPreview } from "@/server/services/stripe-charges-upload";
 import type { AdminStripeEvidenceRecord } from "@/server/services/stripe-charges-evidence";
 import { B2cExactDuplicateReview } from "@/features/b2c/b2c-exact-duplicate-review";
+import { B2cApprovedFinancePosting } from "@/features/b2c/b2c-approved-finance-posting";
 
 function displayCount(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
@@ -49,6 +50,7 @@ export function B2cReconciliationPage() {
   useEffect(() => { void loadSummary(); }, [loadSummary]);
   const loadStripeRecords = useCallback(async () => { if (!canManage) return; try { const response = await fetch("/api/admin/b2c/stripe-charges?limit=50", { cache: "no-store" }); const payload: unknown = await response.json().catch(() => null); if (response.ok && payload && typeof payload === "object" && "records" in payload && Array.isArray(payload.records)) setStripeRecords(payload.records as AdminStripeEvidenceRecord[]); } catch { setStripeRecords([]); } }, [canManage]);
   const stripeCompleted = summary?.sources.some((source) => source.key === "stripe_charges" && source.status === "completed") ?? false;
+  const paymentTrackerCompleted = summary?.sources.some((source) => source.key === "payment_tracker" && source.status === "completed") ?? false;
   useEffect(() => { if (stripeCompleted) void loadStripeRecords(); else setStripeRecords([]); }, [loadStripeRecords, stripeCompleted]);
 
   const requestPreview = async () => {
@@ -111,6 +113,7 @@ export function B2cReconciliationPage() {
         <h2 className="mt-3 text-lg font-semibold tracking-[-0.02em] text-text-primary">B2C Finance revenue is not published</h2>
         <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">{summary.publicationMessage}</p>
       </section>
+      {canManage && paymentTrackerCompleted && <B2cApprovedFinancePosting onPosted={loadSummary} />}
       {canManage && <SectionCard title="Payment Tracker upload" description="Preview one Finance .xlsx file, then explicitly stage it. This does not publish B2C Finance revenue." className="mt-4">
         <label htmlFor="payment-tracker-workbook" className="text-sm font-medium text-text-primary">Payment Tracker workbook</label>
         <input id="payment-tracker-workbook" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={uploading} className="mt-2 block w-full text-sm" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null); setUploadError(null); }} />
@@ -127,7 +130,7 @@ export function B2cReconciliationPage() {
       </SectionCard>}
       {canManage && <SectionCard title="Stripe Charges upload" description="Preview a full Stripe Charges .csv, then explicitly stage private evidence. It never creates B2C Finance revenue." className="mt-4"><label htmlFor="stripe-charges-csv" className="text-sm font-medium text-text-primary">Stripe Charges CSV</label><input id="stripe-charges-csv" type="file" accept=".csv,text/csv" disabled={stripeUploading} className="mt-2 block w-full text-sm" onChange={(event) => { setStripeFile(event.target.files?.[0] ?? null); setStripePreview(null); setStripeError(null); }} /><div className="mt-3 flex flex-wrap gap-3"><button type="button" disabled={!stripeFile || stripeUploading} onClick={() => void requestStripePreview()} className="rounded-md bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{stripeUploading ? "Processing…" : "Preview Stripe Charges"}</button><button type="button" disabled={!stripePreview || stripeUploading} onClick={() => void confirmStripeImport()} className="rounded-md border border-brand-primary px-4 py-2 text-sm font-semibold text-brand-primary disabled:cursor-not-allowed disabled:opacity-50">Confirm Stripe staged import</button></div>{stripeError && <p className="mt-3 text-sm text-danger" role="alert">{stripeError}</p>}{stripePreview && <div className="mt-4 rounded-md border border-border bg-canvas p-4 text-sm text-text-secondary" role="status"><p className="font-medium text-text-primary">{stripePreview.sourceRows} source rows · {stripePreview.evidenceEntries} evidence entries</p><p className="mt-1">{stripePreview.saleEntries} sales · {stripePreview.refundEntries} refunds · {stripePreview.needsReviewEntries} need review · {stripePreview.rowsWithContact} with contact details</p><p className="mt-2 text-text-muted">Evidence only: no total, conversion, or revenue is created.</p></div>}</SectionCard>}
       {canManage && stripeRecords.length > 0 && <SectionCard title="Staged Stripe contact review" description="Admin-only source contacts for reconciliation. Sensitive payment details are never shown." className="mt-4"><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead className="border-b border-border text-text-muted"><tr><th className="p-2">Name</th><th className="p-2">Email</th><th className="p-2">Phone</th><th className="p-2">Entry</th><th className="p-2">Original evidence</th><th className="p-2">Charge ID</th></tr></thead><tbody>{stripeRecords.map((record) => <tr key={record.evidenceId} className="border-b border-border"><td className="p-2">{record.customerName ?? "—"}</td><td className="p-2">{record.customerEmail ?? "—"}</td><td className="p-2">{record.customerPhone ?? "—"}</td><td className="p-2">{record.transactionKind}</td><td className="p-2">{record.originalAmount ?? "—"} {record.originalCurrency}</td><td className="p-2">{record.chargeId ?? "—"}</td></tr>)}</tbody></table></div></SectionCard>}
-      {canManage && summary.sources.some((source) => source.key === "payment_tracker" && source.status === "completed") && <B2cExactDuplicateReview onGroupsChanged={loadSummary} />}
+      {canManage && paymentTrackerCompleted && <B2cExactDuplicateReview onGroupsChanged={loadSummary} />}
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Staged Finance rows" value={displayCount(summary.counts.stagedRows)} note="Retained for reconciliation; not a revenue total" />
         <MetricCard label="Needs Finance review" value={displayCount(summary.counts.needsReviewRows)} note="Missing, conflicting, or ambiguous source values" tone={summary.counts.needsReviewRows > 0 ? "warning" : "neutral"} />

@@ -254,6 +254,17 @@ function sourceMetadataText(value: unknown, key: string): string | null {
   return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
 }
 
+/** Labels the retained source without suggesting a provider relationship that does not exist. */
+export function resolveB2cLedgerSourceLabel(sourceSystem: B2cLedgerRow["sourceSystem"], sourceMetadata: unknown): string {
+  if (sourceSystem === "stripe") return "Stripe";
+  if (sourceSystem === "tap") return "Tap";
+  if (sourceSystem === "manual_bank_transfer") return "Manual bank transfer";
+  const financeMethod = sourceMetadataText(sourceMetadata, "finance_payment_method");
+  if (financeMethod === "bank_transfer") return "Finance — Bank transfer";
+  if (financeMethod === "ios") return "Finance — iOS";
+  return "Finance";
+}
+
 /**
  * Exposes provider details already retained locally. Stripe's evidence
  * projection is richer when it exists; Tap uses its retained source metadata.
@@ -340,7 +351,7 @@ export function mapTapStatementUnmatchedLedgerRows(
  */
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult, tapStatementUnmatchedResult] = await Promise.all([
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, financeLedgerPostsResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult, tapStatementUnmatchedResult] = await Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,original_amount,original_currency,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,original_amount,original_currency,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
@@ -349,6 +360,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     client.from("b2c_payment_fx_conversions").select("id,payment_id,amount_usd,exchange_rate_to_usd,effective_on,conversion_source,created_at").order("created_at", { ascending: false }),
     client.from("b2c_refund_fx_conversions").select("id,refund_id,amount_usd,exchange_rate_to_usd,effective_on,conversion_source,created_at").order("created_at", { ascending: false }),
     client.from("b2c_payment_finance_exception_decisions").select("id,payment_id,decision,created_at").order("created_at", { ascending: false }),
+    client.from("b2c_finance_ledger_posts").select("payment_id"),
     client.rpc("get_b2c_stripe_payment_contact_fallbacks"),
     client.rpc("get_b2c_stripe_payment_evidence"),
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "stripe").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -357,7 +369,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "tap").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.rpc("get_b2c_tap_statement_unmatched_ledger_rows"),
   ]);
-  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? paymentFxConversionsResult.error ?? refundFxConversionsResult.error ?? financeExceptionResult.error ?? stripeContactFallbacksResult.error ?? stripeEvidenceResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error ?? tapStatementUnmatchedResult.error) {
+  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? paymentFxConversionsResult.error ?? refundFxConversionsResult.error ?? financeExceptionResult.error ?? financeLedgerPostsResult.error ?? stripeContactFallbacksResult.error ?? stripeEvidenceResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error ?? tapStatementUnmatchedResult.error) {
     throw new Error("Could not load B2C source records.");
   }
 
@@ -416,6 +428,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   for (const decision of (financeExceptionResult.data ?? []) as FinanceExceptionDecision[]) {
     if (!latestFinanceDecisionByPayment.has(decision.payment_id)) latestFinanceDecisionByPayment.set(decision.payment_id, decision);
   }
+  const approvedFinanceLedgerPaymentIds = new Set((financeLedgerPostsResult.data ?? []).map((post) => post.payment_id));
   const flagsByRecord = new Map<string, Flag[]>();
   for (const flag of [...(paymentFlagsResult.data ?? []), ...(refundFlagsResult.data ?? [])]) {
     flagsByRecord.set(flag.source_record_id, [...(flagsByRecord.get(flag.source_record_id) ?? []), flag]);
@@ -460,6 +473,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         originalCurrency: payment.original_currency,
         amountUsd: effective.amountUsd,
         hasFinanceException,
+        isApprovedFinancePayment: payment.source_system === "finance_tracker" && approvedFinanceLedgerPaymentIds.has(payment.id),
         hasBlockingNeedsFollowUp: openFlags.some((flag) => flag.flag_type === "needs_follow_up" && !isMissingCustomerEmailFlag(flag)),
       }),
       exclusions: b2cPaymentExclusionReasons({
@@ -470,6 +484,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         originalCurrency: payment.original_currency,
         amountUsd: effective.amountUsd,
         hasFinanceException,
+        isApprovedFinancePayment: payment.source_system === "finance_tracker" && approvedFinanceLedgerPaymentIds.has(payment.id),
         hasBlockingNeedsFollowUp: openFlags.some((flag) => flag.flag_type === "needs_follow_up" && !isMissingCustomerEmailFlag(flag)),
       }),
     };
@@ -575,7 +590,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       category: !effective.categoryCode || effective.categoryCode === "unmapped" ? "Unmapped" : effective.categoryCode,
       membershipTier: effective.membershipTier,
       billingInterval: billingIntervalLabel(payment.source_metadata),
-      source: payment.source_system === "manual_bank_transfer" ? "Manual bank transfer" : payment.source_system === "stripe" ? "Stripe" : "Tap",
+      source: resolveB2cLedgerSourceLabel(payment.source_system, payment.source_metadata),
       paymentStatus: displayPaymentStatus(payment.payment_status),
       providerReference: payment.provider_transaction_id,
       sourceSystem: payment.source_system,

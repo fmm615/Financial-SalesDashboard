@@ -32,6 +32,7 @@ describe("B2C reconciliation review UI", () => {
     expect(screen.getByText("Stripe Charges")).toBeInTheDocument();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Approve canonical sale" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Post approved Finance payments" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Payment Tracker workbook")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Tap statement CSV")).not.toBeInTheDocument();
   });
@@ -63,5 +64,18 @@ describe("B2C reconciliation review UI", () => {
     expect(screen.getByRole("button", { name: "Confirm Tap staged import" })).toBeEnabled();
     expect(screen.getByText(/200 sales/)).toBeInTheDocument();
     expect(screen.queryByText("BHD 74.570")).not.toBeInTheDocument();
+  });
+
+  it("shows the approved Finance posting action only after the Payment Tracker is staged", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ summary: {
+      publicationState: "not_fully_loaded", publicationMessage: "Finance revenue is withheld.",
+      sources: [{ key: "payment_tracker", label: "Payment Tracker", status: "completed" }],
+      counts: { stagedRows: 2, validRows: 2, needsReviewRows: 0, zeroValueRows: 0, invalidRows: 0, unresolvedGroups: 0 },
+    } }) }));
+
+    render(<RoleProvider role="admin"><B2cReconciliationPage /></RoleProvider>);
+
+    expect(await screen.findByRole("button", { name: "Post approved Finance payments" })).toBeInTheDocument();
+    expect(screen.getByText(/does not alter the workbook/i)).toBeInTheDocument();
   });
 });

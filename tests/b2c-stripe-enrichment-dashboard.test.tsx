@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import { B2cOperations } from "@/features/b2c/b2c-operations";
-import { resolveB2cContactDisplay, type B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
+import { resolveB2cContactDisplay, resolveB2cLedgerSourceLabel, type B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/operations/b2c",
@@ -11,6 +11,12 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("B2C Stripe enrichment presentation", () => {
+  it("labels approved Finance rows by their retained payment method", () => {
+    expect(resolveB2cLedgerSourceLabel("finance_tracker", { finance_payment_method: "bank_transfer" })).toBe("Finance — Bank transfer");
+    expect(resolveB2cLedgerSourceLabel("finance_tracker", { finance_payment_method: "ios" })).toBe("Finance — iOS");
+    expect(resolveB2cLedgerSourceLabel("finance_tracker", {})).toBe("Finance");
+  });
+
   it("shows mutable Stripe contacts as labelled fallbacks without making the payment reportable", () => {
     const display = resolveB2cContactDisplay({
       customerName: null, customerEmail: null, customerPhone: null,
