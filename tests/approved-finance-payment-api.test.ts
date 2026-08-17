@@ -52,6 +52,24 @@ describe("POST /api/admin/b2c/finance-ledger-posts", () => {
     const response = await POST(new Request("http://localhost/api/admin/b2c/finance-ledger-posts", { method: "POST" }) as never);
 
     expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: "Could not post approved B2C Finance payments." });
+    await expect(response.json()).resolves.toEqual({
+      error: "Could not post approved B2C Finance payments.",
+      reference: "FINANCE-POST-UNKNOWN",
+    });
+  });
+
+  it("returns a non-sensitive database reference when posting is rejected", async () => {
+    const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } } as never;
+    createServerClientMock.mockResolvedValue(client);
+    mocks.getApprovedRole.mockResolvedValue("admin");
+    mocks.postApprovedFinancePayments.mockRejectedValue(Object.assign(new Error("database rejected row"), { code: "23514" }));
+
+    const response = await POST(new Request("http://localhost/api/admin/b2c/finance-ledger-posts", { method: "POST" }) as never);
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "Could not post approved B2C Finance payments.",
+      reference: "FINANCE-POST-23514",
+    });
   });
 });

@@ -22,4 +22,16 @@ describe("approved Finance payment posting UI", () => {
     expect(screen.getByText("2 Finance payments added to the B2C ledger.")).toBeInTheDocument();
     expect(screen.getByText("1 was already in the ledger. 3 were kept out because their source was not eligible to post.")).toBeInTheDocument();
   });
+
+  it("shows the safe database reference when posting is rejected", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: "Could not post approved B2C Finance payments.", reference: "FINANCE-POST-23514" }),
+    }));
+
+    render(<B2cApprovedFinancePosting onPosted={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Post approved Finance payments" }));
+
+    expect(await screen.findByText(/FINANCE-POST-23514/)).toBeInTheDocument();
+  });
 });

@@ -23,11 +23,17 @@ export function B2cApprovedFinancePosting({ onPosted }: { onPosted(): Promise<vo
       const response = await fetch("/api/admin/b2c/finance-ledger-posts", { method: "POST" });
       const payload: unknown = await response.json().catch(() => null);
       const safeResult = payload && typeof payload === "object" && "result" in payload ? (payload as { result: unknown }).result : null;
-      if (!response.ok || !isPostResult(safeResult)) throw new Error();
+      const reference = payload && typeof payload === "object" && "reference" in payload && typeof payload.reference === "string"
+        ? payload.reference
+        : null;
+      if (!response.ok || !isPostResult(safeResult)) throw new Error(reference ? `Could not add the approved Finance payments. Reference: ${reference}.` : undefined);
       setResult(safeResult);
       await onPosted();
-    } catch {
-      setError("Could not add the approved Finance payments. No source data was changed.");
+    } catch (error) {
+      const message = error instanceof Error && error.message
+        ? error.message
+        : "Could not add the approved Finance payments.";
+      setError(`${message} No source data was changed.`);
     } finally {
       setPosting(false);
     }
