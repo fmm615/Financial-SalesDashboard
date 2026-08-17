@@ -35,6 +35,18 @@ describe("B2C payment reportability", () => {
     expect(isReportableB2cPayment({ ...approvedException, paymentStatus: "failed" })).toBe(false);
   });
 
+  it("allows a missing e-mail only for a payment with immutable approved Finance provenance", () => {
+    const approvedFinancePayment = {
+      ...completePayment,
+      customerEmail: null,
+      isApprovedFinancePayment: true,
+    };
+    expect(isReportableB2cPayment(approvedFinancePayment)).toBe(true);
+    expect(isReportableB2cPayment({ ...approvedFinancePayment, isApprovedFinancePayment: false })).toBe(false);
+    expect(isReportableB2cPayment({ ...approvedFinancePayment, openFlagTypes: new Set(["possible_duplicate"]) })).toBe(false);
+    expect(isReportableB2cPayment({ ...approvedFinancePayment, paymentStatus: "pending" })).toBe(false);
+  });
+
   it("keeps foreign-currency source activity out of USD financial totals until Finance has an approved conversion", () => {
     const foreignCurrencyPayment = {
       ...completePayment,
