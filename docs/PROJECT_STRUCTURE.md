@@ -79,6 +79,13 @@ duplicate-candidate, and Tap-statement classification rules live in
 in `lib/validation/b2c-finance-import-contracts.ts`. The Operations page uses
 only the safe summary API, not raw Supabase rows.
 
+`server/repositories/b2c-finance-ledger-repository.ts` owns the one protected
+Finance-to-ledger RPC call. `lib/b2c/approved-finance-payment.ts` owns the
+pure iOS/bank-transfer method, category-code, and result-shape rules. The
+Admin-only posting component never builds a payment in the browser; the
+database preserves the staged source-row link and the B2C dashboard reads that
+link before applying the limited approved-Finance missing-e-mail rule.
+
 Exact Finance duplicate grouping uses its own repository, review model, and
 Admin-only routes/component. Direct Finance contact fields never leave that
 Admin boundary; Viewers retain the existing coverage-only view.
@@ -120,7 +127,9 @@ Provider-specific code and normalization.
 
 All database schema changes. The B2C Finance reconciliation migrations create
 immutable staging/evidence tables, an atomic Finance-import function, and an
-approved-user safe-summary function. They do not write to reportable B2C tables.
+approved-user safe-summary function. The separate approved-Finance ledger
+migration is the only reconciliation-related path that writes reportable B2C
+payments, and only through its Admin-protected, provenance-linked transaction.
 
 ## Rule
 

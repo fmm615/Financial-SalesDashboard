@@ -72,6 +72,10 @@ Test:
   amount/payment-method eligibility despite structurally different category
   and contact fields, repeated-key ambiguity, idempotent Admin-only grouping,
   reasoned one-time decisions, and no B2C payment or total creation
+- approved Finance ledger posting: Admin-only transaction, iOS/bank-transfer
+  method restriction, valid/positive/date/category eligibility, canonical
+  duplicate protection, one Finance row/one ledger payment idempotency, source
+  amount basis, missing-contact preservation, and no provider writes
 
 Use provider sample/test payloads where possible.
 
@@ -94,7 +98,8 @@ also require an authenticated Admin.
 
 B2C Finance database assertions cover immutable source-file hashes, allowed
 Payment Tracker tabs, protected RLS tables, and the fact that raw Finance rows
-remain outside `b2c_payments`. Run the pgTAP suite only after applying the
+remain outside `b2c_payments` until the dedicated approved-Finance posting
+transaction creates a provenance-linked iOS/bank-transfer ledger row. Run the pgTAP suite only after applying the
 reconciliation migrations to a local Supabase database; the local Supabase CLI
 is required for `npm run supabase:test`.
 

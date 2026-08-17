@@ -116,7 +116,9 @@ alternative B2C payment ledger. Only the `B2C` and `B2C Cons` tabs of the
 Finance Payment Tracker are accepted as USD revenue candidates, and their
 amounts exclude customer VAT. The original file hash, private Storage location,
 tab, one-based row number, raw cells, parsed values, quality issues, and actor
-are retained. No staging path writes to `b2c_payments` or a reportable view.
+are retained. Staging itself never writes to `b2c_payments` or a reportable
+view. The separately protected approved-Finance posting path below is the only
+exception, and it can post only the already approved iOS/bank-transfer rows.
 
 Stripe Charges and Tap statements are payment evidence only. They may be linked
 to a Finance candidate during reconciliation, but never create a second Finance
@@ -168,6 +170,19 @@ so they remain Admin review context rather than cross-tab matching keys.
 Repeated keys are ambiguous and never grouped automatically. Both rows remain
 immutable, and the reasoned canonical/excluded decision stays outside
 reportable payments and Finance period approval.
+
+Approved Finance iOS and bank-transfer rows have a narrow, separate ledger
+path. The protected transaction selects only valid, positive, dated tracker
+rows with those exact payment methods, preserves their source tab/row/import
+provenance, and creates one `finance_tracker` B2C payment plus one immutable
+ledger-post link. A `B2C`/`B2C Cons` duplicate group contributes only its
+canonical row; excluded or undecided groups contribute none. The tracker’s USD
+amount is retained as gross revenue excluding VAT—no Tap/Stripe fee, VAT,
+settlement, Apple aggregate proceeds, or FX value is inferred. The Admin’s
+posting action is the Finance approval for this limited source, so a missing
+e-mail remains visible but does not exclude the linked Finance payment by
+itself. All other reportability blocks remain active. Those rows are labelled
+Finance — iOS or Finance — Bank transfer and never claim a provider match.
 
 Stripe API enrichment remains one-to-one with the existing B2C payment. The
 Charge ID is the payment identity; PaymentIntent, Checkout, Invoice, Payment

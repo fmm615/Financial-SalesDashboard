@@ -1,6 +1,6 @@
 # Approved Finance Payment Ledger Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add valid, already approved iOS and bank-transfer Payment Tracker rows to the B2C ledger exactly once, with immutable Finance provenance and no provider writes.
 
@@ -43,15 +43,15 @@
 
 **Interfaces:** `post_approved_b2c_finance_payments()` returns `{ posted_payments integer, already_posted_payments integer, skipped_rows integer }`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Assert the migration contains `finance_tracker`, `create table public.b2c_finance_ledger_posts`, unique `finance_row_id` and `payment_id`, the protected RPC, its Admin error message, and no provider URL/call. Add pgTAP cases rejecting non-Admin callers, posting the same Finance row twice, and posting a noncanonical duplicate member.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run `npm test -- tests/database-foundation.test.ts`. It must fail because the migration is absent.
 
-- [ ] **Step 3: Add the migration**
+- [x] **Step 3: Add the migration**
 
 Replace the B2C source-system checks so `finance_tracker` is allowed without weakening the existing Stripe/Tap/manual-bank-transfer rules. Create `b2c_finance_ledger_posts(finance_row_id unique, payment_id unique, finance_payment_method check ('bank_transfer','ios'), source_amount_basis check ('gross_excluding_vat'), posted_by, posted_at)`; enable RLS, attach `write_audit_event`, and keep direct writes Admin-only.
 
@@ -59,11 +59,11 @@ Create the security-definer RPC. Verify `auth.uid()` and `is_admin()`. Lock and 
 
 For each selection, insert one succeeded `b2c_payments` row using source `finance_tracker`, no provider ID, USD amount/original/gross amount equal to the staged value, rate 1, tax/net null, and UTC midnight for the date-only source. Copy source name/email/phone. Store import ID, tab, row number, raw payment method, raw category, membership type, and `source_amount_basis: gross_excluding_vat` in source metadata. Hash only the Finance row ID for the duplicate fingerprint. Insert its provenance row and return authoritative posted/already/skipped counts. Revoke public execute and grant authenticated execute.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Update the checked-in type snapshot and run `npm test -- tests/database-foundation.test.ts`. It must pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Commit only the migration, generated type contract, and database tests with `feat(b2c): add approved Finance ledger posting`.
 
@@ -78,19 +78,19 @@ Commit only the migration, generated type contract, and database tests with `fea
 
 **Interfaces:** `normalizeApprovedFinancePaymentMethod(value)`, `normalizeFinanceCategoryCode(value)`, and `mapApprovedFinancePostResult(value)`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Test `Bank transfer` maps to `bank_transfer`, `iOS` maps to `ios`, and `Stripe` is rejected. Test `B2C- Membership` maps to `b2c-membership`, blank category is rejected, and RPC snake-case counts map to typed camel-case counts. Test that a missing e-mail remains nonreportable for Stripe/Tap but a fully valid `finance_tracker` payment with immutable Finance provenance is reportable.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run `npm test -- tests/approved-finance-payment.test.ts tests/b2c-payment-reportability.test.ts`. It must fail because the module and provenance input are absent.
 
-- [ ] **Step 3: Implement minimum rules**
+- [x] **Step 3: Implement minimum rules**
 
 Normalize only whitespace/case/punctuation; do not invent aliases beyond `ios` and `bank transfer`. Add optional `isApprovedFinancePayment` to the reportability input and bypass only `missing_customer_email` when true. All other gates remain unchanged.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run the same tests; then commit the library and tests with `feat(b2c): define approved Finance payment rules`.
 
@@ -104,19 +104,19 @@ Run the same tests; then commit the library and tests with `feat(b2c): define ap
 
 **Interfaces:** `POST /api/admin/b2c/finance-ledger-posts` returns `{ result: { postedPayments, alreadyPostedPayments, skippedRows } }`.
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 Assert a non-Admin gets 403 before database access. Assert an Admin calls only `post_approved_b2c_finance_payments` with `{}`. Assert an unknown RPC result becomes a safe 500 without raw source values, and the route does not query provider tables.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run `npm test -- tests/approved-finance-payment-api.test.ts`. It must fail because the route is absent.
 
-- [ ] **Step 3: Implement the repository and route**
+- [x] **Step 3: Implement the repository and route**
 
 Use the request-scoped server client and `getApprovedRole`. The repository invokes only the new RPC and validates the result with the pure mapper. The route accepts no request body and returns only the three safe counts.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run the route test and commit with `feat(b2c): post approved Finance payments`.
 
@@ -132,21 +132,21 @@ Run the route test and commit with `feat(b2c): post approved Finance payments`.
 
 **Interfaces:** `B2cApprovedFinancePosting({ onPosted }: { onPosted(): Promise<void> })`.
 
-- [ ] **Step 1: Write failing UI and repository tests**
+- [x] **Step 1: Write failing UI and repository tests**
 
 Test an Admin sees “Post approved Finance payments” after Payment Tracker completion and a Viewer does not. Mock a successful result and assert clear posted/already/skipped text. Assert a linked `finance_tracker` record with metadata `bank_transfer` displays “Finance — Bank transfer”, iOS displays “Finance — iOS”, Finance contacts appear as source contacts, and reportability becomes true only when the payment ID has a provenance row.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run `npm test -- tests/approved-finance-payment-ui.test.tsx tests/b2c-dashboard-repository.test.ts`. It must fail because the control, source labels, and provenance query are absent.
 
-- [ ] **Step 3: Implement UI and ledger projection**
+- [x] **Step 3: Implement UI and ledger projection**
 
 Render the Admin card only after Payment Tracker staging completes. State plainly that it adds valid iOS and bank-transfer Finance rows to the B2C ledger, does not alter the workbook, and does not create provider payments. Disable during posting and reload the safe summary only after success.
 
 Add the bounded provenance-table read to the B2C dashboard snapshot. Pass `isApprovedFinancePayment` only when both source system and provenance link agree. Map source label from `source_metadata.finance_payment_method`; unknown metadata displays `Finance`, not a guess. Keep Stripe and Tap behavior unchanged.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [x] **Step 4: Verify GREEN and commit**
 
 Run the UI/repository tests and commit with `feat(b2c): show approved Finance ledger records`.
 
@@ -159,15 +159,15 @@ Run the UI/repository tests and commit with `feat(b2c): show approved Finance le
 - Modify: `docs/TESTING_STRATEGY.md`
 - Modify: `docs/superpowers/plans/2026-08-17-approved-finance-payment-ledger.md`
 
-- [ ] **Step 1: Document the operating rule**
+- [x] **Step 1: Document the operating rule**
 
 Record the approved method scope, duplicate behavior, immutable Finance-row link, missing-contact exception, source amount basis, Admin action, and manual migration requirement.
 
-- [ ] **Step 2: Full verification**
+- [x] **Step 2: Full verification**
 
 Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, `git diff --check`, and `git status --short`. All application checks must pass. Note if Supabase local tests cannot run because the CLI/local stack is unavailable.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Commit documentation with `docs(b2c): document approved Finance ledger posting`.
 
