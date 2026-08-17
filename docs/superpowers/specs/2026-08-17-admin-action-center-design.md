@@ -76,7 +76,7 @@ The queue is followed by a small fixed set of shortcuts:
 - Run provider sync
 - Generate report
 
-These buttons open the relevant focused module. They do not execute financial mutations immediately.
+These buttons open the relevant focused module. They do not execute financial mutations immediately. A shortcut appears only when its underlying authorised workflow is live; a required but unfinished control is labelled **Not available yet**, never presented as a form that appears to save.
 
 ### 4. Modules
 
@@ -163,7 +163,7 @@ The Action Center uses the same structure for the rest of the system:
 - **Integrations:** failed runs, stale coverage, manual sync, and resumable backfill; provider clients remain read-only where required.
 - **Reports:** failed or stalled report jobs, retries, downloads, and delivery history. Automatic email remains disabled until report totals are verified.
 - **Targets and Summit:** approved target revisions and progress updates; these remain configuration actions rather than queue blockers unless they prevent a required report.
-- **Bank transfers:** a dedicated controlled entry form in B2C Finance. It uses the same duplicate checks and audit rules as imported/provider payments.
+- **Bank transfers:** a dedicated controlled entry form in B2C Finance once its final business fields and duplicate-key policy are approved. It uses the same duplicate checks and audit rules as imported/provider payments. Until then, the Action Center states that the control is not available rather than showing a non-functional entry form.
 
 ## Safety and error handling
 
