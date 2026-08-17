@@ -179,6 +179,8 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("drop constraint if exists b2c_payments_source_system_check");
     expect(sql).toContain("replace(lower(pg_get_constraintdef(oid)), '\"', '')");
     expect(sql).toContain("set search_path = public, extensions");
+    expect(sql).toContain("trim(regexp_replace(lower(coalesce(rows.payment_method_raw, '')), '[^a-z0-9]+', ' ', 'g'))");
+    expect(sql).not.toContain("lower(regexp_replace(trim(coalesce(rows.payment_method_raw, ''))");
     expect(sql).not.toContain("https://");
     expect(sql).not.toContain("stripe.com");
     expect(sql).not.toContain("tap.company");
@@ -190,6 +192,16 @@ describe("Phase 2 database migration contracts", () => {
     expect(repair).not.toThrow();
     expect(repair()).toContain("alter function public.post_approved_b2c_finance_payments()");
     expect(repair()).toContain("set search_path = public, extensions");
+  });
+
+  it("repairs deployed Finance posting for mixed-case workbook payment methods", () => {
+    const repair = () => migration("20260817104000_fix_finance_payment_method_normalization.sql");
+
+    expect(repair).not.toThrow();
+    const sql = repair();
+    expect(sql).toContain("create or replace function public.post_approved_b2c_finance_payments()");
+    expect(sql).toContain("trim(regexp_replace(lower(coalesce(rows.payment_method_raw, '')), '[^a-z0-9]+', ' ', 'g'))");
+    expect(sql).not.toContain("lower(regexp_replace(trim(coalesce(rows.payment_method_raw, ''))");
   });
 
   it("retains genuinely missing customer emails from both Finance and provider evidence", () => {
