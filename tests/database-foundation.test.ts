@@ -183,15 +183,15 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).not.toContain("tap.company");
   });
 
-  it("allows an approved Finance tracker payment to retain a genuinely missing email", () => {
+  it("retains genuinely missing customer emails from both Finance and provider evidence", () => {
     const missingFinanceEmail = () => migration("20260817101000_allow_missing_finance_tracker_email.sql");
 
     expect(missingFinanceEmail).not.toThrow();
 
     const sql = missingFinanceEmail();
     expect(sql).toContain("alter column customer_email drop not null");
-    expect(sql).toContain("b2c_payments_customer_email_requirement_check");
-    expect(sql).toContain("source_system = 'finance_tracker'");
+    expect(sql).toContain("drop constraint if exists b2c_payments_customer_email_requirement_check");
+    expect(sql).not.toContain("add constraint b2c_payments_customer_email_requirement_check");
   });
 
   it("stores typed Stripe enrichment behind an Admin-only evidence boundary", () => {
