@@ -36,6 +36,7 @@ export type B2cFinanceNeedsReviewRow = {
 export type B2cFinanceActionCenterRepository = {
   listPendingExactDuplicateGroups(): Promise<B2cFinanceDuplicateCandidate[]>;
   listNeedsReviewRows(): Promise<B2cFinanceNeedsReviewRow[]>;
+  countPostedFinancePayments(): Promise<number>;
 };
 
 export type B2cFinanceActionItem = {
@@ -54,6 +55,7 @@ export type B2cFinanceActionOverview = {
     bulkEligibleDuplicateDecisions: number;
     dateAuthorityActions: number;
     correctionActions: number;
+    postedFinancePayments: number;
   };
   items: B2cFinanceActionItem[];
 };
@@ -120,9 +122,10 @@ function correctionExplanation(row: B2cFinanceNeedsReviewRow): string {
 export function createB2cFinanceActionCenter(repository: B2cFinanceActionCenterRepository) {
   return {
     async overview(): Promise<B2cFinanceActionOverview> {
-      const [duplicateGroups, needsReviewRows] = await Promise.all([
+      const [duplicateGroups, needsReviewRows, postedFinancePayments] = await Promise.all([
         repository.listPendingExactDuplicateGroups(),
         repository.listNeedsReviewRows(),
+        repository.countPostedFinancePayments(),
       ]);
       const recommendations = duplicateGroups.map(getCanonicalRecommendation);
       const dateAuthorityRows = needsReviewRows.filter(isDateAuthorityCandidate);
@@ -163,6 +166,7 @@ export function createB2cFinanceActionCenter(repository: B2cFinanceActionCenterR
           bulkEligibleDuplicateDecisions: recommendations.filter((recommendation) => recommendation.eligibleForBulk).length,
           dateAuthorityActions: dateAuthorityRows.length,
           correctionActions: correctionRows.length,
+          postedFinancePayments,
         },
         items,
       };

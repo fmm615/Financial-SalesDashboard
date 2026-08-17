@@ -70,11 +70,12 @@ describe("B2C Finance duplicate recommendations", () => {
         occurredOn: "2025-10-05",
         qualityIssues: ["declared_month_conflicts_with_date"],
       }],
+      countPostedFinancePayments: async () => 161,
     };
 
     const overview = await createB2cFinanceActionCenter(repository).overview();
 
-    expect(overview.counts).toMatchObject({ duplicateDecisions: 1, duplicateSourceRows: 2, dateAuthorityActions: 1, correctionActions: 0 });
+    expect(overview.counts).toMatchObject({ duplicateDecisions: 1, duplicateSourceRows: 2, dateAuthorityActions: 1, correctionActions: 0, postedFinancePayments: 161 });
     expect(overview.items).toContainEqual(expect.objectContaining({ actionLabel: "Use the verified Date", sourceRowNumber: 14 }));
   });
 });

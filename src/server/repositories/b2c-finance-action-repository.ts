@@ -88,6 +88,12 @@ export class B2cFinanceActionRepository {
     });
   }
 
+  async countPostedFinancePayments(): Promise<number> {
+    const { count, error } = await this.client.from("b2c_finance_ledger_posts").select("id", { count: "exact", head: true });
+    if (error || count === null || count < 0) throw new Error("Could not count posted B2C Finance payments.");
+    return count;
+  }
+
   async applyDateAuthority(input: B2cFinanceDateAuthorityInput): Promise<number> {
     const { data, error } = await this.client.rpc("apply_b2c_finance_date_authority", {
       p_finance_row_ids: input.financeRowIds,

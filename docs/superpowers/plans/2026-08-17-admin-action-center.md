@@ -266,7 +266,9 @@ git commit -m "feat(b2c): expose Finance resolution actions"
 - Create: `src/features/b2c/b2c-finance-duplicate-actions.tsx`
 - Create: `src/features/b2c/b2c-finance-data-quality-actions.tsx`
 - Create: `src/app/admin/b2c-finance/page.tsx`
-- Modify: `src/features/b2c/b2c-approved-finance-posting.tsx`
+- Modify: `src/features/b2c/b2c-finance-action-module.tsx`
+- Modify: `src/server/services/b2c-finance-action-center.ts`
+- Modify: `src/server/repositories/b2c-finance-action-repository.ts`
 - Create: `tests/b2c-finance-action-ui.test.tsx`
 - Modify: `tests/approved-finance-payment-ui.test.tsx`
 
@@ -274,7 +276,7 @@ git commit -m "feat(b2c): expose Finance resolution actions"
 
 **Produces:** A simple B2C Finance workspace for 43 duplicate decisions, ten Date-label decisions, five required corrections, and safe ledger posting.
 
-- [ ] **Step 1: Write failing UI tests**
+- [x] **Step 1: Write failing UI tests**
 
 ```tsx
 it("shows 43 duplicate decisions instead of 86 source rows", async () => {
@@ -288,13 +290,13 @@ it("requires a reason before applying a recommended duplicate decision", () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and observe RED**
+- [x] **Step 2: Run tests and observe RED**
 
 Run: `npm test -- tests/b2c-finance-action-ui.test.tsx tests/approved-finance-payment-ui.test.tsx`
 
 Expected: FAIL because the module and controls do not exist.
 
-- [ ] **Step 3: Implement the three-card workflow**
+- [x] **Step 3: Implement the three-card workflow**
 
 Render, in order:
 
@@ -304,16 +306,16 @@ Render, in order:
 
 Use existing `SectionCard`, `PrimaryButton`, labelled fields, disabled saving states, and `role="alert"` errors. Link to source-file intake rather than duplicating upload controls.
 
-- [ ] **Step 4: Run tests and observe GREEN**
+- [x] **Step 4: Run tests and observe GREEN**
 
 Run: `npm test -- tests/b2c-finance-action-ui.test.tsx tests/approved-finance-payment-ui.test.tsx`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
-git add src/features/b2c/b2c-finance-action-module.tsx src/features/b2c/b2c-finance-duplicate-actions.tsx src/features/b2c/b2c-finance-data-quality-actions.tsx src/app/admin/b2c-finance/page.tsx src/features/b2c/b2c-approved-finance-posting.tsx tests/b2c-finance-action-ui.test.tsx tests/approved-finance-payment-ui.test.tsx
+git add src/features/b2c/b2c-finance-action-module.tsx src/features/b2c/b2c-finance-duplicate-actions.tsx src/features/b2c/b2c-finance-data-quality-actions.tsx src/app/admin/b2c-finance/page.tsx src/server/services/b2c-finance-action-center.ts src/server/repositories/b2c-finance-action-repository.ts tests/b2c-finance-action-ui.test.tsx tests/b2c-finance-action-center.test.ts tests/approved-finance-payment-ui.test.tsx
 git commit -m "feat(admin): add B2C Finance resolution module"
 ```
 
