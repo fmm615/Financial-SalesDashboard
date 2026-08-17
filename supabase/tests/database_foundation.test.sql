@@ -1,6 +1,6 @@
 begin;
 
-select plan(33);
+select plan(36);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -11,6 +11,21 @@ select has_table('public', 'operational_targets', 'custom operational targets ha
 select has_table('public', 'operational_target_progress_updates', 'operational progress is append-only');
 select has_table('public', 'b2c_finance_imports', 'B2C Finance imports retain source-file provenance');
 select has_table('public', 'b2c_finance_staging_rows', 'B2C Finance source rows stay outside reportable payments');
+select has_table('public', 'b2c_finance_ledger_posts', 'Approved Finance rows have immutable ledger provenance');
+
+select has_function(
+  'public',
+  'post_approved_b2c_finance_payments',
+  array[]::text[],
+  'Approved Finance ledger posting has a protected constructor'
+);
+
+select throws_ok(
+  $$ select * from public.post_approved_b2c_finance_payments() $$,
+  'P0001',
+  '%Only an authenticated administrator can post approved B2C Finance payments%',
+  'non-Admins cannot post approved Finance rows'
+);
 
 select ok(
   exists(

@@ -163,6 +163,24 @@ describe("Phase 2 database migration contracts", () => {
     expect(adjustedGroups).not.toContain("insert into public.b2c_payments");
   });
 
+  it("posts approved iOS and bank-transfer Finance rows through an auditable ledger path", () => {
+    const approvedFinancePosting = () => migration("20260817100000_post_approved_b2c_finance_payments.sql");
+
+    expect(approvedFinancePosting).not.toThrow();
+
+    const sql = approvedFinancePosting();
+    expect(sql).toContain("'finance_tracker'");
+    expect(sql).toContain("create table public.b2c_finance_ledger_posts");
+    expect(sql).toContain("finance_row_id uuid not null unique");
+    expect(sql).toContain("payment_id uuid not null unique");
+    expect(sql).toContain("create or replace function public.post_approved_b2c_finance_payments()");
+    expect(sql).toContain("Only an authenticated administrator can post approved B2C Finance payments");
+    expect(sql).toContain("groups.reconciliation_state <> 'canonical' or groups.canonical_finance_row_id <> rows.id");
+    expect(sql).not.toContain("https://");
+    expect(sql).not.toContain("stripe.com");
+    expect(sql).not.toContain("tap.company");
+  });
+
   it("stores typed Stripe enrichment behind an Admin-only evidence boundary", () => {
     const sql = migration("20260812105000_stripe_read_only_payment_enrichment.sql");
 

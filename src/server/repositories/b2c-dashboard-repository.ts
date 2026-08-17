@@ -40,7 +40,7 @@ export type B2cLedgerRow = {
   source: string;
   paymentStatus: "Completed" | "Failed" | "Pending" | "Refunded" | "Not matched";
   providerReference: string | null;
-  sourceSystem: "stripe" | "tap" | "manual_bank_transfer";
+  sourceSystem: "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker";
   productReference: string | null;
   hasLocalCorrection: boolean;
   localCorrectionFields: string[];

@@ -32,7 +32,7 @@ type ProfileRow = {
 
 type B2cPaymentRow = {
   id: Uuid;
-  source_system: "stripe" | "tap" | "manual_bank_transfer";
+  source_system: "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker";
   provider_transaction_id: string | null;
   provider_event_id: string | null;
   customer_id: Uuid | null;
@@ -207,6 +207,10 @@ export interface Database {
         normalized_customer_email: string | null; normalized_customer_phone: string | null;
         row_quality: Database["public"]["Enums"]["b2c_finance_row_quality"]; quality_issues: Json; created_at: Timestamp;
       }>;
+      b2c_finance_ledger_posts: Table<{
+        id: Uuid; finance_row_id: Uuid; payment_id: Uuid; finance_payment_method: "bank_transfer" | "ios";
+        source_amount_basis: "gross_excluding_vat"; posted_by: Uuid; posted_at: Timestamp; created_at: Timestamp;
+      }>;
       b2c_provider_evidence: Table<{
         id: Uuid; import_id: Uuid; provider: "tap" | "stripe"; source_row_number: number; provider_row_id: string | null;
         source_entry_key: "primary" | "refund"; provider_payment_id: string | null; provider_refund_id: string | null;
@@ -362,6 +366,10 @@ export interface Database {
       finalize_stripe_charges_import: {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
         Returns: Uuid;
+      };
+      post_approved_b2c_finance_payments: {
+        Args: Record<string, never>;
+        Returns: Array<{ posted_payments: number; already_posted_payments: number; skipped_rows: number }>;
       };
       create_b2c_exact_duplicate_groups: { Args: Record<string, never>; Returns: number };
       get_b2c_reconciliation_safe_summary: { Args: Record<string, never>; Returns: Json };
