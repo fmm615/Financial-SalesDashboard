@@ -6,6 +6,8 @@ import { B2bOperations } from "@/features/b2b/b2b-operations";
 import { ReportsPage } from "@/features/reports/reports-page";
 import { ReviewQueuePage } from "@/features/review-queue/review-queue-page";
 import { EmptyState, LoadingSkeleton, NotBackfilledState, TableCell } from "@/components/ui";
+import { AppShell } from "@/components/app-shell";
+import { RoleProvider } from "@/lib/auth/role-context";
 import type { ReviewQueueDetail, ReviewQueueItem } from "@/server/services/review-queue";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/executive", useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }), useSearchParams: () => new URLSearchParams() }));
@@ -59,6 +61,14 @@ describe("UI foundation", () => {
     expect(screen.getByText("B2B bookings")).toBeInTheDocument();
     expect(screen.getByText("Year-to-date progress")).toBeInTheDocument();
     expect(screen.getByText("Historical expense trends not loaded")).toBeInTheDocument();
+  });
+
+  it("shows B2C Finance in Operations only for administrators", () => {
+    const { rerender } = render(<RoleProvider role="admin"><AppShell title="Test" description="Test"><p>Body</p></AppShell></RoleProvider>);
+    expect(screen.getByRole("link", { name: "B2C Finance" })).toHaveAttribute("href", "/admin/b2c-finance");
+
+    rerender(<RoleProvider role="viewer"><AppShell title="Test" description="Test"><p>Body</p></AppShell></RoleProvider>);
+    expect(screen.queryByRole("link", { name: "B2C Finance" })).not.toBeInTheDocument();
   });
 
   it("provides required neutral data states", () => {

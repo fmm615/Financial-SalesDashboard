@@ -13,6 +13,7 @@ const navigation = [
   { href: "/executive", label: "Executive", icon: LayoutDashboard, group: "Overview" },
   { href: "/operations/b2c", label: "B2C operations", icon: Building2, group: "Operations" },
   { href: "/operations/b2c/reconciliation", label: "B2C reconciliation", icon: GitCompareArrows, group: "Operations" },
+  { href: "/admin/b2c-finance", label: "B2C Finance", icon: Landmark, group: "Operations", adminOnly: true },
   { href: "/operations/b2b", label: "B2B operations", icon: Building2, group: "Operations" },
   { href: "/finance", label: "Finance", icon: Landmark, group: "Operations" },
   { href: "/finance/targets", label: "Targets", icon: Landmark, group: "Operations" },
