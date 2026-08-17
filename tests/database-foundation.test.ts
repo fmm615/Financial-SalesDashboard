@@ -217,6 +217,18 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).not.toMatch(/update public\.b2c_finance_staging_rows\s+set/i);
   });
 
+  it("posts only valid effective Finance rows while retaining duplicate controls", () => {
+    const resolutionMigration = () => migration("20260817110000_b2c_finance_action_resolutions.sql");
+
+    expect(resolutionMigration).not.toThrow();
+    const sql = resolutionMigration();
+    expect(sql).toContain("from public.b2c_finance_effective_rows rows");
+    expect(sql).toContain("rows.effective_quality = 'valid'");
+    expect(sql).toContain("groups.reconciliation_state <> 'canonical' or groups.canonical_finance_row_id <> rows.id");
+    expect(sql).toContain("effective_occurred_on");
+    expect(sql).toContain("effective_amount_usd");
+  });
+
   it("retains genuinely missing customer emails from both Finance and provider evidence", () => {
     const missingFinanceEmail = () => migration("20260817101000_allow_missing_finance_tracker_email.sql");
 

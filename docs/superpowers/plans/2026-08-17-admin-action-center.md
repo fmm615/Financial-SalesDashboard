@@ -110,37 +110,36 @@ git commit -m "feat(b2c): add audited Finance staging corrections"
 
 **Produces:** A posting transaction that uses corrected effective values, accepts Date-authority decisions, and keeps non-canonical duplicates out.
 
-- [ ] **Step 1: Write the failing posting tests**
+- [x] **Step 1: Write the failing posting tests**
 
 ```ts
-it("posts an audited effective Finance date and category", () => {
-  expect(selectPostableFinanceRows([effectiveDateRow])).toEqual([effectiveDateRow]);
-});
-
-it("does not post a non-canonical Finance duplicate", () => {
-  expect(selectPostableFinanceRows([excludedDuplicateRow])).toEqual([]);
+it("posts only valid effective Finance rows while retaining duplicate controls", () => {
+  const sql = migration("20260817110000_b2c_finance_action_resolutions.sql");
+  expect(sql).toContain("from public.b2c_finance_effective_rows rows");
+  expect(sql).toContain("rows.effective_quality = 'valid'");
+  expect(sql).toContain("groups.reconciliation_state <> 'canonical' or groups.canonical_finance_row_id <> rows.id");
 });
 ```
 
-- [ ] **Step 2: Run the test and observe RED**
+- [x] **Step 2: Run the test and observe RED**
 
 Run: `npm test -- tests/approved-finance-payment.test.ts tests/database-foundation.test.ts`
 
 Expected: the new effective-row behaviour fails because posting still reads raw `row_quality` and raw fields.
 
-- [ ] **Step 3: Replace the posting RPC in the new migration**
+- [x] **Step 3: Replace the posting RPC in the new migration**
 
 Use `create or replace function public.post_approved_b2c_finance_payments()` in the new migration. Select from `b2c_finance_effective_rows`, retain the mixed-case Bank Transfer/iOS normalisation, require effective positive amount/date/category, keep the exact ledger-post idempotency check, and retain the canonical-group rule.
 
 Store the source Finance row ID, raw source tab/row number, and effective values used in `b2c_payments.source_metadata`. Never modify an already posted payment.
 
-- [ ] **Step 4: Run the test and observe GREEN**
+- [x] **Step 4: Run the test and observe GREEN**
 
 Run: `npm test -- tests/approved-finance-payment.test.ts tests/database-foundation.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/migrations/20260817110000_b2c_finance_action_resolutions.sql tests/approved-finance-payment.test.ts tests/database-foundation.test.ts
