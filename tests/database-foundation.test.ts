@@ -176,6 +176,8 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("create or replace function public.post_approved_b2c_finance_payments()");
     expect(sql).toContain("Only an authenticated administrator can post approved B2C Finance payments");
     expect(sql).toContain("groups.reconciliation_state <> 'canonical' or groups.canonical_finance_row_id <> rows.id");
+    expect(sql).toContain("drop constraint if exists b2c_payments_source_system_check");
+    expect(sql).toContain("replace(lower(pg_get_constraintdef(oid)), '\"', '')");
     expect(sql).not.toContain("https://");
     expect(sql).not.toContain("stripe.com");
     expect(sql).not.toContain("tap.company");

@@ -1,46 +1,63 @@
 -- Finance has approved valid iOS and bank-transfer Payment Tracker rows.
 -- This migration posts them to the B2C ledger with immutable row provenance;
 -- it does not write to Stripe, Tap, Apple, or the staged source workbook.
+--
+-- PostgreSQL normalises CHECK expressions (for example, IN becomes = ANY),
+-- so remove known names explicitly and inspect any legacy generated names
+-- using a quote-free definition before adding the replacement constraints.
+
+alter table public.b2c_payments
+  drop constraint if exists b2c_payments_source_system_check,
+  drop constraint if exists b2c_payments_provider_transaction_requirement_check;
+
+alter table public.b2c_refunds
+  drop constraint if exists b2c_refunds_source_system_check;
 
 do $$
 declare
-  source_check_name text;
-  provider_check_name text;
-  refunds_source_check_name text;
+  constraint_record record;
 begin
-  select conname into source_check_name
-  from pg_constraint
-  where conrelid = 'public.b2c_payments'::regclass
-    and contype = 'c'
-    and lower(pg_get_constraintdef(oid)) like '%source_system in%'
-  limit 1;
+  for constraint_record in
+    select
+      conname,
+      replace(lower(pg_get_constraintdef(oid)), '"', '') as definition
+    from pg_constraint
+    where conrelid = 'public.b2c_payments'::regclass
+      and contype = 'c'
+  loop
+    if constraint_record.definition like '%source_system%'
+       and constraint_record.definition like '%manual_bank_transfer%'
+       and constraint_record.definition not like '%entered_by%'
+       and constraint_record.definition not like '%provider_transaction_id%' then
+      execute format(
+        'alter table public.b2c_payments drop constraint if exists %I',
+        constraint_record.conname
+      );
+    elsif constraint_record.definition like '%provider_transaction_id%'
+       and constraint_record.definition like '%manual_bank_transfer%' then
+      execute format(
+        'alter table public.b2c_payments drop constraint if exists %I',
+        constraint_record.conname
+      );
+    end if;
+  end loop;
 
-  if source_check_name is not null then
-    execute format('alter table public.b2c_payments drop constraint %I', source_check_name);
-  end if;
-
-  select conname into provider_check_name
-  from pg_constraint
-  where conrelid = 'public.b2c_payments'::regclass
-    and contype = 'c'
-    and lower(pg_get_constraintdef(oid)) like '%provider_transaction_id is not null%'
-    and lower(pg_get_constraintdef(oid)) like '%manual_bank_transfer%'
-  limit 1;
-
-  if provider_check_name is not null then
-    execute format('alter table public.b2c_payments drop constraint %I', provider_check_name);
-  end if;
-
-  select conname into refunds_source_check_name
-  from pg_constraint
-  where conrelid = 'public.b2c_refunds'::regclass
-    and contype = 'c'
-    and lower(pg_get_constraintdef(oid)) like '%source_system in%'
-  limit 1;
-
-  if refunds_source_check_name is not null then
-    execute format('alter table public.b2c_refunds drop constraint %I', refunds_source_check_name);
-  end if;
+  for constraint_record in
+    select
+      conname,
+      replace(lower(pg_get_constraintdef(oid)), '"', '') as definition
+    from pg_constraint
+    where conrelid = 'public.b2c_refunds'::regclass
+      and contype = 'c'
+  loop
+    if constraint_record.definition like '%source_system%'
+       and constraint_record.definition like '%manual_bank_transfer%' then
+      execute format(
+        'alter table public.b2c_refunds drop constraint if exists %I',
+        constraint_record.conname
+      );
+    end if;
+  end loop;
 end;
 $$;
 
