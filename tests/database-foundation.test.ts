@@ -226,6 +226,15 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("'product_mapping'");
   });
 
+  it("names the raw and effective Finance categories separately in the effective-row view", () => {
+    const sql = migration("20260817110000_b2c_finance_action_resolutions.sql");
+
+    expect(sql).toContain("rows.category_raw as source_category_raw");
+    expect(sql).toContain("coalesce(overrides.category_raw, rows.category_raw) as category_raw");
+    expect(sql).toContain("'raw_category', rows.source_category_raw");
+    expect(sql).toContain("'effective_category', rows.category_raw");
+  });
+
   it("posts only valid effective Finance rows while retaining duplicate controls", () => {
     const resolutionMigration = () => migration("20260817110000_b2c_finance_action_resolutions.sql");
 

@@ -303,7 +303,7 @@ export interface Database {
           id: Uuid; import_id: Uuid; source_tab: "B2C" | "B2C Cons"; source_row_number: number;
           reported_date_raw: string; declared_month_raw: string | null; declared_year_raw: string | null;
           amount_usd_raw: string | null; customer_name_raw: string | null; customer_email_raw: string | null;
-          customer_phone_raw: string | null; category_raw: string | null; membership_type_raw: string | null;
+          customer_phone_raw: string | null; source_category_raw: string | null; category_raw: string | null; membership_type_raw: string | null;
           payment_method_raw: string | null; payment_status_raw: string | null; note_raw: string | null;
           source_occurred_on: string | null; source_amount_usd: Decimal | null;
           source_row_quality: Database["public"]["Enums"]["b2c_finance_row_quality"]; quality_issues: Json;
