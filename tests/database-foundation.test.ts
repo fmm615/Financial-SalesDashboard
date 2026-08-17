@@ -178,9 +178,18 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("groups.reconciliation_state <> 'canonical' or groups.canonical_finance_row_id <> rows.id");
     expect(sql).toContain("drop constraint if exists b2c_payments_source_system_check");
     expect(sql).toContain("replace(lower(pg_get_constraintdef(oid)), '\"', '')");
+    expect(sql).toContain("set search_path = public, extensions");
     expect(sql).not.toContain("https://");
     expect(sql).not.toContain("stripe.com");
     expect(sql).not.toContain("tap.company");
+  });
+
+  it("repairs the deployed Finance-posting function's extension search path", () => {
+    const repair = () => migration("20260817103000_fix_finance_posting_extension_search_path.sql");
+
+    expect(repair).not.toThrow();
+    expect(repair()).toContain("alter function public.post_approved_b2c_finance_payments()");
+    expect(repair()).toContain("set search_path = public, extensions");
   });
 
   it("retains genuinely missing customer emails from both Finance and provider evidence", () => {
