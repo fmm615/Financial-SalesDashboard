@@ -53,7 +53,7 @@
 
 **Produces:** An immutable correction history plus a single effective-row view for all later B2C Finance posting logic.
 
-- [ ] **Step 1: Write the failing migration contract**
+- [x] **Step 1: Write the failing migration contract**
 
 ```ts
 it("keeps Finance source rows immutable while allowing an audited effective override", () => {
@@ -65,13 +65,13 @@ it("keeps Finance source rows immutable while allowing an audited effective over
 });
 ```
 
-- [ ] **Step 2: Run the test and observe RED**
+- [x] **Step 2: Run the test and observe RED**
 
 Run: `npm test -- tests/database-foundation.test.ts`
 
 Expected: the test fails because the migration file does not exist.
 
-- [ ] **Step 3: Add the minimal database model**
+- [x] **Step 3: Add the minimal database model**
 
 Create a `b2c_finance_row_overrides` table keyed by Finance staging row ID. Permit only verified effective `occurred_on`, `amount_usd`, `customer_name`, and `category_raw` values, plus `date_authority_confirmed_at`, actor/time columns, and validation that either at least one data field changes or Date-authority is confirmed.
 
@@ -81,17 +81,17 @@ Add `apply_b2c_finance_date_authority(p_finance_row_ids uuid[], p_reason text)`.
 
 Create `b2c_finance_effective_rows`. It coalesces overlay values with raw staging values and exposes `effective_quality`; a valid Date with an audited Date-authority decision becomes effective `valid` without hiding its raw source issue.
 
-- [ ] **Step 4: Update generated types**
+- [x] **Step 4: Update generated types**
 
 Run `npm run supabase:types` if the local Supabase stack is available; otherwise update `src/types/database.generated.ts` mechanically for the new table, view, and RPCs.
 
-- [ ] **Step 5: Run the test and observe GREEN**
+- [x] **Step 5: Run the test and observe GREEN**
 
 Run: `npm test -- tests/database-foundation.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add supabase/migrations/20260817110000_b2c_finance_action_resolutions.sql src/types/database.generated.ts tests/database-foundation.test.ts

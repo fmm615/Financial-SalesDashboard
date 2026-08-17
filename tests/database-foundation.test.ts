@@ -204,6 +204,19 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).not.toContain("lower(regexp_replace(trim(coalesce(rows.payment_method_raw, ''))");
   });
 
+  it("keeps Finance source rows immutable while allowing audited effective overrides", () => {
+    const resolutionMigration = () => migration("20260817110000_b2c_finance_action_resolutions.sql");
+
+    expect(resolutionMigration).not.toThrow();
+    const sql = resolutionMigration();
+    expect(sql).toContain("create table public.b2c_finance_row_overrides");
+    expect(sql).toContain("create view public.b2c_finance_effective_rows");
+    expect(sql).toContain("create or replace function public.apply_b2c_finance_row_correction(");
+    expect(sql).toContain("insert into public.financial_corrections");
+    expect(sql).toContain("Only an authenticated administrator can correct a staged B2C Finance row");
+    expect(sql).not.toMatch(/update public\.b2c_finance_staging_rows\s+set/i);
+  });
+
   it("retains genuinely missing customer emails from both Finance and provider evidence", () => {
     const missingFinanceEmail = () => migration("20260817101000_allow_missing_finance_tracker_email.sql");
 

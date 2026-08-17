@@ -207,6 +207,11 @@ export interface Database {
         normalized_customer_email: string | null; normalized_customer_phone: string | null;
         row_quality: Database["public"]["Enums"]["b2c_finance_row_quality"]; quality_issues: Json; created_at: Timestamp;
       }>;
+      b2c_finance_row_overrides: Table<{
+        id: Uuid; finance_row_id: Uuid; occurred_on: string | null; amount_usd: Decimal | null;
+        customer_name: string | null; category_raw: string | null; date_authority_confirmed_at: Timestamp | null;
+        created_by: Uuid; updated_by: Uuid; created_at: Timestamp; updated_at: Timestamp;
+      }>;
       b2c_finance_ledger_posts: Table<{
         id: Uuid; finance_row_id: Uuid; payment_id: Uuid; finance_payment_method: "bank_transfer" | "ios";
         source_amount_basis: "gross_excluding_vat"; posted_by: Uuid; posted_at: Timestamp; created_at: Timestamp;
@@ -293,6 +298,24 @@ export interface Database {
       report_delivery_attempts: Table<{ id: Uuid; report_id: Uuid; recipient_email: string; status: Database["public"]["Enums"]["integration_status"]; requested_at: Timestamp; sent_at: Timestamp | null; failed_at: Timestamp | null; safe_error_summary: string | null; created_at: Timestamp }>;
     };
     Views: {
+      b2c_finance_effective_rows: {
+        Row: {
+          id: Uuid; import_id: Uuid; source_tab: "B2C" | "B2C Cons"; source_row_number: number;
+          reported_date_raw: string; declared_month_raw: string | null; declared_year_raw: string | null;
+          amount_usd_raw: string | null; customer_name_raw: string | null; customer_email_raw: string | null;
+          customer_phone_raw: string | null; category_raw: string | null; membership_type_raw: string | null;
+          payment_method_raw: string | null; payment_status_raw: string | null; note_raw: string | null;
+          source_occurred_on: string | null; source_amount_usd: Decimal | null;
+          source_row_quality: Database["public"]["Enums"]["b2c_finance_row_quality"]; quality_issues: Json;
+          override_occurred_on: string | null; override_amount_usd: Decimal | null;
+          override_customer_name: string | null; override_category_raw: string | null;
+          date_authority_confirmed_at: Timestamp | null; occurred_on: string | null; amount_usd: Decimal | null;
+          customer_name: string | null; effective_quality: Database["public"]["Enums"]["b2c_finance_row_quality"];
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       reportable_b2b_deals: {
         Row: B2bDealRow;
         Insert: never;
@@ -358,6 +381,14 @@ export interface Database {
       finalize_b2c_finance_import: {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
         Returns: Uuid;
+      };
+      apply_b2c_finance_row_correction: {
+        Args: { p_finance_row_id: Uuid; p_occurred_on: string | null; p_amount_usd: Decimal | null; p_customer_name: string | null; p_category_raw: string | null; p_reason: string };
+        Returns: undefined;
+      };
+      apply_b2c_finance_date_authority: {
+        Args: { p_finance_row_ids: Uuid[]; p_reason: string };
+        Returns: number;
       };
       finalize_tap_statement_import: {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
