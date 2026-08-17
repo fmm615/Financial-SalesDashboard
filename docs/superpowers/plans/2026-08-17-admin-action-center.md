@@ -219,7 +219,7 @@ git commit -m "feat(b2c): bulk resolve proven Finance duplicates"
 
 **Produces:** A safe action-level overview and three admin-only B2C mutation endpoints.
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 ```ts
 it("shows one duplicate decision for two retained Finance rows", async () => {
@@ -233,25 +233,25 @@ it("labels a valid Date with conflicting Month/Year as a Date-authority action",
 });
 ```
 
-- [ ] **Step 2: Run the test and observe RED**
+- [x] **Step 2: Run the test and observe RED**
 
 Run: `npm test -- tests/b2c-finance-action-center.test.ts`
 
-Expected: FAIL because the B2C Finance action service does not exist.
+Expected: FAIL because the action overview and resolution endpoints do not exist.
 
-- [ ] **Step 3: Implement the overview and endpoints**
+- [x] **Step 3: Implement the overview and endpoints**
 
 Expose only action-safe fields: source tab, workbook row number, issue explanation, effective readiness, and canonical recommendation. Do not expose raw sensitive payment data in the list.
 
 The Date-authority route accepts eligible row IDs and a reason. The correction route accepts a UUID and validated amount/date/name/category changes plus a reason. Both authorise admin access before invoking the Task 1 RPCs and return updated safe counts.
 
-- [ ] **Step 4: Run tests and observe GREEN**
+- [x] **Step 4: Run tests and observe GREEN**
 
 Run: `npm test -- tests/b2c-finance-action-center.test.ts tests/b2c-finance-action-api.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/server/services/b2c-finance-action-center.ts src/server/repositories/b2c-finance-action-repository.ts src/lib/validation/b2c-finance-action-contracts.ts src/app/api/admin/b2c/finance-actions tests/b2c-finance-action-center.test.ts tests/b2c-finance-action-api.test.ts

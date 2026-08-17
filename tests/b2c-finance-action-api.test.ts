@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/admin/b2c/finance-actions/duplicates/bulk-canonical/route";
+import { GET } from "@/app/api/admin/b2c/finance-actions/route";
+import { POST as applyDateAuthority } from "@/app/api/admin/b2c/finance-actions/date-authority/route";
+import { POST as applyCorrection } from "@/app/api/admin/b2c/finance-actions/[rowId]/correction/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getApprovedRole } from "@/lib/auth/access";
 
@@ -47,5 +50,44 @@ describe("bulk B2C Finance duplicate decision API", () => {
       p_source_tab: "B2C Cons",
       p_reason: "B2C Cons contains the fuller verified contact record.",
     });
+  });
+
+  it("requires an administrator before loading the Finance actions overview", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } } as never);
+
+    const response = await GET();
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Admin access is required." });
+  });
+
+  it("rejects a Date-authority action without a meaningful reason", async () => {
+    const rpc = vi.fn();
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: adminUser } }) }, rpc } as never);
+    getApprovedRoleMock.mockResolvedValue("admin");
+
+    const response = await applyDateAuthority(new NextRequest("http://localhost/api/admin/b2c/finance-actions/date-authority", {
+      method: "POST",
+      body: JSON.stringify({ financeRowIds: groupIds, reason: "" }),
+    }));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: "Enter a reason between 3 and 1000 characters." });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid Finance row before attempting a correction", async () => {
+    const rpc = vi.fn();
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: adminUser } }) }, rpc } as never);
+    getApprovedRoleMock.mockResolvedValue("admin");
+
+    const response = await applyCorrection(new NextRequest("http://localhost/api/admin/b2c/finance-actions/not-a-uuid/correction", {
+      method: "POST",
+      body: JSON.stringify({ customerName: "Verified member", reason: "Finance checked the original signed record." }),
+    }), { params: Promise.resolve({ rowId: "not-a-uuid" }) });
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid B2C Finance row." });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
