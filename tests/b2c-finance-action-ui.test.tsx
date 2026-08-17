@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { B2cFinanceActionModule } from "@/features/b2c/b2c-finance-action-module";
 import { B2cFinanceDuplicateActions } from "@/features/b2c/b2c-finance-duplicate-actions";
+import { B2cFinanceDataQualityActions } from "@/features/b2c/b2c-finance-data-quality-actions";
 import type { B2cFinanceActionOverview } from "@/server/services/b2c-finance-action-center";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -44,8 +45,8 @@ const overview: B2cFinanceActionOverview = {
   duplicateGroups,
   items: [
     ...duplicateItems,
-    { id: "date-authority:22222222-2222-4222-8222-222222222222", actionType: "date_authority", actionLabel: "Use the verified Date", explanation: "The Date is valid, but the Month label conflicts with it.", sourceTab: "B2C", sourceRowNumber: 12 },
-    { id: "correction:33333333-3333-4333-8333-333333333333", actionType: "correction", actionLabel: "Correct verified information", explanation: "The workbook row has no customer name.", sourceTab: "B2C Cons", sourceRowNumber: 31 },
+    { id: "date-authority:22222222-2222-4222-8222-222222222222", actionType: "date_authority", actionLabel: "Use the verified Date", explanation: "The Date is valid, but the Month label conflicts with it.", sourceTab: "B2C", sourceRowNumber: 12, evidence: duplicateGroups[0].rows[0] },
+    { id: "correction:33333333-3333-4333-8333-333333333333", actionType: "correction", actionLabel: "Correct verified information", explanation: "The workbook row has no customer name.", sourceTab: "B2C Cons", sourceRowNumber: 31, evidence: duplicateGroups[0].rows[1] },
   ],
 };
 
@@ -78,5 +79,13 @@ describe("B2C Finance action module", () => {
     expect(confirm).toBeDisabled();
     fireEvent.click(screen.getByLabelText("I understand that one audited decision will be recorded for each selected pair."));
     expect(confirm).toBeEnabled();
+  });
+
+  it("shows the source payment details before a Date or correction decision", () => {
+    render(<B2cFinanceDataQualityActions overview={overview} onChanged={vi.fn()} />);
+
+    expect(screen.getAllByText("Source workbook details")).toHaveLength(2);
+    expect(screen.getAllByText("Female Founder Club")).toHaveLength(1);
+    expect(screen.getAllByText("05/10/2025")).toHaveLength(2);
   });
 });

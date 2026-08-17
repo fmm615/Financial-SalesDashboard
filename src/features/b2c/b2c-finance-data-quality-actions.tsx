@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PrimaryButton, SectionCard } from "@/components/ui";
+import { B2cFinancePaymentEvidence } from "@/features/b2c/b2c-finance-payment-evidence";
 import type { B2cFinanceActionItem, B2cFinanceActionOverview } from "@/server/services/b2c-finance-action-center";
 
 const rowId = (item: B2cFinanceActionItem) => item.id.split(":")[1] ?? "";
@@ -63,6 +64,7 @@ export function B2cFinanceDataQualityActions({ overview, onChanged }: { overview
       {dateItems.length > 0 && <div className="rounded-md border border-border bg-canvas p-4">
         <h3 className="font-medium text-text-primary">Valid Dates with the wrong Month or Year label</h3>
         <p className="mt-1 text-sm leading-6 text-text-muted">{dateItems.length} row{dateItems.length === 1 ? "" : "s"} have a readable Date, so Finance can confirm that Date without editing the original labels.</p>
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">{dateItems.map((item) => item.evidence && <B2cFinancePaymentEvidence key={item.id} evidence={item.evidence} heading="Source workbook details" />)}</div>
         <label htmlFor="date-authority-reason" className="mt-3 block text-sm font-medium text-text-primary">Reason for using the Date</label>
         <textarea id="date-authority-reason" value={dateReason} onChange={(event) => setDateReason(event.target.value)} rows={2} maxLength={1000} className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent" />
         <div className="mt-3"><PrimaryButton disabled={dateReason.trim().length < 3 || savingDates} onClick={() => void applyDates()}>{savingDates ? "Recording…" : `Use the verified Date for ${dateItems.length} payment${dateItems.length === 1 ? "" : "s"}`}</PrimaryButton></div>
@@ -73,6 +75,7 @@ export function B2cFinanceDataQualityActions({ overview, onChanged }: { overview
         return <div key={item.id} className="rounded-md border border-border p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium text-text-primary">{item.sourceTab} row {item.sourceRowNumber}</h3><span className="text-xs font-medium uppercase tracking-[0.08em] text-warning">Needs verification</span></div>
           <p className="mt-1 text-sm leading-6 text-text-muted">{item.explanation}</p>
+          {item.evidence && <div className="mt-4"><B2cFinancePaymentEvidence evidence={item.evidence} heading="Source workbook details" /></div>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-medium text-text-primary">Verified Date<input type="date" value={draft.occurredOn} onChange={(event) => updateDraft(id, "occurredOn", event.target.value)} className="mt-1 block w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm font-normal" /></label>
             <label className="text-sm font-medium text-text-primary">Verified amount (USD)<input inputMode="decimal" value={draft.amountUsd} onChange={(event) => updateDraft(id, "amountUsd", event.target.value)} className="mt-1 block w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm font-normal" /></label>
