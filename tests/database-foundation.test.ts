@@ -217,6 +217,15 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).not.toMatch(/update public\.b2c_finance_staging_rows\s+set/i);
   });
 
+  it("extends the audit correction rule without rejecting existing Finance correction areas", () => {
+    const sql = migration("20260817110000_b2c_finance_action_resolutions.sql");
+
+    expect(sql).toContain("'b2c_finance_row'");
+    expect(sql).toContain("'b2b_deal'");
+    expect(sql).toContain("'b2c_refund'");
+    expect(sql).toContain("'product_mapping'");
+  });
+
   it("posts only valid effective Finance rows while retaining duplicate controls", () => {
     const resolutionMigration = () => migration("20260817110000_b2c_finance_action_resolutions.sql");
 

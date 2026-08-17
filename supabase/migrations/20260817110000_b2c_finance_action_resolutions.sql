@@ -7,7 +7,16 @@ alter table public.financial_corrections
 
 alter table public.financial_corrections
   add constraint financial_corrections_target_area_check
-  check (target_area in ('b2c_payment', 'b2c_finance_row', 'b2b_booking', 'b2b_recognised_sale', 'expense'));
+  check (target_area in (
+    'b2c_payment',
+    'b2c_refund',
+    'b2c_finance_row',
+    'product_mapping',
+    'b2b_deal',
+    'b2b_booking',
+    'b2b_recognised_sale',
+    'expense'
+  ));
 
 create table public.b2c_finance_row_overrides (
   id uuid primary key default gen_random_uuid(),
