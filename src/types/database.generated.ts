@@ -402,6 +402,10 @@ export interface Database {
         Args: Record<string, never>;
         Returns: Array<{ posted_payments: number; already_posted_payments: number; skipped_rows: number }>;
       };
+      apply_b2c_finance_bulk_canonical_decision: {
+        Args: { p_group_ids: Uuid[]; p_source_tab: string; p_reason: string };
+        Returns: number;
+      };
       create_b2c_exact_duplicate_groups: { Args: Record<string, never>; Returns: number };
       get_b2c_reconciliation_safe_summary: { Args: Record<string, never>; Returns: Json };
       get_b2c_tap_statement_unmatched_ledger_rows: {

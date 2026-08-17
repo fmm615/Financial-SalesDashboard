@@ -459,3 +459,134 @@ $$;
 
 revoke all on function public.post_approved_b2c_finance_payments() from public;
 grant execute on function public.post_approved_b2c_finance_payments() to authenticated;
+
+-- A bulk decision is allowed only for an exact two-row B2C/B2C Cons pair where
+-- the chosen tab demonstrably retains more usable Finance information.
+create or replace function public.apply_b2c_finance_bulk_canonical_decision(
+  p_group_ids uuid[],
+  p_source_tab text,
+  p_reason text
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  group_id uuid;
+  group_state public.b2c_reconciliation_state;
+  member_count integer;
+  canonical_row record;
+  other_row record;
+  canonical_completeness integer;
+  other_completeness integer;
+  decided_groups integer := 0;
+begin
+  if auth.uid() is null or not public.is_admin() then
+    raise exception 'Only an authenticated administrator can decide B2C Finance duplicate groups';
+  end if;
+  if p_source_tab not in ('B2C', 'B2C Cons') then
+    raise exception 'Choose B2C or B2C Cons as the canonical source tab';
+  end if;
+  if coalesce(array_length(p_group_ids, 1), 0) = 0 then
+    raise exception 'Select at least one B2C Finance duplicate group';
+  end if;
+  if (select count(*) from unnest(p_group_ids) as selected(id)) <> (select count(distinct id) from unnest(p_group_ids) as selected(id)) then
+    raise exception 'Select each B2C Finance duplicate group only once';
+  end if;
+  if char_length(trim(coalesce(p_reason, ''))) not between 3 and 1000 then
+    raise exception 'A B2C Finance duplicate decision reason must be between 3 and 1000 characters';
+  end if;
+
+  foreach group_id in array p_group_ids loop
+    select groups.reconciliation_state into group_state
+    from public.b2c_reconciliation_groups groups
+    where groups.id = group_id
+    for update;
+
+    if not found or group_state <> 'exact_duplicate_candidate' then
+      raise exception 'Every selected group must be an unresolved exact B2C Finance duplicate';
+    end if;
+
+    select count(*) into member_count
+    from public.b2c_reconciliation_finance_rows group_rows
+    where group_rows.reconciliation_group_id = group_id;
+    if member_count <> 2 then
+      raise exception 'Every selected group must contain exactly one B2C row and one B2C Cons row';
+    end if;
+
+    select
+      rows.id,
+      rows.source_tab,
+      rows.customer_name_raw,
+      rows.customer_email_raw,
+      rows.customer_phone_raw,
+      rows.category_raw,
+      rows.membership_type_raw,
+      rows.payment_status_raw,
+      rows.note_raw
+    into canonical_row
+    from public.b2c_reconciliation_finance_rows group_rows
+    join public.b2c_finance_staging_rows rows on rows.id = group_rows.finance_row_id
+    where group_rows.reconciliation_group_id = group_id
+      and rows.source_tab = p_source_tab
+    for update of rows;
+    if not found then
+      raise exception 'Every selected group must contain the chosen source tab exactly once';
+    end if;
+
+    select
+      rows.id,
+      rows.source_tab,
+      rows.customer_name_raw,
+      rows.customer_email_raw,
+      rows.customer_phone_raw,
+      rows.category_raw,
+      rows.membership_type_raw,
+      rows.payment_status_raw,
+      rows.note_raw
+    into other_row
+    from public.b2c_reconciliation_finance_rows group_rows
+    join public.b2c_finance_staging_rows rows on rows.id = group_rows.finance_row_id
+    where group_rows.reconciliation_group_id = group_id
+      and rows.source_tab <> p_source_tab
+    for update of rows;
+    if not found then
+      raise exception 'Every selected group must contain exactly one B2C row and one B2C Cons row';
+    end if;
+
+    canonical_completeness :=
+      (case when nullif(trim(canonical_row.customer_name_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(canonical_row.customer_email_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(canonical_row.customer_phone_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(canonical_row.category_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(canonical_row.membership_type_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(canonical_row.payment_status_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(canonical_row.note_raw), '') is not null then 1 else 0 end);
+    other_completeness :=
+      (case when nullif(trim(other_row.customer_name_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(other_row.customer_email_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(other_row.customer_phone_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(other_row.category_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(other_row.membership_type_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(other_row.payment_status_raw), '') is not null then 1 else 0 end) +
+      (case when nullif(trim(other_row.note_raw), '') is not null then 1 else 0 end);
+
+    if canonical_completeness <= other_completeness then
+      raise exception 'Every selected group must have a provably more complete chosen Finance row';
+    end if;
+
+    insert into public.b2c_reconciliation_decisions (
+      reconciliation_group_id, decision_state, canonical_finance_row_id, decision_reason
+    ) values (
+      group_id, 'canonical', canonical_row.id, trim(p_reason)
+    );
+    decided_groups := decided_groups + 1;
+  end loop;
+
+  return decided_groups;
+end;
+$$;
+
+revoke all on function public.apply_b2c_finance_bulk_canonical_decision(uuid[], text, text) from public;
+grant execute on function public.apply_b2c_finance_bulk_canonical_decision(uuid[], text, text) to authenticated;

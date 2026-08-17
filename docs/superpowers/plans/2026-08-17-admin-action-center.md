@@ -29,6 +29,7 @@
 | `src/lib/validation/b2c-finance-action-contracts.ts` | Zod input contracts for B2C Finance actions |
 | `src/server/repositories/b2c-finance-action-repository.ts` | Safe B2C Finance reads and RPC calls |
 | `src/server/services/b2c-finance-action-center.ts` | Plain-language B2C Finance action grouping and counts |
+| `src/types/database.generated.ts` | Generated typing for B2C Finance action RPCs |
 | `src/app/api/admin/b2c/finance-actions/**/route.ts` | Admin-only B2C Finance action endpoints |
 | `src/features/b2c/b2c-finance-action-module.tsx` | Focused B2C Finance resolution screen |
 | `src/server/repositories/admin-action-center-repository.ts` | Reads action sources across B2C, B2B, reports, and integrations |
@@ -152,8 +153,10 @@ git commit -m "feat(b2c): post resolved Finance evidence safely"
 
 - Create: `src/lib/validation/b2c-finance-action-contracts.ts`
 - Create: `src/server/repositories/b2c-finance-action-repository.ts`
+- Create: `src/server/services/b2c-finance-action-center.ts`
 - Create: `src/app/api/admin/b2c/finance-actions/duplicates/bulk-canonical/route.ts`
 - Modify: `supabase/migrations/20260817110000_b2c_finance_action_resolutions.sql`
+- Modify: `src/types/database.generated.ts`
 - Create: `tests/b2c-finance-action-center.test.ts`
 - Create: `tests/b2c-finance-action-api.test.ts`
 
@@ -161,7 +164,7 @@ git commit -m "feat(b2c): post resolved Finance evidence safely"
 
 **Produces:** One confirmed action that writes individual canonical decisions only for exact groups with a provable more-complete source row.
 
-- [ ] **Step 1: Write failing recommendation and API tests**
+- [x] **Step 1: Write failing recommendation and API tests**
 
 ```ts
 it("recommends B2C Cons only when it has more usable fields", () => {
@@ -174,28 +177,28 @@ it("rejects a bulk decision without a meaningful reason", async () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests and observe RED**
+- [x] **Step 2: Run the tests and observe RED**
 
 Run: `npm test -- tests/b2c-finance-action-center.test.ts tests/b2c-finance-action-api.test.ts`
 
 Expected: FAIL because the service, route, and RPC do not exist.
 
-- [ ] **Step 3: Add recommendation and mutation paths**
+- [x] **Step 3: Add recommendation and mutation paths**
 
 Add `apply_b2c_finance_bulk_canonical_decision(p_group_ids uuid[], p_source_tab text, p_reason text)`. It must lock each group, require exactly two members (one B2C and one B2C Cons), require unresolved exact-duplicate state, calculate completeness from approved business fields, reject ambiguous groups, and insert one audited canonical decision per eligible group.
 
 Validate `groupIds`, `sourceTab`, and `reason` with Zod. The API must require admin access and return a safe, plain-language error without customer data.
 
-- [ ] **Step 4: Run the tests and observe GREEN**
+- [x] **Step 4: Run the tests and observe GREEN**
 
 Run: `npm test -- tests/b2c-finance-action-center.test.ts tests/b2c-finance-action-api.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
-git add supabase/migrations/20260817110000_b2c_finance_action_resolutions.sql src/lib/validation/b2c-finance-action-contracts.ts src/server/repositories/b2c-finance-action-repository.ts src/app/api/admin/b2c/finance-actions/duplicates/bulk-canonical/route.ts tests/b2c-finance-action-center.test.ts tests/b2c-finance-action-api.test.ts
+git add supabase/migrations/20260817110000_b2c_finance_action_resolutions.sql src/lib/validation/b2c-finance-action-contracts.ts src/server/repositories/b2c-finance-action-repository.ts src/server/services/b2c-finance-action-center.ts src/app/api/admin/b2c/finance-actions/duplicates/bulk-canonical/route.ts src/types/database.generated.ts tests/b2c-finance-action-center.test.ts tests/b2c-finance-action-api.test.ts
 git commit -m "feat(b2c): bulk resolve proven Finance duplicates"
 ```
 
