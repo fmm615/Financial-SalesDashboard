@@ -15,6 +15,23 @@ const duplicateItems = Array.from({ length: 43 }, (_, index) => ({
   sourceRowNumber: null,
 }));
 
+const duplicateGroups: B2cFinanceActionOverview["duplicateGroups"] = [{
+  groupId: "11111111-1111-4111-8111-111111111111",
+  state: "exact_duplicate_candidate",
+  recommendation: {
+    groupId: "11111111-1111-4111-8111-111111111111",
+    sourceTab: "B2C Cons",
+    canonicalFinanceRowId: "33333333-3333-4333-8333-333333333333",
+    eligibleForBulk: true,
+    winningCompleteness: 7,
+    otherCompleteness: 2,
+  },
+  rows: [
+    { financeRowId: "22222222-2222-4222-8222-222222222222", sourceTab: "B2C", sourceRowNumber: 12, reportedDateRaw: "05/10/2025", declaredMonth: "October", declaredYear: "2025", occurredOn: "2025-10-05", amountUsd: "475", customerName: "Reham Garash", customerEmail: null, customerPhone: null, category: "Membership", membershipType: null, paymentMethod: "Stripe", paymentStatus: null, note: null, qualityIssues: [] },
+    { financeRowId: "33333333-3333-4333-8333-333333333333", sourceTab: "B2C Cons", sourceRowNumber: 33, reportedDateRaw: "05/10/2025", declaredMonth: "October", declaredYear: "2025", occurredOn: "2025-10-05", amountUsd: "475", customerName: "Reham Garash", customerEmail: "rgarash@example.com", customerPhone: "+973 3000 0000", category: "Membership", membershipType: "Female Founder Club", paymentMethod: "Stripe", paymentStatus: "Received", note: "Full payment", qualityIssues: [] },
+  ],
+}];
+
 const overview: B2cFinanceActionOverview = {
   counts: {
     duplicateDecisions: 43,
@@ -24,7 +41,7 @@ const overview: B2cFinanceActionOverview = {
     correctionActions: 5,
     postedFinancePayments: 161,
   },
-  duplicateGroups: [],
+  duplicateGroups,
   items: [
     ...duplicateItems,
     { id: "date-authority:22222222-2222-4222-8222-222222222222", actionType: "date_authority", actionLabel: "Use the verified Date", explanation: "The Date is valid, but the Month label conflicts with it.", sourceTab: "B2C", sourceRowNumber: 12 },
@@ -45,14 +62,21 @@ describe("B2C Finance action module", () => {
     expect(screen.getByText("161 already in B2C ledger")).toBeInTheDocument();
   });
 
-  it("requires a reason and confirmation before applying a recommended duplicate decision", () => {
+  it("shows both payments and requires a reason and confirmation before recording the selected pair", () => {
     render(<B2cFinanceDuplicateActions overview={overview} onChanged={vi.fn()} />);
 
-    const confirm = screen.getByRole("button", { name: "Use B2C Cons for 43 payments" });
+    expect(screen.getByText("B2C row 12")).toBeInTheDocument();
+    expect(screen.getByText("B2C Cons row 33")).toBeInTheDocument();
+    expect(screen.getByText("rgarash@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keep B2C" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keep B2C Cons" })).toBeInTheDocument();
+    expect(screen.getByText("1 selected payment pair")).toBeInTheDocument();
+
+    const confirm = screen.getByRole("button", { name: "Record selected duplicate decisions" });
     expect(confirm).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Reason for keeping B2C Cons"), { target: { value: "B2C Cons contains the fuller verified Finance record." } });
+    fireEvent.change(screen.getByLabelText("Reason for recording these duplicate decisions"), { target: { value: "B2C Cons contains the fuller verified Finance record." } });
     expect(confirm).toBeDisabled();
-    fireEvent.click(screen.getByLabelText("I understand that one decision will be recorded for each proven duplicate pair."));
+    fireEvent.click(screen.getByLabelText("I understand that one audited decision will be recorded for each selected pair."));
     expect(confirm).toBeEnabled();
   });
 });
