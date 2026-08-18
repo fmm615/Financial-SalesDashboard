@@ -205,6 +205,16 @@ source amount, appends conversion history, and does not call a provider. The
 generic B2C local-correction path is intentionally unable to create a USD
 amount for a foreign source record.
 
+Posted Finance payments remain immutable after posting. An Admin amount or
+business-date correction is represented by signed rows in the append-only
+`b2c_finance_ledger_adjustments` stream, linked to the original payment and
+Finance source row. The effective ledger view adds those entries without
+rewriting provider evidence or the posted payment. The browser uses the
+expected-state RPC wrapper, so a stale Admin tab is rejected and must reload;
+retries are idempotent by adjustment request ID. All adjustment reasons and
+actors are written to the audit history, and the original source remains
+visible for traceability.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

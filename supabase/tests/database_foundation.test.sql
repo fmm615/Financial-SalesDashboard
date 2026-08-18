@@ -1,6 +1,6 @@
 begin;
 
-select plan(36);
+select plan(43);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -276,6 +276,53 @@ select ok(
     from pg_class
     where oid = 'public.b2c_payments'::regclass),
   'RLS is enabled on protected B2C data'
+);
+
+select has_table(
+  'public',
+  'b2c_finance_ledger_adjustments',
+  'posted Finance corrections use an append-only adjustment table'
+);
+
+select has_view(
+  'public',
+  'b2c_finance_effective_ledger_entries',
+  'effective Finance ledger facts are exposed through a safe view'
+);
+
+select has_function(
+  'public',
+  'apply_b2c_finance_posted_adjustment',
+  array['uuid', 'date', 'numeric', 'text', 'text', 'uuid', 'text'],
+  'posted Finance adjustment constructor exists'
+);
+
+select has_function(
+  'public',
+  'apply_b2c_finance_posted_adjustment_with_expected_state',
+  array['uuid', 'date', 'numeric', 'text', 'text', 'uuid', 'text', 'numeric', 'date'],
+  'stale-state-safe posted Finance adjustment wrapper exists'
+);
+
+select has_function(
+  'public',
+  'get_b2c_finance_posted_adjustments_page',
+  array['integer', 'integer'],
+  'posted Finance adjustment paging function exists'
+);
+
+select ok(
+  (select relrowsecurity
+    from pg_class
+    where oid = 'public.b2c_finance_ledger_adjustments'::regclass),
+  'RLS is enabled on append-only Finance adjustments'
+);
+
+select col_is_unique(
+  'public',
+  'b2c_finance_ledger_adjustments',
+  array['payment_id', 'adjustment_request_id', 'entry_index'],
+  'posted Finance adjustment requests are idempotent per entry'
 );
 
 select * from finish();

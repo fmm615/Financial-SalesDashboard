@@ -244,6 +244,39 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("insert into public.b2c_reconciliation_decisions");
   });
 
+  it("keeps posted Finance corrections append-only and exposes protected effective facts", () => {
+    const sql = migration("20260817120000_b2c_finance_posted_ledger_adjustments.sql");
+
+    expect(sql).toContain("create table public.b2c_finance_ledger_adjustments");
+    expect(sql).toContain("prevent_b2c_finance_ledger_adjustment_mutation");
+    expect(sql).toContain("create or replace function public.apply_b2c_finance_posted_adjustment(");
+    expect(sql).toContain("create view public.b2c_finance_effective_ledger_entries");
+    expect(sql).toContain("grant select on public.b2c_finance_effective_ledger_entries to authenticated");
+    expect(sql).toContain("Only a complete USD Payment Tracker ledger payment can be adjusted");
+    expect(sql).toContain("unique (payment_id, adjustment_request_id, entry_index)");
+    expect(sql).not.toMatch(/update public\.b2c_payments\s+set/i);
+  });
+
+  it("resolves effective Finance quality issues only through audited local overrides", () => {
+    const sql = migration("20260817121000_b2c_finance_effective_resolution_status.sql");
+
+    expect(sql).toContain("create or replace function public.b2c_finance_unresolved_quality_issues(");
+    expect(sql).toContain("create or replace function public.apply_b2c_finance_row_resolution(");
+    expect(sql).toContain("insert into public.financial_corrections");
+    expect(sql).toContain("payment_method_raw");
+    expect(sql).not.toMatch(/update public\.b2c_finance_staging_rows\s+set/i);
+  });
+
+  it("enforces optimistic concurrency and bounded paging for posted Finance adjustments", () => {
+    const sql = migration("20260817122000_b2c_finance_adjustment_concurrency_and_paging.sql");
+
+    expect(sql).toContain("create or replace function public.apply_b2c_finance_posted_adjustment_with_expected_state(");
+    expect(sql).toContain("This B2C Finance payment changed after it was opened. Reload it before saving another adjustment");
+    expect(sql).toContain("create or replace function public.get_b2c_finance_posted_adjustments_page(");
+    expect(sql).toContain("p_limit not between 1 and 1000");
+    expect(sql).toContain("revoke execute on function public.apply_b2c_finance_posted_adjustment");
+  });
+
   it("posts only valid effective Finance rows while retaining duplicate controls", () => {
     const resolutionMigration = () => migration("20260817110000_b2c_finance_action_resolutions.sql");
 

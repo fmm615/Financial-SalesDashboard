@@ -103,6 +103,12 @@ transaction creates a provenance-linked iOS/bank-transfer ledger row. Run the pg
 reconciliation migrations to a local Supabase database; the local Supabase CLI
 is required for `npm run supabase:test`.
 
+They also cover the posted Finance adjustment stream: append-only mutation
+protection, linked source/payment IDs, amount and date reclassification
+arithmetic, idempotent request IDs, stale expected-state rejection, bounded
+Admin-only paging, and the effective ledger projection used by approved
+viewers.
+
 ### End-to-end tests
 
 Cover critical workflows such as:
