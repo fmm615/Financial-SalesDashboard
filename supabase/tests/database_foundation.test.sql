@@ -1,6 +1,6 @@
 begin;
 
-select plan(43);
+select plan(59);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -323,6 +323,205 @@ select col_is_unique(
   'b2c_finance_ledger_adjustments',
   array['payment_id', 'adjustment_request_id', 'entry_index'],
   'posted Finance adjustment requests are idempotent per entry'
+);
+
+-- A replacement Payment Tracker workbook must never repost a payment that a
+-- prior import already staged. Every staged row resolves to a stable,
+-- content-derived lineage; an Admin decision is required for anything genuinely
+-- new, ambiguous, or already represented by a manual bank payment.
+
+select has_table('public', 'b2c_finance_record_lineages', 'B2C Finance lineages have a dedicated table');
+select has_table('public', 'b2c_finance_row_lineage_links', 'B2C Finance rows link to a lineage immutably');
+select has_table('public', 'b2c_finance_import_version_candidates', 'B2C Finance version-diff candidates are persisted');
+select has_table('public', 'b2c_finance_import_version_decisions', 'B2C Finance version-diff decisions are audited');
+
+-- A manual bank transfer reserves its identity; the reservation attributes the acting admin.
+insert into public.b2c_payments (
+  id, source_system, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint, manual_entry_reason
+) values (
+  'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1', 'manual_bank_transfer', 'lineage.manual@playbook.test', 'membership', 'succeeded',
+  500.000000, 'USD', 1.0000000000, 500.000000, 500.000000,
+  '2026-08-05 09:00:00+00', '2026-08-05', repeat('9', 64), 'Fake manual bank transfer for lineage reservation'
+);
+
+select ok(
+  (select created_by = '11111111-1111-4111-8111-111111111111'
+    from public.b2c_finance_record_lineages
+    where represented_payment_id = 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1'),
+  'the manual bank transfer lineage reservation attributes the acting admin'
+);
+
+-- Viewers cannot finalize a Payment Tracker import.
+select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
+
+select throws_ok(
+  $$
+    select public.finalize_b2c_finance_import_version(
+      p_source_file_name := 'viewer-attempt.xlsx', p_source_file_sha256 := repeat('8', 64),
+      p_source_storage_bucket := 'b2c-imports', p_source_storage_path := 'payment-tracker/viewer-attempt.xlsx',
+      p_supersedes_import_id := null, p_rows := '[]'::jsonb, p_unchanged := '[]'::jsonb, p_candidates := '[]'::jsonb
+    )
+  $$,
+  'P0001',
+  '%Only an authenticated administrator can finalize B2C Finance imports%',
+  'a Viewer cannot finalize a B2C Finance import'
+);
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+-- The first-ever Payment Tracker import: one unambiguous new row auto-links,
+-- two rows sharing one identity stay ambiguous, and one row matches the
+-- manual bank transfer's reserved identity as an existing-payment candidate.
+select public.finalize_b2c_finance_import_version(
+  p_source_file_name := 'lineage-fixture-one.xlsx',
+  p_source_file_sha256 := repeat('e', 64),
+  p_source_storage_bucket := 'b2c-imports',
+  p_source_storage_path := 'payment-tracker/lineage-fixture-one.xlsx',
+  p_supersedes_import_id := null,
+  p_rows := jsonb_build_array(
+    jsonb_build_object('id', 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1', 'sourceTab', 'B2C', 'sourceRowNumber', 2, 'rawPayload', jsonb_build_object(), 'reportedDateRaw', '2026-08-01', 'occurredOn', '2026-08-01', 'amountUsd', '100.000000', 'normalizedCustomerName', 'lineage tester one', 'rowQuality', 'valid'),
+    jsonb_build_object('id', 'a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2', 'sourceTab', 'B2C', 'sourceRowNumber', 3, 'rawPayload', jsonb_build_object(), 'reportedDateRaw', '2026-08-02', 'occurredOn', '2026-08-02', 'amountUsd', '200.000000', 'normalizedCustomerName', 'ambiguous tester', 'rowQuality', 'valid'),
+    jsonb_build_object('id', 'a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3', 'sourceTab', 'B2C Cons', 'sourceRowNumber', 4, 'rawPayload', jsonb_build_object(), 'reportedDateRaw', '2026-08-02', 'occurredOn', '2026-08-02', 'amountUsd', '200.000000', 'normalizedCustomerName', 'ambiguous tester', 'rowQuality', 'valid'),
+    jsonb_build_object('id', 'a4a4a4a4-a4a4-4a4a-8a4a-a4a4a4a4a4a4', 'sourceTab', 'B2C', 'sourceRowNumber', 5, 'rawPayload', jsonb_build_object(), 'reportedDateRaw', '2026-08-05', 'occurredOn', '2026-08-05', 'amountUsd', '500.000000', 'normalizedCustomerName', 'existing payment tester', 'rowQuality', 'valid')
+  ),
+  p_unchanged := '[]'::jsonb,
+  p_candidates := jsonb_build_array(
+    jsonb_build_object('candidateKind', 'new', 'sourceIdentity', repeat('1', 64), 'financeRowIds', jsonb_build_array('a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'), 'priorLineageIds', '[]'::jsonb, 'priorPaymentIds', '[]'::jsonb),
+    jsonb_build_object('candidateKind', 'ambiguous', 'sourceIdentity', repeat('2', 64), 'financeRowIds', jsonb_build_array('a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2', 'a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3'), 'priorLineageIds', '[]'::jsonb, 'priorPaymentIds', '[]'::jsonb),
+    jsonb_build_object(
+      'candidateKind', 'existing_payment', 'sourceIdentity', repeat('3', 64),
+      'financeRowIds', jsonb_build_array('a4a4a4a4-a4a4-4a4a-8a4a-a4a4a4a4a4a4'),
+      'priorLineageIds', jsonb_build_array((select id::text from public.b2c_finance_record_lineages where represented_payment_id = 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1')),
+      'priorPaymentIds', jsonb_build_array('b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1')
+    )
+  )
+);
+
+select ok(
+  (select linked_by = '11111111-1111-4111-8111-111111111111' and link_kind = 'initial'
+    from public.b2c_finance_row_lineage_links
+    where finance_row_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'),
+  'the first-ever import auto-links its one unambiguous new row and attributes the acting admin'
+);
+
+select throws_ok(
+  $$ update public.b2c_finance_row_lineage_links set link_kind = 'admin_confirmed_new' where finance_row_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1' $$,
+  'P0001',
+  '%is immutable%',
+  'a B2C Finance lineage link cannot be updated'
+);
+
+select throws_ok(
+  $$ delete from public.b2c_finance_row_lineage_links where finance_row_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1' $$,
+  'P0001',
+  '%is immutable%',
+  'a B2C Finance lineage link cannot be deleted'
+);
+
+select ok(
+  not exists (
+    select 1 from public.b2c_finance_row_lineage_links
+    where finance_row_id in ('a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2', 'a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3')
+  ),
+  'ambiguous repeated-key rows receive no automatic confirmed lineage'
+);
+
+select throws_ok(
+  $$
+    insert into public.b2c_finance_import_version_decisions (import_id, candidate_id, decision, reason)
+    values (
+      (select import_id from public.b2c_finance_import_version_candidates where source_identity = repeat('3', 64)),
+      (select id from public.b2c_finance_import_version_candidates where source_identity = repeat('3', 64)),
+      'confirm_new', 'Attempting to confirm an existing-payment candidate as new.'
+    )
+  $$,
+  'P0001',
+  '%Only a new candidate can be confirmed%',
+  'a bank row matching an existing manual payment cannot be confirmed as a new B2C Finance lineage'
+);
+
+-- Viewers cannot record a B2C Finance lineage decision.
+select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
+
+select throws_ok(
+  $$
+    insert into public.b2c_finance_import_version_decisions (import_id, candidate_id, decision, reason)
+    values (
+      (select import_id from public.b2c_finance_import_version_candidates where source_identity = repeat('2', 64) limit 1),
+      (select id from public.b2c_finance_import_version_candidates where source_identity = repeat('2', 64) limit 1),
+      'confirm_new', 'A Viewer attempting to record a B2C Finance lineage decision.'
+    )
+  $$,
+  'P0001',
+  '%Only an authenticated administrator can decide%',
+  'a Viewer cannot record a B2C Finance lineage decision'
+);
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+-- An Admin links the workbook row that matches the manual bank transfer as evidence.
+insert into public.b2c_finance_import_version_decisions (import_id, candidate_id, decision, target_payment_id, reason)
+values (
+  (select import_id from public.b2c_finance_import_version_candidates where source_identity = repeat('3', 64)),
+  (select id from public.b2c_finance_import_version_candidates where source_identity = repeat('3', 64)),
+  'link_existing_manual', 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1',
+  'Finance confirmed this workbook row is evidence of the existing manual bank transfer.'
+);
+
+select ok(
+  (select decided_by = '11111111-1111-4111-8111-111111111111'
+    from public.b2c_finance_import_version_decisions
+    where candidate_id = (select id from public.b2c_finance_import_version_candidates where source_identity = repeat('3', 64))),
+  'the admin-decided B2C Finance lineage decision attributes the acting admin'
+);
+
+select ok(
+  (select amount_usd = 500.000000::numeric and occurred_on = '2026-08-05'::date and source_system = 'manual_bank_transfer'
+    from public.b2c_payments where id = 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1'),
+  'linking a workbook row as existing-manual evidence never changes the manual payment amount, date, or source system'
+);
+
+select throws_ok(
+  $$
+    insert into public.b2c_finance_import_version_decisions (import_id, candidate_id, decision, target_payment_id, reason)
+    values (
+      (select import_id from public.b2c_finance_import_version_candidates where source_identity = repeat('3', 64)),
+      (select id from public.b2c_finance_import_version_candidates where source_identity = repeat('3', 64)),
+      'link_existing_manual', 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1',
+      'A second, conflicting decision attempt on the same candidate.'
+    )
+  $$,
+  'P0001',
+  '%already has a decision%',
+  'a second conflicting decision on the same B2C Finance candidate is rejected'
+);
+
+-- A replacement import declaring the first as superseded links its unchanged
+-- row straight to the same lineage instead of creating a second one.
+select public.finalize_b2c_finance_import_version(
+  p_source_file_name := 'lineage-fixture-two.xlsx',
+  p_source_file_sha256 := repeat('f', 64),
+  p_source_storage_bucket := 'b2c-imports',
+  p_source_storage_path := 'payment-tracker/lineage-fixture-two.xlsx',
+  p_supersedes_import_id := (select id from public.b2c_finance_imports where source_file_sha256 = repeat('e', 64)),
+  p_rows := jsonb_build_array(
+    jsonb_build_object('id', 'a5a5a5a5-a5a5-4a5a-8a5a-a5a5a5a5a5a5', 'sourceTab', 'B2C', 'sourceRowNumber', 2, 'rawPayload', jsonb_build_object(), 'reportedDateRaw', '2026-08-01', 'occurredOn', '2026-08-01', 'amountUsd', '100.000000', 'normalizedCustomerName', 'lineage tester one', 'rowQuality', 'valid')
+  ),
+  p_unchanged := jsonb_build_array(
+    jsonb_build_object(
+      'financeRowId', 'a5a5a5a5-a5a5-4a5a-8a5a-a5a5a5a5a5a5',
+      'lineageId', (select lineage_id::text from public.b2c_finance_row_lineage_links where finance_row_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1')
+    )
+  ),
+  p_candidates := '[]'::jsonb
+);
+
+select is(
+  (select lineage_id from public.b2c_finance_row_lineage_links where finance_row_id = 'a5a5a5a5-a5a5-4a5a-8a5a-a5a5a5a5a5a5'),
+  (select lineage_id from public.b2c_finance_row_lineage_links where finance_row_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'),
+  'a payment unchanged across two different workbook file hashes shares one lineage'
 );
 
 select * from finish();

@@ -15,9 +15,17 @@ export async function POST(request: NextRequest) {
   }
   try {
     const formData = await request.formData();
-    const parsed = paymentTrackerFinalizeSchema.safeParse({ expectedFileSha256: formData.get("expectedFileSha256") });
+    const parsed = paymentTrackerFinalizeSchema.safeParse({
+      expectedFileSha256: formData.get("expectedFileSha256"),
+      supersedesImportId: formData.get("supersedesImportId") || undefined,
+    });
     if (!parsed.success) return NextResponse.json({ error: "Preview the selected Payment Tracker file before staging it." }, { status: 422 });
-    const importId = await finalizePaymentTrackerUpload(client, getSinglePaymentTrackerFile(formData), parsed.data.expectedFileSha256);
+    const importId = await finalizePaymentTrackerUpload(
+      client,
+      getSinglePaymentTrackerFile(formData),
+      parsed.data.expectedFileSha256,
+      parsed.data.supersedesImportId ?? null,
+    );
     return NextResponse.json({ importId }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "The Payment Tracker could not be staged." }, { status: 422 });

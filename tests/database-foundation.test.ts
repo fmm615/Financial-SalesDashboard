@@ -244,6 +244,22 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("insert into public.b2c_reconciliation_decisions");
   });
 
+  it("prevents a replacement Payment Tracker workbook from reposting a lineaged payment", () => {
+    const sql = migration("20260818100000_b2c_finance_import_lineages.sql");
+
+    expect(sql).toContain("create extension if not exists unaccent");
+    expect(sql).toContain("supersedes_import_id uuid references public.b2c_finance_imports(id)");
+    expect(sql).toContain("create table public.b2c_finance_record_lineages");
+    expect(sql).toContain("create table public.b2c_finance_row_lineage_links");
+    expect(sql).toContain("create table public.b2c_finance_import_version_candidates");
+    expect(sql).toContain("create table public.b2c_finance_import_version_decisions");
+    expect(sql).toContain("create or replace function public.reserve_b2c_finance_manual_bank_transfer_lineage");
+    expect(sql).toContain("create or replace function public.finalize_b2c_finance_import_version");
+    expect(sql).toContain("create or replace function public.apply_b2c_finance_import_version_decision");
+    expect(sql).toContain("is immutable");
+    expect(sql).toContain("A replacement Payment Tracker import must declare the completed import it supersedes");
+  });
+
   it("keeps posted Finance corrections append-only and exposes protected effective facts", () => {
     const sql = migration("20260817120000_b2c_finance_posted_ledger_adjustments.sql");
 

@@ -47,7 +47,8 @@ function cleanText(value: string | null | undefined): string | null {
   return cleaned || null;
 }
 
-function normalizeText(value: string | null | undefined): string | null {
+/** Canonical text normalization shared with lineage identity hashing: strip diacritics, lowercase. */
+export function normalizeText(value: string | null | undefined): string | null {
   const cleaned = cleanText(value);
   return cleaned ? cleaned.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase("en-US") : null;
 }

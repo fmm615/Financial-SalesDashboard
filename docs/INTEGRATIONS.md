@@ -160,6 +160,28 @@ treated as equivalent, and historical cross-tab e-mail coverage is absent.
 Provider evidence may support an Admin review but cannot automatically link or
 create Finance revenue.
 
+Every staged Finance row resolves to a stable, content-derived lineage
+identity from the same four fields used for exact duplicate grouping. The same
+real-world payment keeps the same lineage across every re-upload, so a
+replacement workbook can never repost a payment a prior import already staged.
+Once any Payment Tracker import has completed, a new import must declare which
+completed import it supersedes; the server rejects an import that omits this
+without ever touching Storage or the database. Rows unchanged from the
+declared prior import link straight to their existing lineage automatically.
+A genuinely new identity, a repeated identity shared by more than one row, or
+an identity that already matches an existing payment stays a non-postable
+candidate until an Admin records `confirm_new`, `link_revision`, or
+`link_existing_manual`; leaving a candidate undecided performs no write and it
+can never post.
+
+A manual bank transfer reserves its payment identity the moment it is
+recorded, independent of any workbook. If a later Payment Tracker upload
+contains that same transfer, preview and finalization surface it as an
+existing-payment candidate rather than a new lineage. An Admin's
+`link_existing_manual` decision attaches the workbook row to the reserved
+lineage as evidence only; it never creates a second payment and never changes
+the manual payment's amount, date, or source system.
+
 ## HubSpot
 
 Purpose: B2B deals, stages, and bookings.

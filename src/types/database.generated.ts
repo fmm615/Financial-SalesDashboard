@@ -196,7 +196,24 @@ export interface Database {
         id: Uuid; source_kind: Database["public"]["Enums"]["b2c_finance_import_source_kind"]; source_file_name: string;
         source_file_sha256: string; source_storage_bucket: string; source_storage_path: string;
         import_status: Database["public"]["Enums"]["b2c_finance_import_status"]; safe_error_summary: string | null;
+        supersedes_import_id: Uuid | null;
         imported_by: Uuid; completed_at: Timestamp | null; failed_at: Timestamp | null; created_at: Timestamp; updated_at: Timestamp;
+      }>;
+      b2c_finance_record_lineages: Table<{
+        id: Uuid; source_identity: string; represented_payment_id: Uuid | null; created_by: Uuid; created_at: Timestamp;
+      }>;
+      b2c_finance_row_lineage_links: Table<{
+        finance_row_id: Uuid; lineage_id: Uuid;
+        link_kind: "initial" | "unchanged_version" | "admin_confirmed_new" | "admin_confirmed_revision" | "admin_linked_existing_manual";
+        linked_by: Uuid; created_at: Timestamp;
+      }>;
+      b2c_finance_import_version_candidates: Table<{
+        id: Uuid; import_id: Uuid; candidate_kind: "new" | "removed" | "ambiguous" | "existing_payment"; source_identity: string;
+        finance_row_ids: Uuid[]; prior_lineage_ids: Uuid[]; prior_payment_ids: Uuid[]; created_at: Timestamp;
+      }>;
+      b2c_finance_import_version_decisions: Table<{
+        id: Uuid; import_id: Uuid; candidate_id: Uuid; decision: "confirm_new" | "link_revision" | "link_existing_manual";
+        target_lineage_id: Uuid | null; target_payment_id: Uuid | null; reason: string; decided_by: Uuid; created_at: Timestamp;
       }>;
       b2c_finance_staging_rows: Table<{
         id: Uuid; import_id: Uuid; source_tab: "B2C" | "B2C Cons"; source_row_number: number; raw_payload: Json;
@@ -380,6 +397,13 @@ export interface Database {
       };
       finalize_b2c_finance_import: {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
+        Returns: Uuid;
+      };
+      finalize_b2c_finance_import_version: {
+        Args: {
+          p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string;
+          p_supersedes_import_id: Uuid | null; p_rows: Json; p_unchanged: Json; p_candidates: Json;
+        };
         Returns: Uuid;
       };
       apply_b2c_finance_row_correction: {

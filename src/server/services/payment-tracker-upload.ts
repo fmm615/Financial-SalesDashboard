@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { createFinanceSourceIdentity } from "@/lib/b2c/finance-source-identity";
 import type { DatabaseClient } from "@/lib/supabase/server";
 import {
   PAYMENT_TRACKER_MIME_TYPE,
@@ -9,9 +10,25 @@ import {
   assessFinanceImport,
   type FinanceImportAssessment,
 } from "@/server/services/b2c-finance-reconciliation";
+import {
+  previewFinanceImportVersion,
+  summarizeFinanceMethods,
+  toPersistableFinanceImportCandidates,
+  type FinanceImportDiff,
+  type FinanceImportVersionReplacementRow,
+  type FinanceMethodSummary,
+} from "@/server/services/b2c-finance-import-versioning";
 import { parsePaymentTrackerWorkbook } from "@/server/services/payment-tracker-workbook";
 
 export class PaymentTrackerUploadError extends Error {}
+
+export type PaymentTrackerVersionDiffSummary = {
+  unchangedCount: number;
+  newCount: number;
+  removedCount: number;
+  ambiguousCount: number;
+  existingPaymentCount: number;
+};
 
 export type PaymentTrackerPreview = {
   sourceFileSha256: string;
@@ -19,6 +36,8 @@ export type PaymentTrackerPreview = {
   summary: FinanceImportAssessment["summary"];
   issueCounts: Record<string, number>;
   duplicateCandidates: { exact: number; possible: number; conflicts: number };
+  methodSummary: FinanceMethodSummary;
+  versionDiff: PaymentTrackerVersionDiffSummary;
 };
 
 async function readWorkbookFile(file: File) {
@@ -72,28 +91,73 @@ function countDuplicateCandidates(assessment: FinanceImportAssessment): PaymentT
   return { exact, possible, conflicts };
 }
 
-function buildPreview(parsed: Awaited<ReturnType<typeof readWorkbookFile>>): PaymentTrackerPreview {
+/** A row's prospective identity; `null` when the row is too incomplete to identify. */
+function buildReplacementRows(assessment: FinanceImportAssessment, rowIds: string[]): FinanceImportVersionReplacementRow[] {
+  return assessment.rows.map((row, index) => ({
+    financeRowId: rowIds[index],
+    sourceIdentity: row.normalizedCustomerName && row.occurredOn && row.amountUsd && row.normalizedPaymentMethod
+      ? createFinanceSourceIdentity({
+        normalizedCustomerName: row.normalizedCustomerName,
+        occurredOn: row.occurredOn,
+        amountUsd: row.amountUsd,
+        normalizedPaymentMethod: row.normalizedPaymentMethod,
+      })
+      : null,
+  }));
+}
+
+/** Compares this workbook against the declared prior import and any existing manual bank payments. */
+async function diffAgainstPriorVersion(
+  client: DatabaseClient,
+  assessment: FinanceImportAssessment,
+  rowIds: string[],
+  supersedesImportId: string | null,
+): Promise<FinanceImportDiff> {
+  const { previous, representedPayments } = await new SupabaseB2cFinanceReconciliationRepository(client)
+    .getPaymentTrackerVersionState(supersedesImportId);
+  return previewFinanceImportVersion({ previous, replacement: buildReplacementRows(assessment, rowIds), representedPayments });
+}
+
+function summarizeVersionDiff(diff: FinanceImportDiff): PaymentTrackerVersionDiffSummary {
+  return {
+    unchangedCount: diff.unchanged.length,
+    newCount: diff.newCandidates.length,
+    removedCount: diff.removedCandidates.length,
+    ambiguousCount: diff.ambiguousCandidates.length,
+    existingPaymentCount: diff.existingPaymentCandidates.length,
+  };
+}
+
+/** Reads in memory and safely counts against prior staged state; it never writes to Storage or the database. */
+export async function previewPaymentTrackerUpload(client: DatabaseClient, file: File, supersedesImportId: string | null): Promise<PaymentTrackerPreview> {
+  const parsed = await readWorkbookFile(file);
   const assessment = assessWorkbook(parsed);
+  const rowIds = assessment.rows.map(() => randomUUID());
+  const diff = await diffAgainstPriorVersion(client, assessment, rowIds, supersedesImportId);
+
   const issueCounts: Record<string, number> = {};
   for (const row of assessment.rows) {
     for (const issue of row.issues) issueCounts[issue] = (issueCounts[issue] ?? 0) + 1;
   }
+
   return {
     sourceFileSha256: parsed.sourceFileSha256,
     acceptedTabs: parsed.acceptedTabs,
     summary: assessment.summary,
     issueCounts,
     duplicateCandidates: countDuplicateCandidates(assessment),
+    methodSummary: summarizeFinanceMethods(assessment.rows),
+    versionDiff: summarizeVersionDiff(diff),
   };
 }
 
-/** Reads only in memory and returns counts; no Storage or database write is possible here. */
-export async function previewPaymentTrackerUpload(file: File): Promise<PaymentTrackerPreview> {
-  return buildPreview(await readWorkbookFile(file));
-}
-
-/** Stores an Admin-confirmed source file, then stages its validated rows atomically. */
-export async function finalizePaymentTrackerUpload(client: DatabaseClient, file: File, expectedFileSha256: string): Promise<string> {
+/** Stores an Admin-confirmed source file, then stages its validated rows and version-diff candidates atomically. */
+export async function finalizePaymentTrackerUpload(
+  client: DatabaseClient,
+  file: File,
+  expectedFileSha256: string,
+  supersedesImportId: string | null,
+): Promise<string> {
   const parsed = await readWorkbookFile(file);
   if (parsed.sourceFileSha256 !== expectedFileSha256) {
     throw new PaymentTrackerUploadError("The selected file changed after its preview. Preview it again before staging.");
@@ -109,13 +173,21 @@ export async function finalizePaymentTrackerUpload(client: DatabaseClient, file:
 
   try {
     const assessment = assessWorkbook(parsed);
-    return await new SupabaseB2cFinanceReconciliationRepository(client).finalizeFinanceImport({
-      sourceFileName: parsed.sourceFileName,
-      sourceFileSha256: parsed.sourceFileSha256,
-      sourceStorageBucket: PAYMENT_TRACKER_STORAGE_BUCKET,
-      sourceStoragePath,
-      rows: parsed.rows,
-    }, assessment);
+    const rowIds = assessment.rows.map(() => randomUUID());
+    const diff = await diffAgainstPriorVersion(client, assessment, rowIds, supersedesImportId);
+    const candidates = toPersistableFinanceImportCandidates(diff);
+    return await new SupabaseB2cFinanceReconciliationRepository(client).finalizeFinanceImportVersion(
+      {
+        sourceFileName: parsed.sourceFileName,
+        sourceFileSha256: parsed.sourceFileSha256,
+        sourceStorageBucket: PAYMENT_TRACKER_STORAGE_BUCKET,
+        sourceStoragePath,
+        rows: parsed.rows,
+      },
+      assessment,
+      rowIds,
+      { supersedesImportId, unchanged: diff.unchanged, candidates },
+    );
   } catch {
     await storage.remove([sourceStoragePath]).catch(() => undefined);
     throw new PaymentTrackerUploadError("The Payment Tracker could not be staged. No reportable B2C revenue was created.");

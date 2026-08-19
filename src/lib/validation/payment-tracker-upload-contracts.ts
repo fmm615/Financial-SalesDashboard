@@ -5,6 +5,11 @@ export const PAYMENT_TRACKER_MIME_TYPE = "application/vnd.openxmlformats-officed
 
 export const paymentTrackerFinalizeSchema = z.object({
   expectedFileSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  supersedesImportId: z.string().uuid().optional(),
+}).strict();
+
+export const paymentTrackerPreviewSchema = z.object({
+  supersedesImportId: z.string().uuid().optional(),
 }).strict();
 
 export function getSinglePaymentTrackerFile(formData: FormData): File {
