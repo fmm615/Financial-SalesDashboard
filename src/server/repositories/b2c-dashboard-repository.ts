@@ -3,6 +3,17 @@ import { resolveB2cSourceCoverage, type B2cSourceCoverage } from "@/lib/b2c/sour
 import { resolveEffectiveB2cPayment } from "@/lib/b2c/effective-payment";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
+/**
+ * Compatibility facade. `getB2cDashboardSnapshot` remains the one source
+ * read for B2C period totals and ledger rows, and every existing consumer
+ * keeps working unchanged. New focused reads build on top of it instead of
+ * duplicating its source queries: `b2c-ledger-repository.ts` pages and
+ * decorates its `rows` with the one accurate `B2cPaymentDecision`
+ * (`src/lib/b2c/payment-decision.ts`), and `b2c-workspace-repository.ts`
+ * aggregates those decorated rows into the Work queue's `B2cWorkItem`s
+ * (`src/server/services/b2c-work-items.ts`).
+ */
+
 const USD_SCALE = BigInt(1_000_000);
 
 export type B2cReportingPeriod = { month: string; monthLabel: string; monthStart: string; monthEnd: string; isAllTime?: boolean };

@@ -224,6 +224,26 @@ permanently excluded from this path, so it is never eligible for a second
 payment; an admin-confirmed revision to an already-posted lineage must go
 through the append-only posted-adjustment path above instead of a new post.
 
+B2C exposes one accurate decision and work-item layer on top of everything
+above. `src/lib/b2c/payment-decision.ts` translates the approved
+`b2cPaymentExclusionReasons` financial gate into a richer `B2cPaymentDecision`
+-- independent `sourceStatus`, `reconciliationStatus`, `reportingDecision`, and
+`postingStatus` facts, plus a detailed `B2cBlockingReason` list -- without
+loosening or duplicating a rule the gate already enforces. Statement/provider
+evidence and Finance-lineage posting state are resolved as additional,
+independent dimensions rather than passed through the financial gate, and a
+refund's own decision never overwrites its linked payment's `sourceStatus`.
+`src/server/services/b2c-work-items.ts` turns unresolved blocking reasons into
+detailed internal `B2cWorkItem` queues (`data_quality`, `duplicate`, `fx`,
+`mapping`, `reconciliation`, `source_failure`), which `b2c-workspace-repository.ts`
+groups into the four visible Work queue filters (`data`, `duplicates`,
+`reconciliation`, `ready_to_post`); Ready-to-post is always one aggregated item
+sourced from Task 2's `summarizeFinancePostingReadiness`, never one row per
+lineage. `b2c-ledger-repository.ts` adds the paged, filtered, sorted ledger
+read the workspace needs, decorating rows from the existing dashboard snapshot
+rather than re-querying B2C sources. `b2c-dashboard-repository.ts` remains the
+one compatibility facade underneath both.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

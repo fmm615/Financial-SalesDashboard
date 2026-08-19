@@ -111,6 +111,17 @@ small selected Stripe-evidence set. Those values are traceability context only:
 they do not enter the financial snapshot or totals, and raw provider/payment
 data remains outside the general dashboard boundary.
 
+`lib/b2c/payment-decision.ts` owns the one pure mapping from the approved
+financial gate to the richer `B2cPaymentDecision`/`B2cBlockingReason` model;
+`server/services/b2c-work-items.ts` owns the pure, internally detailed
+`B2cWorkItem` prioritization built on top of it. `server/repositories/
+b2c-ledger-repository.ts` owns the paged, filtered, decorated ledger read, and
+`server/repositories/b2c-workspace-repository.ts` owns Work-queue aggregation,
+including the source-run failures and Task 2's Finance posting-readiness rows.
+Both build on the existing `b2c-dashboard-repository.ts` snapshot instead of
+re-querying B2C sources, and that repository remains the compatibility facade
+other consumers keep using unchanged.
+
 ### `lib/supabase/` and `lib/validation/`
 
 Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.

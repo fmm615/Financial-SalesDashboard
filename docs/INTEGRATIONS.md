@@ -189,6 +189,21 @@ row is recognized as already posted rather than creating a duplicate
 excluded from posting entirely, for the same reason it is excluded from the
 version-diff candidates above.
 
+Every reconciled B2C source record resolves to one accurate decision before it
+reaches an Admin's Work queue or a Viewer's Ledger. `resolveB2cPaymentDecision`
+always runs the existing `b2cPaymentExclusionReasons` gate first, then adds
+independent facts the gate does not compute: a missing business date, provider
+evidence reconciliation (`matched`/`unmatched`/`mismatch`), and Finance-lineage
+posting state (`not_ready`/`ready`/`posted`/`adjusted`) sourced from Task 2's
+`get_b2c_finance_posting_readiness` RPC. Statement/provider evidence is
+compared only at this layer, never passed through the financial gate, and a
+linked refund never overwrites its payment's own `succeeded`/`failed`/`pending`
+status. Unresolved blocking reasons become detailed `B2cWorkItem`s -- an
+unposted Finance Tracker row and a possible-duplicate manual bank transfer
+each surface their own queue item instead of either one becoming a second
+reportable payment -- and Ready-to-post always renders as the one aggregated
+item Task 2 already summarizes, never one Post button per lineage.
+
 ## HubSpot
 
 Purpose: B2B deals, stages, and bookings.
