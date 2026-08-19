@@ -1,6 +1,6 @@
 begin;
 
-select plan(59);
+select plan(69);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -523,6 +523,205 @@ select is(
   (select lineage_id from public.b2c_finance_row_lineage_links where finance_row_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'),
   'a payment unchanged across two different workbook file hashes shares one lineage'
 );
+
+-- Task 2: approved Finance posting is idempotent per lineage, not per raw
+-- staging row, and a lineage already represented by a manual bank transfer
+-- is never eligible for a second, finance_tracker-sourced payment.
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+select col_is_unique(
+  'public',
+  'b2c_finance_ledger_posts',
+  array['lineage_id'],
+  'B2C Finance posts are idempotent per lineage'
+);
+
+select has_function(
+  'public',
+  'get_b2c_finance_posting_readiness',
+  array[]::text[],
+  'B2C Finance posting-readiness has a protected read function'
+);
+
+-- A first Payment Tracker import stages a genuinely new payment; an Admin
+-- confirms it as a new lineage, and the first posting call creates its one
+-- Finance payment.
+select public.finalize_b2c_finance_import_version(
+  p_source_file_name := 'posting-fixture-one.xlsx',
+  p_source_file_sha256 := repeat('4', 64),
+  p_source_storage_bucket := 'b2c-imports',
+  p_source_storage_path := 'payment-tracker/posting-fixture-one.xlsx',
+  p_supersedes_import_id := (select id from public.b2c_finance_imports where source_file_sha256 = repeat('f', 64)),
+  p_rows := jsonb_build_array(
+    jsonb_build_object(
+      'id', 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1', 'sourceTab', 'B2C', 'sourceRowNumber', 2, 'rawPayload', jsonb_build_object(),
+      'reportedDateRaw', '2026-08-10', 'occurredOn', '2026-08-10', 'amountUsd', '150.000000',
+      'normalizedCustomerName', 'posting fixture payer one', 'customerNameRaw', 'Posting Fixture Payer One',
+      'categoryRaw', 'Membership', 'paymentMethodRaw', 'Bank transfer', 'rowQuality', 'valid'
+    )
+  ),
+  p_unchanged := '[]'::jsonb,
+  p_candidates := jsonb_build_array(
+    jsonb_build_object(
+      'candidateKind', 'new', 'sourceIdentity', repeat('6', 64),
+      'financeRowIds', jsonb_build_array('d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1'),
+      'priorLineageIds', '[]'::jsonb, 'priorPaymentIds', '[]'::jsonb
+    )
+  )
+);
+
+insert into public.b2c_finance_import_version_decisions (import_id, candidate_id, decision, reason)
+values (
+  (select import_id from public.b2c_finance_import_version_candidates where source_identity = repeat('6', 64)),
+  (select id from public.b2c_finance_import_version_candidates where source_identity = repeat('6', 64)),
+  'confirm_new', 'Finance confirmed this workbook row is a genuinely new posting-fixture payment.'
+);
+
+select is(
+  (select array[posted_payments, already_posted_payments] from public.post_approved_b2c_finance_payments()),
+  array[1, 0],
+  'posting a newly confirmed lineage creates exactly one Finance payment'
+);
+
+select is(
+  (select count(*)::int
+    from public.b2c_payments payments
+    join public.b2c_finance_ledger_posts posts on posts.payment_id = payments.id
+    where posts.lineage_id = (
+        select lineage_id from public.b2c_finance_row_lineage_links
+        where finance_row_id = 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1'
+      )
+      and payments.source_system = 'finance_tracker'),
+  1,
+  'exactly one Finance payment exists for the confirmed lineage after the first posting call'
+);
+
+-- A replacement Payment Tracker workbook stages the same real payment under a
+-- new staging row id; it is confirmed unchanged against the same lineage.
+-- Posting again must recognize it as already posted, not create a second payment.
+select public.finalize_b2c_finance_import_version(
+  p_source_file_name := 'posting-fixture-two.xlsx',
+  p_source_file_sha256 := repeat('5', 64),
+  p_source_storage_bucket := 'b2c-imports',
+  p_source_storage_path := 'payment-tracker/posting-fixture-two.xlsx',
+  p_supersedes_import_id := (select id from public.b2c_finance_imports where source_file_sha256 = repeat('4', 64)),
+  p_rows := jsonb_build_array(
+    jsonb_build_object(
+      'id', 'd2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2', 'sourceTab', 'B2C', 'sourceRowNumber', 2, 'rawPayload', jsonb_build_object(),
+      'reportedDateRaw', '2026-08-10', 'occurredOn', '2026-08-10', 'amountUsd', '150.000000',
+      'normalizedCustomerName', 'posting fixture payer one', 'customerNameRaw', 'Posting Fixture Payer One',
+      'categoryRaw', 'Membership', 'paymentMethodRaw', 'Bank transfer', 'rowQuality', 'valid'
+    )
+  ),
+  p_unchanged := jsonb_build_array(
+    jsonb_build_object(
+      'financeRowId', 'd2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2',
+      'lineageId', (select lineage_id from public.b2c_finance_row_lineage_links where finance_row_id = 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1')
+    )
+  ),
+  p_candidates := '[]'::jsonb
+);
+
+select is(
+  (select array[posted_payments, already_posted_payments] from public.post_approved_b2c_finance_payments()),
+  array[0, 1],
+  'a replacement workbook''s unchanged row is recognized as already posted through its lineage, not reposted'
+);
+
+select is(
+  (select count(*)::int
+    from public.b2c_payments payments
+    join public.b2c_finance_ledger_posts posts on posts.payment_id = payments.id
+    where posts.lineage_id = (
+        select lineage_id from public.b2c_finance_row_lineage_links
+        where finance_row_id = 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1'
+      )
+      and payments.source_system = 'finance_tracker'),
+  1,
+  'still exactly one Finance payment exists for the lineage after the replacement import is posted again'
+);
+
+-- A manual bank transfer reserves its identity; a later workbook row for the
+-- same real transfer is linked as evidence only and must never receive a
+-- second, finance_tracker-sourced payment.
+insert into public.b2c_payments (
+  id, source_system, customer_name, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint, manual_entry_reason
+) values (
+  'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2', 'manual_bank_transfer', 'Posting Fixture Manual Payer', 'posting.manual@playbook.test', 'membership', 'succeeded',
+  300.000000, 'USD', 1.0000000000, 300.000000, 300.000000,
+  '2026-08-12 09:00:00+00', '2026-08-12', repeat('0', 64), 'Fake manual bank transfer for posting-readiness lineage reservation'
+);
+
+select public.finalize_b2c_finance_import_version(
+  p_source_file_name := 'posting-fixture-three.xlsx',
+  p_source_file_sha256 := repeat('6', 64),
+  p_source_storage_bucket := 'b2c-imports',
+  p_source_storage_path := 'payment-tracker/posting-fixture-three.xlsx',
+  p_supersedes_import_id := (select id from public.b2c_finance_imports where source_file_sha256 = repeat('5', 64)),
+  p_rows := jsonb_build_array(
+    jsonb_build_object(
+      'id', 'd3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3', 'sourceTab', 'B2C', 'sourceRowNumber', 2, 'rawPayload', jsonb_build_object(),
+      'reportedDateRaw', '2026-08-12', 'occurredOn', '2026-08-12', 'amountUsd', '300.000000',
+      'normalizedCustomerName', 'posting fixture manual payer', 'customerNameRaw', 'Posting Fixture Manual Payer',
+      'categoryRaw', 'Membership', 'paymentMethodRaw', 'Bank transfer', 'rowQuality', 'valid'
+    )
+  ),
+  p_unchanged := '[]'::jsonb,
+  p_candidates := jsonb_build_array(
+    jsonb_build_object(
+      'candidateKind', 'existing_payment', 'sourceIdentity', repeat('7', 64),
+      'financeRowIds', jsonb_build_array('d3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3'),
+      'priorLineageIds', jsonb_build_array((select id::text from public.b2c_finance_record_lineages where represented_payment_id = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2')),
+      'priorPaymentIds', jsonb_build_array('b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2')
+    )
+  )
+);
+
+insert into public.b2c_finance_import_version_decisions (import_id, candidate_id, decision, target_payment_id, reason)
+values (
+  (select import_id from public.b2c_finance_import_version_candidates where source_identity = repeat('7', 64)),
+  (select id from public.b2c_finance_import_version_candidates where source_identity = repeat('7', 64)),
+  'link_existing_manual', 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2',
+  'Finance confirmed this workbook row is evidence of the existing manual bank transfer.'
+);
+
+select is(
+  (select posted_payments from public.post_approved_b2c_finance_payments()),
+  0,
+  'a lineage already represented by a manual bank transfer is never posted a second, finance_tracker-sourced payment'
+);
+
+select ok(
+  not exists (
+    select 1
+    from public.b2c_payments payments
+    join public.b2c_finance_ledger_posts posts on posts.payment_id = payments.id
+    where posts.lineage_id = (select id from public.b2c_finance_record_lineages where represented_payment_id = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2')
+      and payments.source_system = 'finance_tracker'
+  ),
+  'no finance_tracker payment is ever created for a lineage represented by a manual bank transfer'
+);
+
+select ok(
+  (select amount_usd = 300.000000::numeric and occurred_on = '2026-08-12'::date and source_system = 'manual_bank_transfer'
+    from public.b2c_payments where id = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2'),
+  'linking a later workbook row as existing-manual evidence and posting again never changes the manual payment'
+);
+
+-- Viewers cannot view B2C Finance posting readiness.
+select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
+
+select throws_ok(
+  $$ select * from public.get_b2c_finance_posting_readiness() $$,
+  'P0001',
+  '%Only an authenticated administrator can view B2C Finance posting readiness%',
+  'a Viewer cannot view B2C Finance posting readiness'
+);
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
 select * from finish();
 

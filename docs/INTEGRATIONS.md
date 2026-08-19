@@ -182,6 +182,13 @@ existing-payment candidate rather than a new lineage. An Admin's
 lineage as evidence only; it never creates a second payment and never changes
 the manual payment's amount, date, or source system.
 
+Approved Finance posting also resolves every confirmed lineage to its current
+linked row before checking eligibility, so a replacement workbook's unchanged
+row is recognized as already posted rather than creating a duplicate
+`finance_tracker` payment. A lineage represented by a manual bank transfer is
+excluded from posting entirely, for the same reason it is excluded from the
+version-diff candidates above.
+
 ## HubSpot
 
 Purpose: B2B deals, stages, and bookings.

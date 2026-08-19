@@ -52,7 +52,7 @@ export function B2cFinanceActionModule() {
     <B2cFinanceDuplicateActions overview={overview} onChanged={loadOverview} />
     <B2cFinanceDataQualityActions overview={overview} onChanged={loadOverview} />
     <SectionCard title="Ready to add" description="Once these actions are complete, add eligible iOS and bank-transfer Finance payments to the B2C ledger. The action is idempotent and never changes the workbook or a provider." className="mt-4">
-      <B2cApprovedFinancePosting onPosted={loadOverview} />
+      <B2cApprovedFinancePosting onPosted={loadOverview} readiness={overview.counts.postingReadiness} />
     </SectionCard>
     <p className="text-sm text-text-muted">Need to replace or stage source evidence? <a className="font-medium text-brand-accent underline underline-offset-4" href="/operations/b2c/reconciliation">Open B2C source intake</a>.</p>
   </div>;

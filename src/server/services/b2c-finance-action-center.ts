@@ -42,7 +42,64 @@ export type B2cFinanceActionCenterRepository = {
   listPendingExactDuplicateGroups(): Promise<B2cFinanceDuplicateCandidate[]>;
   listNeedsReviewRows(): Promise<B2cFinanceNeedsReviewRow[]>;
   countPostedFinancePayments(): Promise<number>;
+  getFinancePostingReadinessRows(): Promise<FinancePostingReadinessRow[]>;
 };
+
+/** A safe, plain-language summary of what the approved-Finance posting action would do next. */
+export type FinancePostingReadiness = {
+  readyLineages: number;
+  readyIosLineages: number;
+  readyBankTransferLineages: number;
+  alreadyPostedLineages: number;
+  blockedRows: number;
+  ambiguousRows: number;
+};
+
+export type FinancePostingReadinessRow =
+  | { rowKind: "lineage"; status: "ready" | "already_posted" | "represented" | "blocked"; financePaymentMethod: "ios" | "bank_transfer" | null }
+  | { rowKind: "pending_candidate"; candidateKind: "new" | "ambiguous" | "existing_payment"; financeRowCount: number };
+
+/**
+ * Summarizes lineage posting-readiness rows into the counts the Ready-to-post
+ * panel shows. A lineage already represented by a manual bank transfer, or
+ * one that already has a posted Finance payment, is grouped with
+ * `alreadyPostedLineages` -- from an Admin's perspective both mean "Finance
+ * already has this recorded, nothing to post" even though the underlying RPC
+ * keeps them in separate internal buckets. A pending import-version candidate
+ * is never itself postable: an `ambiguous` candidate is a repeated identity
+ * needing a specific decision, while `new`/`existing_payment` candidates are
+ * simply awaiting the Admin's routine confirm/link decision.
+ */
+export function summarizeFinancePostingReadiness(rows: FinancePostingReadinessRow[]): FinancePostingReadiness {
+  const summary: FinancePostingReadiness = {
+    readyLineages: 0,
+    readyIosLineages: 0,
+    readyBankTransferLineages: 0,
+    alreadyPostedLineages: 0,
+    blockedRows: 0,
+    ambiguousRows: 0,
+  };
+
+  for (const row of rows) {
+    if (row.rowKind === "lineage") {
+      if (row.status === "ready") {
+        summary.readyLineages += 1;
+        if (row.financePaymentMethod === "ios") summary.readyIosLineages += 1;
+        if (row.financePaymentMethod === "bank_transfer") summary.readyBankTransferLineages += 1;
+      } else if (row.status === "already_posted" || row.status === "represented") {
+        summary.alreadyPostedLineages += 1;
+      } else {
+        summary.blockedRows += 1;
+      }
+    } else if (row.candidateKind === "ambiguous") {
+      summary.ambiguousRows += row.financeRowCount;
+    } else {
+      summary.blockedRows += row.financeRowCount;
+    }
+  }
+
+  return summary;
+}
 
 export type B2cFinanceActionItem = {
   id: string;
@@ -62,6 +119,7 @@ export type B2cFinanceActionOverview = {
     dateAuthorityActions: number;
     correctionActions: number;
     postedFinancePayments: number;
+    postingReadiness: FinancePostingReadiness;
   };
   duplicateGroups: Array<B2cFinanceDuplicateCandidate & { recommendation: B2cFinanceCanonicalRecommendation }>;
   items: B2cFinanceActionItem[];
@@ -129,11 +187,13 @@ function correctionExplanation(row: B2cFinanceNeedsReviewRow): string {
 export function createB2cFinanceActionCenter(repository: B2cFinanceActionCenterRepository) {
   return {
     async overview(): Promise<B2cFinanceActionOverview> {
-      const [duplicateGroups, needsReviewRows, postedFinancePayments] = await Promise.all([
+      const [duplicateGroups, needsReviewRows, postedFinancePayments, postingReadinessRows] = await Promise.all([
         repository.listPendingExactDuplicateGroups(),
         repository.listNeedsReviewRows(),
         repository.countPostedFinancePayments(),
+        repository.getFinancePostingReadinessRows(),
       ]);
+      const postingReadiness = summarizeFinancePostingReadiness(postingReadinessRows);
       const recommendations = duplicateGroups.map(getCanonicalRecommendation);
       const dateAuthorityRows = needsReviewRows.filter(isDateAuthorityCandidate);
       const correctionRows = needsReviewRows.filter((row) => !isDateAuthorityCandidate(row));
@@ -176,6 +236,7 @@ export function createB2cFinanceActionCenter(repository: B2cFinanceActionCenterR
           dateAuthorityActions: dateAuthorityRows.length,
           correctionActions: correctionRows.length,
           postedFinancePayments,
+          postingReadiness,
         },
         duplicateGroups: duplicateGroups.map((group, index) => ({ ...group, recommendation: recommendations[index] })),
         items,

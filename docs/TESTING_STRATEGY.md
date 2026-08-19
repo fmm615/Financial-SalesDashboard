@@ -74,8 +74,9 @@ Test:
   reasoned one-time decisions, and no B2C payment or total creation
 - approved Finance ledger posting: Admin-only transaction, iOS/bank-transfer
   method restriction, valid/positive/date/category eligibility, canonical
-  duplicate protection, one Finance row/one ledger payment idempotency, source
-  amount basis, missing-contact preservation, and no provider writes
+  duplicate protection, one lineage/one ledger payment idempotency across
+  workbook versions, represented-payment exclusion, source amount basis,
+  missing-contact preservation, and no provider writes
 
 Use provider sample/test payloads where possible.
 
@@ -108,6 +109,13 @@ protection, linked source/payment IDs, amount and date reclassification
 arithmetic, idempotent request IDs, stale expected-state rejection, bounded
 Admin-only paging, and the effective ledger projection used by approved
 viewers.
+
+Posting idempotency and represented-payment exclusion are additionally
+covered by lineage-based pgTAP fixtures: a replacement workbook's row
+confirmed unchanged against a prior lineage is posted at most once, and a
+workbook row linked to an existing manual bank transfer's reserved lineage
+never creates a second Finance payment. They also cover Admin-only access to
+the posting-readiness read function.
 
 ### End-to-end tests
 

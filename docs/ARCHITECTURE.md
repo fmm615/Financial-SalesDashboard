@@ -215,6 +215,15 @@ retries are idempotent by adjustment request ID. All adjustment reasons and
 actors are written to the audit history, and the original source remains
 visible for traceability.
 
+Approved Finance posting is keyed by stable lineage identity, not by raw
+staging row. The same real payment can span several staging rows across
+different workbook versions; posting resolves each confirmed lineage to its
+current linked row and inserts at most one Finance payment per lineage, ever.
+A lineage already represented by an existing manual bank transfer is
+permanently excluded from this path, so it is never eligible for a second
+payment; an admin-confirmed revision to an already-posted lineage must go
+through the append-only posted-adjustment path above instead of a new post.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

@@ -260,6 +260,18 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("A replacement Payment Tracker import must declare the completed import it supersedes");
   });
 
+  it("posts approved B2C Finance payments idempotently per lineage instead of per staging row", () => {
+    const sql = migration("20260818103000_b2c_finance_lineage_posting.sql");
+
+    expect(sql).toContain("add column lineage_id");
+    expect(sql).toContain("alter column lineage_id set not null");
+    expect(sql).toContain("add constraint b2c_finance_ledger_posts_lineage_id_unique unique (lineage_id)");
+    expect(sql).toContain("disable trigger assign_b2c_finance_record_lineage_actor");
+    expect(sql).toContain("create or replace function public.post_approved_b2c_finance_payments");
+    expect(sql).toContain("represented_payment_id is not null");
+    expect(sql).toContain("create or replace function public.get_b2c_finance_posting_readiness");
+  });
+
   it("keeps posted Finance corrections append-only and exposes protected effective facts", () => {
     const sql = migration("20260817120000_b2c_finance_posted_ledger_adjustments.sql");
 

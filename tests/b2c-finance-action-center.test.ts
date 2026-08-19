@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   createB2cFinanceActionCenter,
   getCanonicalRecommendation,
+  summarizeFinancePostingReadiness,
   type B2cFinanceActionCenterRepository,
   type B2cFinanceDuplicateCandidate,
+  type FinancePostingReadinessRow,
 } from "@/server/services/b2c-finance-action-center";
 
 const completeB2cConsPair: B2cFinanceDuplicateCandidate = {
@@ -99,16 +101,91 @@ describe("B2C Finance duplicate recommendations", () => {
         qualityIssues: ["declared_month_conflicts_with_date"],
       }],
       countPostedFinancePayments: async () => 161,
+      getFinancePostingReadinessRows: async () => [
+        { rowKind: "lineage", status: "ready", financePaymentMethod: "ios" },
+        { rowKind: "lineage", status: "already_posted", financePaymentMethod: "bank_transfer" },
+        { rowKind: "pending_candidate", candidateKind: "ambiguous", financeRowCount: 2 },
+      ],
     };
 
     const overview = await createB2cFinanceActionCenter(repository).overview();
 
     expect(overview.counts).toMatchObject({ duplicateDecisions: 1, duplicateSourceRows: 2, dateAuthorityActions: 1, correctionActions: 0, postedFinancePayments: 161 });
+    expect(overview.counts.postingReadiness).toEqual({
+      readyLineages: 1, readyIosLineages: 1, readyBankTransferLineages: 0,
+      alreadyPostedLineages: 1, blockedRows: 0, ambiguousRows: 2,
+    });
     expect(overview.duplicateGroups[0]?.groupId).toBe(completeB2cConsPair.groupId);
     expect(overview.duplicateGroups[0]?.rows[0]).toMatchObject({ sourceTab: "B2C", customerName: "Reham Garash", amountUsd: "475" });
     expect(overview.items).toContainEqual(expect.objectContaining({ actionLabel: "Use the verified Date", sourceRowNumber: 14 }));
     expect(overview.items.find((item) => item.actionType === "date_authority")?.evidence).toMatchObject({
       sourceTab: "B2C Cons", sourceRowNumber: 14, occurredOn: "2025-10-05", qualityIssues: ["declared_month_conflicts_with_date"],
+    });
+  });
+});
+
+describe("summarizeFinancePostingReadiness", () => {
+  it("counts a replacement-workbook row as already posted through its lineage", () => {
+    expect(summarizeFinancePostingReadiness([
+      { rowKind: "lineage", status: "already_posted", financePaymentMethod: "bank_transfer" },
+    ])).toEqual({
+      readyLineages: 0, readyIosLineages: 0, readyBankTransferLineages: 0,
+      alreadyPostedLineages: 1, blockedRows: 0, ambiguousRows: 0,
+    });
+  });
+
+  it("counts a lineage represented by a manual bank transfer the same as already posted", () => {
+    expect(summarizeFinancePostingReadiness([
+      { rowKind: "lineage", status: "represented", financePaymentMethod: "bank_transfer" },
+    ])).toEqual({
+      readyLineages: 0, readyIosLineages: 0, readyBankTransferLineages: 0,
+      alreadyPostedLineages: 1, blockedRows: 0, ambiguousRows: 0,
+    });
+  });
+
+  it("counts ready lineages separately by payment method", () => {
+    expect(summarizeFinancePostingReadiness([
+      { rowKind: "lineage", status: "ready", financePaymentMethod: "ios" },
+      { rowKind: "lineage", status: "ready", financePaymentMethod: "bank_transfer" },
+    ])).toEqual({
+      readyLineages: 2, readyIosLineages: 1, readyBankTransferLineages: 1,
+      alreadyPostedLineages: 0, blockedRows: 0, ambiguousRows: 0,
+    });
+  });
+
+  it("counts a blocked lineage as a blocked row", () => {
+    expect(summarizeFinancePostingReadiness([
+      { rowKind: "lineage", status: "blocked", financePaymentMethod: null },
+    ])).toEqual({
+      readyLineages: 0, readyIosLineages: 0, readyBankTransferLineages: 0,
+      alreadyPostedLineages: 0, blockedRows: 1, ambiguousRows: 0,
+    });
+  });
+
+  it("counts an ambiguous pending candidate's rows as ambiguous, and other pending candidates as blocked", () => {
+    expect(summarizeFinancePostingReadiness([
+      { rowKind: "pending_candidate", candidateKind: "ambiguous", financeRowCount: 2 },
+      { rowKind: "pending_candidate", candidateKind: "new", financeRowCount: 1 },
+      { rowKind: "pending_candidate", candidateKind: "existing_payment", financeRowCount: 1 },
+    ])).toEqual({
+      readyLineages: 0, readyIosLineages: 0, readyBankTransferLineages: 0,
+      alreadyPostedLineages: 0, blockedRows: 2, ambiguousRows: 2,
+    });
+  });
+
+  it("summarizes a mixed batch of lineages and pending candidates", () => {
+    const rows: FinancePostingReadinessRow[] = [
+      { rowKind: "lineage", status: "ready", financePaymentMethod: "ios" },
+      { rowKind: "lineage", status: "already_posted", financePaymentMethod: "bank_transfer" },
+      { rowKind: "lineage", status: "represented", financePaymentMethod: "bank_transfer" },
+      { rowKind: "lineage", status: "blocked", financePaymentMethod: null },
+      { rowKind: "pending_candidate", candidateKind: "ambiguous", financeRowCount: 2 },
+      { rowKind: "pending_candidate", candidateKind: "existing_payment", financeRowCount: 1 },
+    ];
+
+    expect(summarizeFinancePostingReadiness(rows)).toEqual({
+      readyLineages: 1, readyIosLineages: 1, readyBankTransferLineages: 0,
+      alreadyPostedLineages: 2, blockedRows: 2, ambiguousRows: 2,
     });
   });
 });

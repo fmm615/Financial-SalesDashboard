@@ -8,6 +8,7 @@ import type {
 import type {
   B2cFinanceDuplicateCandidate,
   B2cFinanceNeedsReviewRow,
+  FinancePostingReadinessRow,
 } from "@/server/services/b2c-finance-action-center";
 
 type PendingDuplicateGroupRecord = {
@@ -132,6 +133,31 @@ export class B2cFinanceActionRepository {
     const { count, error } = await this.client.from("b2c_finance_ledger_posts").select("id", { count: "exact", head: true });
     if (error || count === null || count < 0) throw new Error("Could not count posted B2C Finance payments.");
     return count;
+  }
+
+  async getFinancePostingReadinessRows(): Promise<FinancePostingReadinessRow[]> {
+    const { data, error } = await this.client.rpc("get_b2c_finance_posting_readiness", {});
+    if (error) throw new Error("Could not load B2C Finance posting readiness.");
+
+    return (data ?? []).flatMap((row): FinancePostingReadinessRow[] => {
+      if (row.row_kind === "lineage") {
+        if (row.status !== "ready" && row.status !== "already_posted" && row.status !== "represented" && row.status !== "blocked") return [];
+        return [{
+          rowKind: "lineage",
+          status: row.status,
+          financePaymentMethod: row.finance_payment_method === "ios" || row.finance_payment_method === "bank_transfer" ? row.finance_payment_method : null,
+        }];
+      }
+      if (row.row_kind === "pending_candidate") {
+        if (row.candidate_kind !== "new" && row.candidate_kind !== "ambiguous" && row.candidate_kind !== "existing_payment") return [];
+        return [{
+          rowKind: "pending_candidate",
+          candidateKind: row.candidate_kind,
+          financeRowCount: row.finance_row_count,
+        }];
+      }
+      return [];
+    });
   }
 
   async applyDateAuthority(input: B2cFinanceDateAuthorityInput): Promise<number> {

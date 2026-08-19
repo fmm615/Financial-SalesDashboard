@@ -42,6 +42,14 @@ const overview: B2cFinanceActionOverview = {
     dateAuthorityActions: 10,
     correctionActions: 5,
     postedFinancePayments: 161,
+    postingReadiness: {
+      readyLineages: 12,
+      readyIosLineages: 7,
+      readyBankTransferLineages: 5,
+      alreadyPostedLineages: 161,
+      blockedRows: 3,
+      ambiguousRows: 2,
+    },
   },
   duplicateGroups,
   items: [

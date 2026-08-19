@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { FinancePostingReadiness } from "@/server/services/b2c-finance-action-center";
 
 type PostResult = { postedPayments: number; alreadyPostedPayments: number; skippedRows: number };
 
@@ -12,7 +13,7 @@ function isPostResult(value: unknown): value is PostResult {
 }
 
 /** Posts Finance-approved iOS and bank-transfer source rows; it never changes the source workbook or a provider. */
-export function B2cApprovedFinancePosting({ onPosted }: { onPosted(): Promise<void> }) {
+export function B2cApprovedFinancePosting({ onPosted, readiness }: { onPosted(): Promise<void>; readiness?: FinancePostingReadiness }) {
   const [posting, setPosting] = useState(false);
   const [result, setResult] = useState<PostResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +43,8 @@ export function B2cApprovedFinancePosting({ onPosted }: { onPosted(): Promise<vo
   return <section className="mt-4 rounded-card border border-border bg-surface p-5 shadow-card" aria-labelledby="approved-finance-posting-title">
     <h2 id="approved-finance-posting-title" className="text-lg font-semibold tracking-[-0.02em] text-text-primary">Approved iOS and bank-transfer payments</h2>
     <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">Adds valid iOS and bank-transfer Finance rows to the B2C ledger. It does not alter the workbook or create Stripe, Tap, or Apple payments.</p>
+    <p className="mt-1 max-w-3xl text-sm leading-6 text-text-secondary">A confirmed revision to an already-posted payment needs a posted adjustment, not a new post -- it will never create a second payment.</p>
+    {readiness && <p className="mt-2 text-sm text-text-secondary">{readiness.readyLineages} ready to post ({readiness.readyIosLineages} iOS, {readiness.readyBankTransferLineages} bank transfer). {readiness.alreadyPostedLineages} already posted. {readiness.ambiguousRows} row{readiness.ambiguousRows === 1 ? "" : "s"} waiting on a duplicate decision.</p>}
     <button type="button" disabled={posting} onClick={() => void post()} className="mt-3 rounded-md bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{posting ? "Adding…" : "Post approved Finance payments"}</button>
     {error && <p className="mt-3 text-sm text-danger" role="alert">{error}</p>}
     {result && <div className="mt-3 rounded-md border border-border bg-canvas p-3 text-sm text-text-secondary" role="status"><p className="font-medium text-text-primary">{result.postedPayments} Finance payment{result.postedPayments === 1 ? "" : "s"} added to the B2C ledger.</p><p className="mt-1">{result.alreadyPostedPayments} {result.alreadyPostedPayments === 1 ? "was" : "were"} already in the ledger. {result.skippedRows} {result.skippedRows === 1 ? "was" : "were"} kept out because {result.skippedRows === 1 ? "its" : "their"} source was not eligible to post.</p></div>}

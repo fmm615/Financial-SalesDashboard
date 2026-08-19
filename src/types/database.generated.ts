@@ -232,6 +232,7 @@ export interface Database {
       b2c_finance_ledger_posts: Table<{
         id: Uuid; finance_row_id: Uuid; payment_id: Uuid; finance_payment_method: "bank_transfer" | "ios";
         source_amount_basis: "gross_excluding_vat"; posted_by: Uuid; posted_at: Timestamp; created_at: Timestamp;
+        lineage_id: Uuid;
       }>;
       b2c_provider_evidence: Table<{
         id: Uuid; import_id: Uuid; provider: "tap" | "stripe"; source_row_number: number; provider_row_id: string | null;
@@ -425,6 +426,16 @@ export interface Database {
       post_approved_b2c_finance_payments: {
         Args: Record<string, never>;
         Returns: Array<{ posted_payments: number; already_posted_payments: number; skipped_rows: number }>;
+      };
+      get_b2c_finance_posting_readiness: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          row_kind: "lineage" | "pending_candidate";
+          status: "ready" | "already_posted" | "represented" | "blocked" | null;
+          candidate_kind: "new" | "removed" | "ambiguous" | "existing_payment" | null;
+          finance_payment_method: "ios" | "bank_transfer" | null;
+          finance_row_count: number;
+        }>;
       };
       apply_b2c_finance_bulk_canonical_decision: {
         Args: { p_group_ids: Uuid[]; p_source_tab: string; p_reason: string };
