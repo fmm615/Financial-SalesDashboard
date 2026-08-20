@@ -1,6 +1,6 @@
 begin;
 
-select plan(69);
+select plan(88);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -710,6 +710,244 @@ select ok(
     from public.b2c_payments where id = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2'),
   'linking a later workbook row as existing-manual evidence and posting again never changes the manual payment'
 );
+
+-- Live manual bank-transfer entry (Task 6): one locked, re-validating RPC.
+-- Every check the JS preview already ran is rerun here, inside one atomic
+-- transaction, because the preview is read-only and advisory only.
+select has_function(
+  'public',
+  'record_b2c_manual_bank_transfer',
+  array['text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text'],
+  'Manual bank transfer entry has one protected atomic constructor'
+);
+
+select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
+
+select throws_ok(
+  $$
+    select public.record_b2c_manual_bank_transfer(
+      'MANUAL-TEST-REF-1', 'newmember@playbook.test', 'New Bank Member', 'membership', null, '150.000000',
+      '2026-08-15T08:00:00+03:00', 'Genuinely new bank transfer.', repeat('0', 64)
+    )
+  $$,
+  'P0001',
+  '%Only an authenticated administrator can record a manual bank transfer%',
+  'a Viewer cannot record a manual bank transfer'
+);
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+-- A clean, genuinely new transfer creates exactly one retained payment and
+-- (via Task 1's reserve_b2c_finance_manual_bank_transfer_lineage trigger)
+-- reserves its own Finance source-identity for a later workbook to recognize.
+select public.record_b2c_manual_bank_transfer(
+  'MANUAL-TEST-REF-1', 'newmember@playbook.test', 'New Bank Member', 'membership', null, '150.000000',
+  '2026-08-15T08:00:00+03:00', 'Genuinely new bank transfer.',
+  encode(extensions.digest(
+    'MANUAL-TEST-REF-1|newmember@playbook.test|New Bank Member|membership||150.000000|2026-08-15T08:00:00+03:00|Genuinely new bank transfer.',
+    'sha256'
+  ), 'hex')
+);
+
+select is(
+  (select count(*)::int from public.b2c_payments where source_system = 'manual_bank_transfer' and provider_transaction_id = 'MANUAL-TEST-REF-1'),
+  1,
+  'a clean manual bank transfer creates exactly one retained payment'
+);
+
+select is(
+  (select count(*)::int
+    from public.b2c_finance_record_lineages lineages
+    join public.b2c_payments payments on payments.id = lineages.represented_payment_id
+    where payments.provider_transaction_id = 'MANUAL-TEST-REF-1'),
+  1,
+  'recording a manual bank transfer reserves its own Finance source-identity automatically'
+);
+
+select is(
+  (select entered_by::text from public.b2c_payments where provider_transaction_id = 'MANUAL-TEST-REF-1'),
+  '11111111-1111-4111-8111-111111111111',
+  'the recording administrator is recorded as the manual bank transfer actor'
+);
+
+select is(
+  (select manual_entry_reason from public.b2c_payments where provider_transaction_id = 'MANUAL-TEST-REF-1'),
+  'Genuinely new bank transfer.',
+  'the audited reason is recorded verbatim'
+);
+
+-- Exact bank-reference duplication is rejected outright, and this is the same
+-- protection that stops two concurrent confirmations for the same reference
+-- from both succeeding: the second call always finds the first one's
+-- committed row (or its advisory lock) and is rejected.
+select throws_ok(
+  $$
+    select public.record_b2c_manual_bank_transfer(
+      'MANUAL-TEST-REF-1', 'newmember@playbook.test', 'New Bank Member', 'membership', null, '150.000000',
+      '2026-08-15T08:00:00+03:00', 'Duplicate attempt.',
+      encode(extensions.digest('MANUAL-TEST-REF-1|newmember@playbook.test|New Bank Member|membership||150.000000|2026-08-15T08:00:00+03:00|Duplicate attempt.', 'sha256'), 'hex')
+    )
+  $$,
+  'P0001',
+  '%A manual bank transfer with this reference already exists%',
+  'an exact reused bank reference is rejected outright'
+);
+
+-- An exact match against an existing manual-payment's reserved identity (the
+-- b2b2b2b2... fixture above) is rejected and never creates a second payment.
+select throws_ok(
+  $$
+    select public.record_b2c_manual_bank_transfer(
+      'MANUAL-TEST-REF-2', 'posting.manual@playbook.test', 'Posting Fixture Manual Payer', 'membership', null, '300.000000',
+      '2026-08-12T09:00:00+00:00', 'Attempted re-entry of an already-represented transfer.',
+      encode(extensions.digest('MANUAL-TEST-REF-2|posting.manual@playbook.test|Posting Fixture Manual Payer|membership||300.000000|2026-08-12T09:00:00+00:00|Attempted re-entry of an already-represented transfer.', 'sha256'), 'hex')
+    )
+  $$,
+  'P0001',
+  '%This transfer matches an existing Payment Tracker bank-transfer record%',
+  'an exact match against an existing manual-payment reserved identity is rejected'
+);
+
+-- An exact match against a POSTED Payment Tracker bank-transfer lineage
+-- ("Posting Fixture Payer One", posted earlier in this file) is equally
+-- rejected -- posted and unposted lineages are checked the same way.
+select throws_ok(
+  $$
+    select public.record_b2c_manual_bank_transfer(
+      'MANUAL-TEST-REF-POSTED', 'irrelevant@playbook.test', 'Posting Fixture Payer One', 'membership', null, '150.000000',
+      '2026-08-10T09:00:00+03:00', 'Attempted re-entry of an already-posted Payment Tracker transfer.',
+      encode(extensions.digest('MANUAL-TEST-REF-POSTED|irrelevant@playbook.test|Posting Fixture Payer One|membership||150.000000|2026-08-10T09:00:00+03:00|Attempted re-entry of an already-posted Payment Tracker transfer.', 'sha256'), 'hex')
+    )
+  $$,
+  'P0001',
+  '%This transfer matches an existing Payment Tracker bank-transfer record%',
+  'an exact match against an already-posted Payment Tracker lineage is rejected'
+);
+
+-- A stale/mismatched reviewed-input hash is rejected before any write, even
+-- though every other field would otherwise be accepted.
+select throws_ok(
+  $$
+    select public.record_b2c_manual_bank_transfer(
+      'MANUAL-TEST-REF-STALE', 'freshmember@playbook.test', 'Fresh Member', 'membership', null, '90.000000',
+      '2026-08-19T08:00:00+03:00', 'Reason text.', repeat('f', 64)
+    )
+  $$,
+  'P0001',
+  '%reviewed bank transfer details changed since preview%',
+  'a stale or mismatched reviewed-input hash is rejected before any write'
+);
+
+select is(
+  (select count(*)::int from public.b2c_payments where provider_transaction_id = 'MANUAL-TEST-REF-STALE'),
+  0,
+  'a rejected stale-hash confirmation writes nothing'
+);
+
+-- A possible (non-exact) 48-hour content match is retained, not rejected --
+-- it atomically opens a blocking possible_duplicate review flag instead.
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_name, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values (
+  'c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3', 'stripe', 'ch_manual_possible_dup_seed', 'Existing Stripe Payer', 'possible.dup@playbook.test', 'membership', 'succeeded',
+  75.000000, 'USD', 1.0000000000, 75.000000, 75.000000,
+  '2026-08-18 10:00:00+00', '2026-08-18',
+  encode(extensions.digest('possible.dup@playbook.test|USD|75.000000|membership|2026-08-18', 'sha256'), 'hex')
+);
+
+select public.record_b2c_manual_bank_transfer(
+  'MANUAL-TEST-REF-3', 'possible.dup@playbook.test', 'Different Name Entirely', 'membership', null, '75.000000',
+  '2026-08-18T13:00:00+03:00', 'New transfer that happens to match recent content.',
+  encode(extensions.digest('MANUAL-TEST-REF-3|possible.dup@playbook.test|Different Name Entirely|membership||75.000000|2026-08-18T13:00:00+03:00|New transfer that happens to match recent content.', 'sha256'), 'hex')
+);
+
+select is(
+  (select count(*)::int from public.b2c_payments where source_system = 'manual_bank_transfer' and provider_transaction_id = 'MANUAL-TEST-REF-3'),
+  1,
+  'a possible (non-exact) 48-hour content match is retained as one payment, not rejected'
+);
+
+select is(
+  (select count(*)::int
+    from public.review_flags
+    where source_area = 'b2c_payment' and flag_type = 'possible_duplicate' and status = 'open'
+      and source_record_id = (select id from public.b2c_payments where provider_transaction_id = 'MANUAL-TEST-REF-3')),
+  1,
+  'a possible content-duplicate manual bank transfer opens exactly one blocking review flag atomically'
+);
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+-- Provider-evidence exact links (Task 6): immutable, Admin-only, and never a
+-- financial write -- see reconcileProviderEvidence() and the migration at
+-- 20260818110000_b2c_provider_evidence_links.sql.
+select has_table('public', 'b2c_provider_evidence_payment_links', 'B2C provider evidence exact links have a dedicated table');
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values (
+  'e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2', 'stripe', 'ch_evidence_link_test', 'evidence.link@playbook.test', 'membership', 'succeeded',
+  120.000000, 'USD', 1.0000000000, 120.000000, 120.000000,
+  '2026-08-05 10:00:00+00', '2026-08-05', repeat('9', 64)
+);
+
+insert into public.b2c_provider_evidence (
+  id, import_id, provider, source_row_number, provider_payment_id, transaction_kind,
+  occurred_at, original_currency, credit_amount, raw_payload
+) values (
+  'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', 'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1', 'stripe', 900, 'ch_evidence_link_test', 'sale',
+  '2026-08-05 10:00:00+00', 'USD', 120.000000, '{}'::jsonb
+);
+
+insert into public.b2c_provider_evidence_payment_links (provider_evidence_id, payment_id, matched_during_import_id)
+values ('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', 'e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2', 'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1');
+
+select is(
+  (select linked_by::text from public.b2c_provider_evidence_payment_links where provider_evidence_id = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1'),
+  '11111111-1111-4111-8111-111111111111',
+  'a provider evidence link records the linking administrator automatically'
+);
+
+select throws_ok(
+  $$
+    insert into public.b2c_provider_evidence_payment_links (provider_evidence_id, payment_id)
+    values ('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', 'e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2')
+  $$,
+  '23505',
+  'a provider evidence row can only ever be linked once -- repeated exact-match reconciliation is idempotent, not duplicated'
+);
+
+select throws_ok(
+  $$ update public.b2c_provider_evidence_payment_links set match_state = 'exact_match' where provider_evidence_id = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1' $$,
+  'P0001',
+  '%is immutable%',
+  'a provider evidence link cannot be updated once written'
+);
+
+select throws_ok(
+  $$ delete from public.b2c_provider_evidence_payment_links where provider_evidence_id = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1' $$,
+  'P0001',
+  '%is immutable%',
+  'a provider evidence link cannot be deleted once written'
+);
+
+select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
+
+select throws_ok(
+  $$
+    insert into public.b2c_provider_evidence_payment_links (provider_evidence_id, payment_id)
+    values ('e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1', 'e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2')
+  $$,
+  'P0001',
+  '%Only an authenticated administrator can link B2C provider evidence%',
+  'a Viewer cannot write a B2C provider evidence link'
+);
+
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
 -- Viewers cannot view B2C Finance posting readiness.
 select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);

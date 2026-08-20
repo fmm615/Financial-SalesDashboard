@@ -6,14 +6,17 @@ import { getApprovedRole } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { finalizeTapStatementUpload } from "@/server/services/tap-statement-upload";
 import { parseTapStatementCsv } from "@/server/services/tap-statement-csv";
+import { linkB2cProviderEvidenceExactMatches } from "@/server/services/b2c-provider-evidence-reconciliation";
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
 vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn() }));
 vi.mock("@/server/services/tap-statement-csv", () => ({ parseTapStatementCsv: vi.fn() }));
+vi.mock("@/server/services/b2c-provider-evidence-reconciliation", () => ({ linkB2cProviderEvidenceExactMatches: vi.fn() }));
 
 const createServerClientMock = vi.mocked(createServerSupabaseClient);
 const getApprovedRoleMock = vi.mocked(getApprovedRole);
 const parseTapCsvMock = vi.mocked(parseTapStatementCsv);
+const linkB2cProviderEvidenceExactMatchesMock = vi.mocked(linkB2cProviderEvidenceExactMatches);
 const fileHash = "c".repeat(64);
 
 if (!("arrayBuffer" in File.prototype)) Object.defineProperty(File.prototype, "arrayBuffer", { value: async () => new TextEncoder().encode("tap test bytes").buffer });
@@ -37,7 +40,7 @@ function requestWithFile(url: string, expectedFileSha256?: string): NextRequest 
 }
 
 describe("Tap statement upload boundary", () => {
-  beforeEach(() => { vi.resetAllMocks(); parseTapCsvMock.mockReturnValue(parsedStatement); });
+  beforeEach(() => { vi.resetAllMocks(); parseTapCsvMock.mockReturnValue(parsedStatement); linkB2cProviderEvidenceExactMatchesMock.mockResolvedValue({ exactMatches: [], mismatches: [], unmatchedEvidence: [] }); });
 
   it("rejects a Viewer before parsing their Tap CSV", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } } as never);
@@ -89,5 +92,29 @@ describe("Tap statement upload boundary", () => {
     await expect(response.json()).resolves.toEqual({ importId: "22222222-2222-4222-8222-222222222222" });
     expect(upload).toHaveBeenCalledWith(expect.stringMatching(/^tap-statement\/[a-f0-9]{64}\/.+\.csv$/), expect.any(Uint8Array), expect.objectContaining({ contentType: "text/csv", upsert: false }));
     expect(client.rpc).toHaveBeenCalledWith("finalize_tap_statement_import", expect.objectContaining({ p_source_file_sha256: fileHash, p_rows: expect.any(Array) }));
+  });
+
+  it("reconciles exact Tap provider-ID evidence after a successful import", async () => {
+    const upload = vi.fn().mockResolvedValue({ error: null });
+    const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) }, storage: { from: vi.fn().mockReturnValue({ upload }) }, rpc: vi.fn().mockResolvedValue({ data: "22222222-2222-4222-8222-222222222222", error: null }) };
+    createServerClientMock.mockResolvedValue(client as never);
+    getApprovedRoleMock.mockResolvedValue("admin");
+
+    await finalizeRoute(requestWithFile("http://localhost/api/admin/b2c/tap-statement/finalize", fileHash));
+
+    expect(linkB2cProviderEvidenceExactMatchesMock).toHaveBeenCalledWith(client, { importId: "22222222-2222-4222-8222-222222222222", provider: "tap" });
+  });
+
+  it("never fails a successful import when evidence reconciliation itself fails", async () => {
+    const upload = vi.fn().mockResolvedValue({ error: null });
+    const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) }, storage: { from: vi.fn().mockReturnValue({ upload }) }, rpc: vi.fn().mockResolvedValue({ data: "22222222-2222-4222-8222-222222222222", error: null }) };
+    createServerClientMock.mockResolvedValue(client as never);
+    getApprovedRoleMock.mockResolvedValue("admin");
+    linkB2cProviderEvidenceExactMatchesMock.mockRejectedValue(new Error("evidence link failure"));
+
+    const response = await finalizeRoute(requestWithFile("http://localhost/api/admin/b2c/tap-statement/finalize", fileHash));
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({ importId: "22222222-2222-4222-8222-222222222222" });
   });
 });

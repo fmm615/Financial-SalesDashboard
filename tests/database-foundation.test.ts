@@ -52,24 +52,27 @@ describe("Phase 2 validation contracts", () => {
     expect(calculateUsdAmount("1", "0.0000005")).toBe("0.000001");
   });
 
-  it("keeps money as decimal strings at the write boundary", () => {
+  it("keeps money as decimal strings at the manual bank-transfer write boundary and rejects browser-supplied source facts", () => {
     const result = manualBankTransferSchema.safeParse({
+      bankReference: "IBAN-2026-0912",
       customerEmail: " MEMBER@PLAYBOOK.TEST ",
+      customerName: "Ada Member",
       categoryCode: "membership",
-      originalAmount: "100.125000",
-      originalCurrency: "BHD",
-      exchangeRateToUsd: "2.6595744681",
       amountUsd: "266.000000",
-      grossAmountUsd: "266.000000",
-      occurredAt: "2026-08-02T08:00:00.000Z",
-      occurredOn: "2026-08-02",
-      manualEntryReason: "Approved IBAN transfer",
+      receivedAt: "2026-08-02T08:00:00.000Z",
+      reason: "Approved IBAN transfer",
     });
 
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.customerEmail).toBe("member@playbook.test");
     expect(manualBankTransferSchema.safeParse({
-      customerEmail: "member@playbook.test", categoryCode: "membership", originalAmount: 100,
+      customerEmail: "member@playbook.test", categoryCode: "membership", amountUsd: 100,
+    }).success).toBe(false);
+    // USD-only in B2C v1: the browser may never supply currency, rate, or gross/net values.
+    expect(manualBankTransferSchema.safeParse({
+      bankReference: "IBAN-2026-0912", customerEmail: "member@playbook.test", customerName: "Ada Member",
+      categoryCode: "membership", amountUsd: "266.000000", receivedAt: "2026-08-02T08:00:00.000Z",
+      reason: "Approved IBAN transfer", originalCurrency: "BHD", exchangeRateToUsd: "2.6595744681",
     }).success).toBe(false);
   });
 
@@ -438,5 +441,33 @@ describe("Phase 2 database migration contracts", () => {
     expect(reviewQueueSafety).toContain("flag_type = 'possible_duplicate'");
     expect(reviewQueueSafety).toContain("Possible duplicates must be decided through the dedicated duplicate workflow");
     expect(reviewQueueSafety).toContain("create or replace function public.resolve_b2c_review_flag");
+  });
+
+  it("persists only exact provider-evidence links, immutably and Admin-only", () => {
+    const sql = migration("20260818110000_b2c_provider_evidence_links.sql");
+
+    expect(sql).toContain("create table public.b2c_provider_evidence_payment_links");
+    expect(sql).toContain("provider_evidence_id uuid not null unique references public.b2c_provider_evidence(id)");
+    expect(sql).toContain("match_state text not null default 'exact_match' check (match_state = 'exact_match')");
+    expect(sql).toContain("execute procedure public.prevent_b2c_finance_lineage_mutation()");
+    expect(sql).toContain("create policy admin_insert on public.b2c_provider_evidence_payment_links");
+    expect(sql).toContain("public.is_admin()");
+  });
+
+  it("records a manual bank transfer only through one locked, re-validating RPC", () => {
+    const sql = migration("20260818113000_b2c_manual_bank_transfer_entry.sql");
+
+    expect(sql).toContain("create or replace function public.record_b2c_manual_bank_transfer");
+    expect(sql).toContain("pg_advisory_xact_lock(hashtext('b2c_manual_bank_transfer:'");
+    expect(sql).toContain("A manual bank transfer with this reference already exists");
+    expect(sql).toContain("This transfer matches an existing Payment Tracker bank-transfer record");
+    expect(sql).toContain("This transfer matches an unresolved Payment Tracker row awaiting review");
+    expect(sql).toContain("The reviewed bank transfer details changed since preview");
+    expect(sql).toContain("insert into public.review_flags");
+    expect(sql).toContain("'possible_duplicate'");
+    expect(sql).toContain("at time zone 'Asia/Bahrain'");
+    expect(sql).toContain("when unique_violation then");
+    expect(sql).not.toContain("p_source_system");
+    expect(sql).not.toContain("p_original_currency");
   });
 });

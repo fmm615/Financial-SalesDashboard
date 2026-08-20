@@ -8,29 +8,30 @@ const nonNegativeMoney = z.string().regex(/^\d+(?:\.\d{1,6})?$/, "Use a non-nega
 const exchangeRate = z.string().regex(/^\d+(?:\.\d{1,10})?$/, "Use an exchange rate with up to 10 places.");
 const nonEmpty = z.string().trim().min(1);
 
-/** Browser and API boundaries use decimal strings so JavaScript never rounds money. */
+/**
+ * Manual bank-transfer entry is USD-only in B2C v1: the browser supplies only
+ * the seven required facts (plus an optional membership tier). It never
+ * sends `sourceSystem`, status, original currency, exchange rate, gross/net/
+ * tax amounts, duplicate fingerprint, actor, or reportability -- the server
+ * derives `occurred_on` in Asia/Bahrain and stores currency `USD`, exchange
+ * rate `1`, `succeeded` status, `manual_bank_transfer` source, actor, and
+ * fingerprint. `receivedAt` is the bank's own transfer date/time, not an
+ * invented timestamp from a bare date.
+ */
 export const manualBankTransferSchema = z.object({
+  bankReference: nonEmpty.max(200),
   customerEmail: z.string().trim().toLowerCase().email(),
-  customerName: z.string().trim().min(1).max(200).optional(),
+  customerName: nonEmpty.max(200),
   categoryCode: nonEmpty.max(100),
   membershipTier: z.string().trim().min(1).max(100).optional(),
-  productMappingId: uuid.optional(),
-  originalAmount: money,
-  originalCurrency: currencyCode,
-  exchangeRateToUsd: exchangeRate,
   amountUsd: money,
-  grossAmountUsd: money,
-  taxAmountUsd: nonNegativeMoney.optional(),
-  netAmountUsd: nonNegativeMoney.optional(),
-  occurredAt: z.string().datetime({ offset: true }),
-  occurredOn: isoDate,
-  bankReference: nonEmpty.max(200).optional(),
-  manualEntryReason: nonEmpty.max(1000),
-}).strict().superRefine((value, context) => {
-  if ((value.taxAmountUsd === undefined) !== (value.netAmountUsd === undefined)) {
-    context.addIssue({ code: "custom", path: ["taxAmountUsd"], message: "Provide tax and net together, or leave both unknown." });
-  }
-});
+  receivedAt: z.string().datetime({ offset: true }),
+  reason: nonEmpty.max(1000),
+}).strict();
+
+export const manualBankTransferConfirmationSchema = manualBankTransferSchema.extend({
+  expectedInputSha256: z.string().regex(/^[0-9a-f]{64}$/, "Preview the entered details before recording them."),
+}).strict();
 
 export const financialCorrectionSchema = z.object({
   targetArea: z.enum(["b2c_payment", "b2b_booking", "b2b_recognised_sale", "expense"]),
@@ -166,6 +167,7 @@ export function firstValidationMessage(error: z.ZodError): string {
 }
 
 export type ManualBankTransferInput = z.infer<typeof manualBankTransferSchema>;
+export type ManualBankTransferConfirmationInput = z.infer<typeof manualBankTransferConfirmationSchema>;
 export type FinancialCorrectionInput = z.infer<typeof financialCorrectionSchema>;
 export type ProductMappingInput = z.infer<typeof productMappingSchema>;
 export type StripeProductMappingInput = z.infer<typeof stripeProductMappingSchema>;

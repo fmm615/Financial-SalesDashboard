@@ -230,7 +230,7 @@ describe("Ledger", () => {
 });
 
 describe("Sources", () => {
-  it("shows Admin-only sync/upload controls and no fake manual bank transfer button", async () => {
+  it("shows Admin-only sync/upload controls and the one live Add bank transfer action", async () => {
     currentSearch = new URLSearchParams("tab=sources");
     stubFetch({ role: "admin" });
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
@@ -238,8 +238,8 @@ describe("Sources", () => {
     expect(await screen.findByText("Sync Stripe now")).toBeInTheDocument();
     expect(screen.getByText("Sync Tap now")).toBeInTheDocument();
     expect(screen.getByText("Import workbook")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add bank transfer" })).not.toBeInTheDocument();
-    expect(screen.getByText(/Coming soon/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add bank transfer" })).toBeInTheDocument();
+    expect(screen.queryByText(/Coming soon/)).not.toBeInTheDocument();
   });
 
   it("shows a Viewer read-only coverage without any action control", async () => {

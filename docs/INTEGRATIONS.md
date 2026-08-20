@@ -93,6 +93,7 @@ The Tap boundary lives in `src/lib/integrations/tap/`; the sync service writes o
 - A Tap payment keeps its original provider transaction ID, direct customer name/email/mobile when supplied, source product reference, provider status, and source references. Missing values remain `—` and are flagged; no Slack or profile fallback is used.
 - B2C Operations shows the retained provider description and original source currency for each ledger record. For Tap, the description comes from the saved Tap charge metadata; it remains `—` only when Tap did not supply one. These source fields are distinct from Tap's BHD settlement-statement evidence and do not require a re-import after a display-only change.
 - Every approved user can use the B2C ledger's read-only **Tap statement unmatched** filter. It shows a completed Tap-statement `sale` evidence row only when its provider payment ID has no locally imported Tap API payment. Those rows are statement evidence, not B2C payments: they have no USD reporting amount, cannot be corrected or included from the ledger, and never affect B2C or Finance totals. The safe projection exposes no raw provider payload; only Admins retain write actions elsewhere in PLAYBOOK.
+- After a Stripe Charges or Tap statement evidence import completes, `linkB2cProviderEvidenceExactMatches` (`src/server/services/b2c-provider-evidence-reconciliation.ts`) runs exact provider-transaction-ID reconciliation against the corresponding local API payments for that provider. Provider transaction ID is the only automatic link key -- amount, currency, date, and status are comparison facts, never used to guess a link. Only an exact agreement on every fact is persisted, immutably, into `b2c_provider_evidence_payment_links`; a same-ID disagreement becomes a work-queue mismatch instead, and evidence with no local payment remains the existing unmatched state above. This reconciliation never creates a B2C payment and never changes a financial total; a failure never blocks the evidence import itself.
 - If the completed Tap statement contains an unmatched sale without a usable business date, PLAYBOOK retains it as **Date unavailable** in the All time unmatched review. It is not assigned to any reporting month and never enters B2C or Finance totals.
 - Non-USD Tap charges/refunds retain their original amount and currency. They are excluded from USD financial totals until an Admin records a separate, Finance-approved local FX conversion with its rate, source, date, and reason. PLAYBOOK never silently converts Tap data.
 - Tap product mappings and one-payment local corrections use the same B2C controls as Stripe. They are source-system scoped, append-only/audited locally, and never change Tap. Finance exceptions never bypass failed/pending, duplicate, or unresolved blocking issues.
@@ -188,6 +189,26 @@ row is recognized as already posted rather than creating a duplicate
 `finance_tracker` payment. A lineage represented by a manual bank transfer is
 excluded from posting entirely, for the same reason it is excluded from the
 version-diff candidates above.
+
+Live manual bank-transfer entry (`recordManualBankTransfer`/
+`previewManualBankTransfer`, `src/server/services/record-manual-bank-transfer.ts`)
+is the one path that creates the `manual_bank_transfer` payment this section
+describes. Preview is read-only and advisory: it reuses `createFinanceSourceIdentity`
+and `createB2cDuplicateFingerprint` directly, exactly the identity and content
+formulas the rest of B2C already relies on, so what an Admin reviews matches
+what confirmation will enforce. Confirmation is the sole write, through the
+`record_b2c_manual_bank_transfer` database RPC
+(`supabase/migrations/20260818113000_b2c_manual_bank_transfer_entry.sql`),
+which locks on the bank reference, independently rederives every check from
+the raw reviewed input, verifies the reviewed-input hash has not gone stale,
+and inserts at most one retained payment. An exact bank-reference or exact
+Finance-lineage match (posted or unposted, including one already represented
+by an earlier manual payment) is rejected outright; a possible 48-hour content
+match is retained with an open `possible_duplicate` review flag in the same
+transaction, not rejected. Task 1's `reserve_b2c_finance_manual_bank_transfer_lineage`
+trigger then reserves the new payment's own Finance source-identity
+automatically, on insert, exactly as it does for any other manual bank
+transfer row.
 
 Every reconciled B2C source record resolves to one accurate decision before it
 reaches an Admin's Work queue or a Viewer's Ledger. `resolveB2cPaymentDecision`

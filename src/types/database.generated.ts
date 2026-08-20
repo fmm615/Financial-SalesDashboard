@@ -247,6 +247,10 @@ export interface Database {
         debit_amount: Decimal | null; customer_name: string | null; customer_email: string | null; customer_phone: string | null;
         raw_payload: Json; created_at: Timestamp;
       }>;
+      b2c_provider_evidence_payment_links: Table<{
+        id: Uuid; provider_evidence_id: Uuid; payment_id: Uuid; match_state: "exact_match";
+        matched_during_import_id: Uuid | null; linked_by: Uuid | null; created_at: Timestamp;
+      }>;
       b2c_reconciliation_groups: Table<{
         id: Uuid; reconciliation_state: Database["public"]["Enums"]["b2c_reconciliation_state"];
         canonical_finance_row_id: Uuid | null; decision_reason: string | null; decided_by: Uuid | null; decided_at: Timestamp | null;
@@ -490,6 +494,14 @@ export interface Database {
           customer_phone: string | null;
           customer_phone_label: "Stripe payment method" | "Stripe profile" | null;
         }>;
+      };
+      record_b2c_manual_bank_transfer: {
+        Args: {
+          p_bank_reference: string; p_customer_email: string; p_customer_name: string; p_category_code: string;
+          p_membership_tier: string | null; p_amount_usd_text: string; p_received_at_raw: string; p_reason: string;
+          p_expected_input_sha256: string;
+        };
+        Returns: B2cPaymentRow;
       };
       get_b2c_stripe_payment_evidence: {
         Args: Record<string, never>;

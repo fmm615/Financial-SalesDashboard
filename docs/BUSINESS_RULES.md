@@ -41,6 +41,10 @@ Every record must pass two duplicate checks before being counted:
 
 This must protect webhook processing and reconciliation from double counting the same transaction.
 
+### Manual bank-transfer entry
+
+A manual bank transfer is for a genuinely new B2C transfer not already present in Payment Tracker. It is USD-only: the Admin supplies bank reference, customer name, customer e-mail, bank transfer date/time with an explicit offset, USD amount, category, and reason; PLAYBOOK derives the Bahrain business date and stores currency `USD` and exchange rate `1` -- it is never accepted from the browser. Entry runs three checks in order, atomically, inside the confirming write: an exact bank-reference match rejects outright; an exact match against a posted or unposted Payment Tracker `bank_transfer` lineage also rejects outright and links to the existing record, because a sheet bank transfer is never re-entered manually; the standard 48-hour content check (e-mail + amount + category + date) does not reject -- it retains the payment and opens a blocking `possible_duplicate` review flag, excluding it from totals until an audited decision. The same write reserves the payment's own Finance source-identity, so a later Payment Tracker workbook recognizes it and can only link evidence, never repost it. There is no manual iOS entry path.
+
 ### Controlled B2C Finance exception
 
 If essential B2C provider source details are genuinely unavailable, an Admin may include one **succeeded** B2C payment by a documented Finance exception. This is permitted only after confirming the exact unique provider transaction ID, confirming no known duplicate from available evidence, saving a verified local PLAYBOOK category/amount/date, and recording a reason. The exception is append-only and audited. It never overrides a failed/pending payment, an identified possible duplicate, or another unresolved source issue; it never changes Stripe or Tap.

@@ -117,6 +117,36 @@ workbook row linked to an existing manual bank transfer's reserved lineage
 never creates a second Finance payment. They also cover Admin-only access to
 the posting-readiness read function.
 
+Manual bank-transfer entry (`tests/b2c-manual-bank-transfer.test.ts`,
+`tests/b2c-manual-bank-transfer-api.test.ts`,
+`tests/b2c-manual-bank-transfer-ui.test.tsx`) is covered at every layer: the
+prepared-input and hash helpers, the repository's read-only duplicate
+assessment against each of exact bank reference, exact posted/unposted
+Finance lineage, an already-represented manual payment, and the standard
+48-hour content check, the route boundary's Admin-only access and stale-hash
+rejection, and the Step-1/Step-2 UI state machine including the
+blocked-from-totals possible-duplicate warning. pgTAP assertions in
+`database_foundation.test.sql` additionally cover the protected
+`record_b2c_manual_bank_transfer` RPC directly: a clean transfer creates
+exactly one payment and reserves its own Finance lineage, a reused bank
+reference or an existing Finance-lineage match (manual or posted-Tracker) is
+rejected outright, a possible content match is retained with one blocking
+review flag, a stale reviewed-input hash writes nothing, actor/reason
+attribution is recorded, and a Viewer is denied at the database layer.
+
+Provider-evidence reconciliation (`tests/b2c-provider-evidence-reconciliation.test.ts`)
+covers `reconcileProviderEvidence`'s pure comparison -- exact Stripe/Tap ID
+matches, idempotent repeated evidence, an amount/currency/date/status
+mismatch on an otherwise-matching ID, and evidence with no local payment --
+plus the orchestration that persists only the exact matches. pgTAP
+assertions cover the immutable `b2c_provider_evidence_payment_links` table
+directly: one link per evidence row (repeated linking is a no-op, not a
+duplicate), no update or delete once written, the linking administrator
+recorded automatically, and Viewer denial. `tests/stripe-charges-upload-api.test.ts`
+and `tests/tap-statement-upload-api.test.ts` cover that a successful evidence
+import triggers this reconciliation and that a reconciliation failure never
+fails the import itself.
+
 ### End-to-end tests
 
 Cover critical workflows such as:

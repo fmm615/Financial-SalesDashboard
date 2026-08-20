@@ -10,6 +10,7 @@ import { TapBackfillControl } from "@/features/admin/tap-backfill-control";
 import { B2cPaymentTrackerUpload } from "@/features/b2c/b2c-payment-tracker-upload";
 import { B2cTapStatementUpload } from "@/features/b2c/b2c-tap-statement-upload";
 import { B2cStripeChargesUpload } from "@/features/b2c/b2c-stripe-charges-upload";
+import { B2cManualBankTransfer } from "@/features/b2c/b2c-manual-bank-transfer";
 import type { B2cReconciliationSafeSummaryWithReplacement } from "@/server/repositories/b2c-finance-reconciliation-repository";
 
 function displaySourceStatus(status: B2cReconciliationSafeSummaryWithReplacement["sources"][number]["status"]): string {
@@ -91,7 +92,7 @@ export function B2cSourceManagement() {
       </SourceCard>
 
       <SourceCard title="Manual bank transfers" description="A genuinely new bank transfer not present in Payment Tracker, entered after a reviewed duplicate check.">
-        {canManage ? <p className="rounded-md border border-border bg-surface-muted/60 p-4 text-sm leading-6 text-text-muted">Coming soon. The live <span className="font-medium text-text-primary">Add bank transfer</span> flow — Step 1 facts, a server duplicate-check preview, then <span className="font-medium text-text-primary">Record bank transfer</span> — is not yet implemented.</p> : <p className="text-sm leading-6 text-text-muted">Manual bank transfer entry requires Admin access.</p>}
+        {canManage ? <B2cManualBankTransfer onRecorded={() => void loadSummary()} /> : <p className="text-sm leading-6 text-text-muted">Manual bank transfer entry requires Admin access.</p>}
       </SourceCard>
     </div>
 
