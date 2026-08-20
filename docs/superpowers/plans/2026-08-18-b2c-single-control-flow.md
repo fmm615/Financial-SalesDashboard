@@ -14,11 +14,12 @@
 
 Kept current as work happens, not just at task boundaries — this is the living status, the numbered tasks below are the original spec.
 
-**Status as of 2026-08-20:** Tasks 1-4 complete and merged. Task 5 in progress. Tasks 6-7 not started.
+**Status as of 2026-08-20:** Tasks 1-5 complete and merged. Tasks 6-7 not started.
 
-- Task 1 (`9bb8866`), Task 2 (`9156d13`), Task 3 (`f304e5d`), Task 4 (`a1eccea`) shipped as specified, each independently re-verified line-by-line before commit. Task 1's implementation had a NUL-byte corruption bug caught and fixed pre-commit; Task 4's had a missing `supersedesImportId` wiring bug (would have broken every "Replace workbook" attempt) caught and fixed pre-commit.
+- Task 1 (`9bb8866`), Task 2 (`9156d13`), Task 3 (`f304e5d`), Task 4 (`a1eccea`), Task 5 (`76d1022`) shipped as specified, each independently re-verified line-by-line before commit. Task 1's implementation had a NUL-byte corruption bug caught and fixed pre-commit; Task 4's had a missing `supersedesImportId` wiring bug (would have broken every "Replace workbook" attempt) caught and fixed pre-commit; Task 5 caught and fixed a real data leak in `src/app/operations/b2c/page.tsx` (the server component was serializing full Admin-only Stripe evidence into every role's page payload, unused by the client -- stripped it).
+- **Task 5 unblocks the Hoor Alshubbar fix.** The append-only posted-adjustment flow (`adjust-b2c-finance-payment.ts` + `/api/admin/b2c/payments/[paymentId]/finance-adjustments`) is now live in the drawer -- a `finance_tracker` payment always routes to it as the primary action, regardless of blocking reason. The RPC parameter contract was verified directly against the migration SQL, and the RPC's own expected-state re-validation was confirmed to make a stale/wrong client-side read fail-safe (rejected write, never a wrong one). The payment itself has not been corrected yet -- that's a live admin action, not a code change, and still waits on the reimport decision below.
 - **Not in the original plan, added by direct request (`8f8969a`, `aec5e68`, `50f13fe`, `340b4ea`):** the Ledger's 6-column table gained customer email/mobile and provider description/seller-message display; an "implausible future business date" check was added at both the Payment Tracker ingestion layer and the general decision layer (so it catches new imports *and* already-posted payments); day/month date-parsing safety was audited end to end and locked in with regression tests.
-- **Open finding, not yet resolved:** the only Payment Tracker import in the database (12 Aug 2026) predates the Task 1 lineage system by six days. Task 2's backfill only covered already-*posted* rows, so 1,002 of 1,163 valid staged rows have no lineage and no candidate — invisible to both Ledger and Work queue (86 iOS/bank-transfer rows, $6,839.52, genuinely should be reviewable; 916 other-method rows, $429,449.93, likely already captured via Stripe/Tap sync). **Decision: wipe and reimport all B2C source data from scratch** (Payment Tracker sheets, Stripe API, Tap) once Task 5 lands, rather than backfill nine months of historical staging data. A live posted payment (Hoor Alshubbar, `85edf4fe-346b-483a-8053-199e6b1e2961`, $48.45) currently carries the wrong future date from this same gap and stays as-is until Task 5's adjustment flow can correct it. Full detail and a post-reimport test-plan checklist live in the published "B2C Control Flow Review" artifact from this session (real figures, decision log, area-by-area checklist).
+- **Open finding, not yet resolved:** the only Payment Tracker import in the database (12 Aug 2026) predates the Task 1 lineage system by six days. Task 2's backfill only covered already-*posted* rows, so 1,002 of 1,163 valid staged rows have no lineage and no candidate — invisible to both Ledger and Work queue (86 iOS/bank-transfer rows, $6,839.52, genuinely should be reviewable; 916 other-method rows, $429,449.93, likely already captured via Stripe/Tap sync). **Decision: wipe and reimport all B2C source data from scratch** (Payment Tracker sheets, Stripe API, Tap), rather than backfill nine months of historical staging data. A live posted payment (Hoor Alshubbar, `85edf4fe-346b-483a-8053-199e6b1e2961`, $48.45) currently carries the wrong future date from this same gap and stays as-is until an Admin actually runs the correction through Task 5's now-live adjustment flow. Full detail and a post-reimport test-plan checklist live in the published "B2C Control Flow Review" artifact from this session (real figures, decision log, area-by-area checklist).
 - Whoever picks this plan up next: re-run the reimport test-plan checklist before treating Tasks 1-4 as fully proven against real data, not just against the unit/integration suite.
 
 ## Global Constraints
@@ -606,7 +607,7 @@ git commit -m "feat(b2c): consolidate Admin work into one workspace"
 
 ---
 
-### Task 5: Consolidate payment review into one accessible detail drawer — 🔄 In progress
+### Task 5: Consolidate payment review into one accessible detail drawer — ✅ Complete (76d1022)
 
 **Files:**
 - Modify: `src/features/b2c/b2c-payment-review-drawer.tsx`
@@ -634,17 +635,17 @@ git commit -m "feat(b2c): consolidate Admin work into one workspace"
 - A successful action keeps the Admin in the same queue and removes the item only after server confirmation.
 - `PostedFinanceAdjustmentRequest = { expectedOccurredOn, expectedAmountUsd, verifiedOccurredOn?, verifiedAmountUsd?, reason }`; the browser never sends signed adjustment rows.
 
-- [ ] **Step 1: Write failing drawer behavior tests**
+- [x] **Step 1: Write failing drawer behavior tests**
 
 Test Admin/Viewer rendering, focus entry and return, Escape close, contained scrolling, source/local visual separation, one primary action, error retention, and queue refresh only after success. Test that Ledger/work-item rows expose one drawer action instead of separate evidence, edit, and refund-FX triggers.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `npm test -- tests/b2c-payment-review-drawer.test.tsx tests/b2c-payment-duplicate-drawer.test.tsx tests/b2c-posted-finance-adjustment-api.test.ts tests/b2c-stripe-enrichment-dashboard.test.tsx`
 
 Expected: FAIL because review behavior is spread across separate modal/dialog components.
 
-- [ ] **Step 3: Move existing actions without changing their financial rules**
+- [x] **Step 3: Move existing actions without changing their financial rules**
 
 Reuse the existing routes for local correction, product mapping, FX, Finance exception, refund FX, and duplicate decisions. Do not duplicate validation in the drawer. Show inline field errors near the affected input and preserve the draft on failure.
 
@@ -654,11 +655,11 @@ Convert `b2c-payment-review-actions.tsx` and `b2c-refund-fx-review-actions.tsx` 
 
 Move Finance Tracker Date/detail correction into the same drawer. The Date-authority route accepts exactly one reviewed row per request; remove the current bulk Date button behavior. For a posted Finance payment, the drawer calls the new adjustment service/route, which validates expected current amount/date and invokes the existing append-only database RPC. Show the calculated effect before confirmation; never expose signed adjustment construction to the browser.
 
-- [ ] **Step 4: Make exception wording and behavior exact**
+- [x] **Step 4: Make exception wording and behavior exact**
 
 The exception action requires the exact provider ID confirmation, no-known-duplicate confirmation, verified category, effective amount/date, and reason. Closing or dismissing a review flag alone must not make the payment reportable.
 
-- [ ] **Step 5: Run focused verification**
+- [x] **Step 5: Run focused verification**
 
 Run: `npm test -- tests/b2c-payment-review-drawer.test.tsx tests/b2c-payment-duplicate-drawer.test.tsx tests/b2c-posted-finance-adjustment-api.test.ts tests/b2c-stripe-enrichment-dashboard.test.tsx tests/b2c-review-contracts.test.ts`
 
@@ -668,7 +669,7 @@ Run: `npm run typecheck && npm run lint`
 
 Expected: both exit `0`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/features/b2c/b2c-payment-review-drawer.tsx src/features/b2c/b2c-source-evidence-panel.tsx src/features/b2c/b2c-audit-timeline.tsx src/server/services/adjust-b2c-finance-payment.ts src/lib/validation/b2c-posted-adjustment-contracts.ts 'src/app/api/admin/b2c/payments/[paymentId]/finance-adjustments/route.ts' src/features/b2c/b2c-payment-review-actions.tsx src/features/b2c/b2c-stripe-evidence-dialog.tsx src/features/b2c/b2c-refund-fx-review-actions.tsx src/app/api/admin/b2c/finance-actions/date-authority/route.ts src/lib/validation/b2c-finance-action-contracts.ts src/app/api/admin/b2c/stripe-products/map/route.ts tests/b2c-payment-review-drawer.test.tsx tests/b2c-payment-duplicate-drawer.test.tsx tests/b2c-posted-finance-adjustment-api.test.ts tests/b2c-stripe-enrichment-dashboard.test.tsx tests/b2c-exact-duplicate-reconciliation-ui.test.tsx
