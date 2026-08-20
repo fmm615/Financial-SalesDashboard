@@ -14,11 +14,15 @@ function validReason(value: string): boolean {
   return value.trim().length >= 3 && !/^(?:-+|—+|n\/?a)$/i.test(value.trim());
 }
 
-/** A refund is immutable source activity; Finance can only add a local USD conversion. */
-export function B2cRefundFxReviewActions({ row }: { row: B2cLedgerRow }) {
+/**
+ * The drawer's "Finance decision" section for a foreign-currency Refund row.
+ * A refund is immutable source activity; Finance can only add a local USD
+ * conversion. Dialog-free -- the shared drawer owns opening, closing, focus,
+ * errors, and refresh.
+ */
+export function B2cRefundFxReviewActions({ row, onSaved }: { row: B2cLedgerRow; onSaved: () => void }) {
   const canManage = useCanManage();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [exchangeRateToUsd, setExchangeRateToUsd] = useState("");
   const [conversionSource, setConversionSource] = useState("");
   const [effectiveOn, setEffectiveOn] = useState(row.sourceDateValue);
@@ -37,20 +41,20 @@ export function B2cRefundFxReviewActions({ row }: { row: B2cLedgerRow }) {
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error ?? "The Finance USD refund conversion could not be saved.");
-      setOpen(false); router.refresh();
+      router.refresh(); onSaved();
     } catch (caught) { setMessage(caught instanceof Error ? caught.message : "The Finance USD refund conversion could not be saved."); } finally { setSaving(false); }
   }
 
-  return <>
-    <button type="button" onClick={() => { setMessage(null); setOpen(true); }} className="font-medium text-brand-accent hover:underline">{row.foreignCurrencyReview ? "Set USD conversion" : "Review conversion"}</button>
-    {open && <div className="fixed inset-0 z-50 overflow-y-auto bg-brand-primary/30 p-4 sm:p-6">
-      <section role="dialog" aria-modal="true" aria-labelledby={`b2c-refund-fx-${row.id}`} className="mx-auto my-4 w-full max-w-[calc(100vw-2rem)] overflow-hidden rounded-card bg-surface p-5 shadow-elevated sm:my-8 sm:max-w-xl sm:p-8">
-        <div className="flex items-start justify-between gap-4"><div className="min-w-0"><h2 id={`b2c-refund-fx-${row.id}`} className="text-xl font-semibold text-text-primary">Record refund USD conversion</h2><p className="mt-1 break-words text-sm leading-6 text-text-muted">The refund is retained as {row.sourceAmountUsd}. Save a Finance-approved local USD conversion only; {row.source} is never changed.</p></div><button type="button" onClick={() => setOpen(false)} className="shrink-0 rounded-pill px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-muted">Close</button></div>
-        {row.hasFxConversion && <p className="mt-5 rounded-input border border-success/20 bg-success/5 p-3 text-sm text-success">Latest local conversion: <strong>{row.amountUsd}</strong>{row.fxConversionSource ? ` · ${row.fxConversionSource}` : ""}.</p>}
-        <div className="mt-5 grid gap-4"><label className={fieldClass}>USD per 1 {row.sourceOriginalCurrency}<input className={inputClass} type="number" min="0.0000000001" step="0.0000000001" value={exchangeRateToUsd} onChange={(event) => setExchangeRateToUsd(event.target.value)} /></label><label className={fieldClass}>Finance conversion source<input className={inputClass} value={conversionSource} onChange={(event) => setConversionSource(event.target.value)} placeholder="Approved Finance FX rate / accounting evidence" /></label><label className={fieldClass}>Conversion effective date<input className={inputClass} type="date" value={effectiveOn} onChange={(event) => setEffectiveOn(event.target.value)} /></label><label className={fieldClass}>Reason / evidence<textarea className={textareaClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why Finance approved this conversion" /></label></div>
-        {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
-        <div className="mt-5 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void save()} disabled={saving || !exchangeRateToUsd.trim() || !conversionSource.trim() || !effectiveOn || !validReason(reason)}>{saving ? "Saving…" : row.hasFxConversion ? "Record revised conversion" : "Save Finance USD conversion"}</PrimaryButton><p className="text-xs text-text-muted">This is append-only and audited in PLAYBOOK.</p></div>
-      </section>
-    </div>}
-  </>;
+  return <div>
+    <p className="text-sm leading-6 text-text-muted">The refund is retained as {row.sourceAmountUsd}. Save a Finance-approved local USD conversion only; {row.source} is never changed.</p>
+    {row.hasFxConversion && <p className="mt-4 rounded-input border border-success/20 bg-success/5 p-3 text-sm text-success">Latest local conversion: <strong>{row.amountUsd}</strong>{row.fxConversionSource ? ` · ${row.fxConversionSource}` : ""}.</p>}
+    <div className="mt-4 grid gap-4">
+      <label className={fieldClass}>USD per 1 {row.sourceOriginalCurrency}<input className={inputClass} type="number" min="0.0000000001" step="0.0000000001" value={exchangeRateToUsd} onChange={(event) => setExchangeRateToUsd(event.target.value)} /></label>
+      <label className={fieldClass}>Finance conversion source<input className={inputClass} value={conversionSource} onChange={(event) => setConversionSource(event.target.value)} placeholder="Approved Finance FX rate / accounting evidence" /></label>
+      <label className={fieldClass}>Conversion effective date<input className={inputClass} type="date" value={effectiveOn} onChange={(event) => setEffectiveOn(event.target.value)} /></label>
+      <label className={fieldClass}>Reason / evidence<textarea className={textareaClass} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why Finance approved this conversion" /></label>
+    </div>
+    {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
+    <div className="mt-5 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void save()} disabled={saving || !exchangeRateToUsd.trim() || !conversionSource.trim() || !effectiveOn || !validReason(reason)}>{saving ? "Saving…" : row.hasFxConversion ? "Record revised conversion" : "Save Finance USD conversion"}</PrimaryButton><p className="text-xs text-text-muted">This is append-only and audited in PLAYBOOK.</p></div>
+  </div>;
 }

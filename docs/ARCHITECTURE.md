@@ -244,6 +244,24 @@ read the workspace needs, decorating rows from the existing dashboard snapshot
 rather than re-querying B2C sources. `b2c-dashboard-repository.ts` remains the
 one compatibility facade underneath both.
 
+The shared record drawer (`b2c-payment-review-drawer.tsx`) is the one place
+every B2C correction, mapping, FX conversion, Finance exception, refund FX,
+Finance-Tracker duplicate decision, and posted-Finance adjustment is reachable
+from -- Work queue and Ledger both open it, and it owns opening, closing,
+focus, errors, and refresh; there is no separate per-row dialog. It picks one
+primary action from a work item's `nextAction` (or, for a full ledger row, the
+same reason-to-action mapping applied to the row's own decision) and renders
+every other available action under "More actions". `adjust-b2c-finance-
+payment.ts` is the thin service the drawer's posted-adjustment action calls:
+it looks up the linked Finance row, reads back the current effective balance
+by replaying the payment plus its append-only adjustment history, and always
+calls the expected-state RPC above -- the browser only ever sends the values
+it currently believes are true plus the corrected value, never a signed
+adjustment row. Because `/api/b2c/workspace` never carries `stripeEvidence`,
+the drawer's Source evidence panel reads full Stripe evidence itself, only for
+an Admin, through a dedicated `/api/admin/b2c/payments/[paymentId]/evidence`
+route built on the same dashboard snapshot.
+
 ## Authentication boundary
 
 Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

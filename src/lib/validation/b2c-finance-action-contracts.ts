@@ -24,9 +24,9 @@ export const b2cFinanceSelectedDuplicateDecisionSchema = z.object({
 
 export type B2cFinanceSelectedDuplicateDecisionInput = z.infer<typeof b2cFinanceSelectedDuplicateDecisionSchema>;
 
+/** The shared drawer reviews and confirms exactly one Finance row's Date per request; there is no bulk Date-acceptance action. */
 export const b2cFinanceDateAuthoritySchema = z.object({
-  financeRowIds: z.array(z.string().uuid("Select valid B2C Finance rows.")).min(1, "Select at least one Finance row.").max(200, "Select no more than 200 Finance rows at once.")
-    .refine((rowIds) => new Set(rowIds).size === rowIds.length, "Select each Finance row only once."),
+  financeRowIds: z.array(z.string().uuid("Select valid B2C Finance rows.")).length(1, "Select exactly one Finance row."),
   reason: decisionReason,
 }).strict();
 

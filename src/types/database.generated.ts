@@ -234,6 +234,11 @@ export interface Database {
         source_amount_basis: "gross_excluding_vat"; posted_by: Uuid; posted_at: Timestamp; created_at: Timestamp;
         lineage_id: Uuid;
       }>;
+      b2c_finance_ledger_adjustments: Table<{
+        id: Uuid; payment_id: Uuid; finance_row_id: Uuid; adjustment_request_id: Uuid; entry_index: 1 | 2;
+        adjustment_kind: "amount_correction" | "date_reclassification" | "amount_and_date_correction";
+        amount_delta_usd: Decimal; occurred_on: string; reason: string; created_by: Uuid; created_at: Timestamp;
+      }>;
       b2c_provider_evidence: Table<{
         id: Uuid; import_id: Uuid; provider: "tap" | "stripe"; source_row_number: number; provider_row_id: string | null;
         source_entry_key: "primary" | "refund"; provider_payment_id: string | null; provider_refund_id: string | null;
@@ -414,6 +419,22 @@ export interface Database {
       apply_b2c_finance_date_authority: {
         Args: { p_finance_row_ids: Uuid[]; p_reason: string };
         Returns: number;
+      };
+      apply_b2c_finance_posted_adjustment_with_expected_state: {
+        Args: {
+          p_finance_row_id: Uuid; p_occurred_on: string | null; p_amount_usd: Decimal | null;
+          p_customer_name: string | null; p_category_raw: string | null; p_adjustment_request_id: Uuid; p_reason: string;
+          p_expected_amount_usd: Decimal; p_expected_occurred_on: string;
+        };
+        Returns: number;
+      };
+      get_b2c_finance_posted_adjustments_page: {
+        Args: { p_limit?: number; p_offset?: number };
+        Returns: Array<{
+          id: Uuid; payment_id: Uuid; finance_row_id: Uuid; adjustment_request_id: Uuid; entry_index: number;
+          adjustment_kind: "amount_correction" | "date_reclassification" | "amount_and_date_correction";
+          amount_delta_usd: Decimal; occurred_on: string; reason: string; created_by: Uuid; created_at: Timestamp;
+        }>;
       };
       finalize_tap_statement_import: {
         Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };

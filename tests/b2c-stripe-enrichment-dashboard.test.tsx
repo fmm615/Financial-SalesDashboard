@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import { B2cOperations } from "@/features/b2c/b2c-operations";
@@ -12,12 +12,27 @@ vi.mock("next/navigation", () => ({
 
 afterEach(() => vi.unstubAllGlobals());
 
-/** The Ledger tab loads its rows from `/api/b2c/workspace`; the header totals still come from the snapshot prop. */
-function stubWorkspaceFetch(rows: B2cLedgerRow[]) {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({ role: "admin", ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: null }),
-  }));
+/**
+ * The Ledger tab loads its rows from `/api/b2c/workspace`; the header totals
+ * still come from the snapshot prop. The shared drawer separately fetches
+ * full Stripe evidence from the dedicated Admin-only
+ * `/api/admin/b2c/payments/[paymentId]/evidence` read (Task 3's
+ * `/api/b2c/workspace` never carries `stripeEvidence`), plus the Viewer-and-
+ * Admin-readable audit history read -- both are stubbed here too.
+ */
+function stubWorkspaceFetch(rows: B2cLedgerRow[], evidenceByPaymentId: Record<string, unknown> = {}) {
+  const fetchMock = vi.fn((url: string) => {
+    if (url.includes("/audit-history")) return Promise.resolve({ ok: true, json: async () => ({ entries: [] }) });
+    const evidenceMatch = url.match(/\/api\/admin\/b2c\/payments\/([^/]+)\/evidence/);
+    if (evidenceMatch) {
+      const payload = evidenceByPaymentId[evidenceMatch[1]];
+      if (!payload) return Promise.resolve({ ok: false, json: async () => ({ error: "not found" }) });
+      return Promise.resolve({ ok: true, json: async () => payload });
+    }
+    return Promise.resolve({ ok: true, json: async () => ({ role: "admin", ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: null }) });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 describe("B2C Stripe enrichment presentation", () => {
@@ -109,14 +124,21 @@ describe("B2C Stripe enrichment presentation", () => {
       reviewItems: 0, rows: [row],
     };
 
-    stubWorkspaceFetch([row]);
+    const fetchMock = stubWorkspaceFetch([row], {
+      "payment-evidence-1": {
+        paymentId: "payment-evidence-1", source: "Stripe", sourceSystem: "stripe", providerReference: "ch_123", date: "Aug 9, 2026",
+        stripeEvidence: row.stripeEvidence,
+      },
+    });
     render(<B2cOperations snapshot={snapshot} />);
 
     // The fourteen-column ledger and its per-row `View Stripe details` dialog
     // are removed (see "Remove" in the implementation plan's UI inventory).
     // The provider-supplied description is still shown directly in the ledger
-    // (an Admin's explicit request); full Stripe settlement evidence still
-    // moves into the shared drawer, which Task 5 populates.
+    // (an Admin's explicit request); full Stripe settlement evidence moves
+    // into the shared drawer's "Source evidence" section, which fetches it
+    // from the dedicated Admin-only read rather than from the safe
+    // `/api/b2c/workspace` payload.
     const table = await screen.findByRole("table", { name: "B2C ledger" });
     expect(within(table).queryByRole("columnheader", { name: "Source currency" })).not.toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Description" })).toBeInTheDocument();
@@ -126,5 +148,13 @@ describe("B2C Stripe enrichment presentation", () => {
     // The pre-existing reportable metric remains the stored USD amount rather
     // than Stripe's separate BHD settlement/net-payout evidence.
     expect(screen.getAllByText("$50.42").length).toBeGreaterThan(0);
+
+    fireEvent.click(within(table).getByRole("button", { name: "Review" }));
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/admin/b2c/payments/payment-evidence-1/evidence", expect.anything()));
+    expect(await within(dialog).findByText("Charge evidence")).toBeInTheDocument();
+    expect(within(dialog).getByText("Stripe settlement evidence")).toBeInTheDocument();
+    expect(within(dialog).getByText("48.67 BHD")).toBeInTheDocument();
+    expect(within(dialog).getByText("refund-1")).toBeInTheDocument();
   });
 });
