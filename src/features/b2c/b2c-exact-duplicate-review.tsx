@@ -5,13 +5,19 @@ import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-dupli
 
 type Props = { onGroupsChanged: () => Promise<void> };
 
-/** Admin-only review controls for two retained Finance rows; this component never calculates revenue. */
+/**
+ * Admin-only review controls for two retained Finance rows; this component
+ * never calculates revenue. Exact cross-tab candidate groups are created
+ * automatically during Payment Tracker finalization (Task 1's
+ * `create_b2c_exact_duplicate_groups()`, invoked inside
+ * `finalize_b2c_finance_import_version`); there is no manual "Find exact
+ * duplicates" trigger here.
+ */
 export function B2cExactDuplicateReview({ onGroupsChanged }: Props) {
   const [groups, setGroups] = useState<AdminExactDuplicateGroup[]>([]);
   const [selectedRows, setSelectedRows] = useState<Record<string, string>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,16 +33,6 @@ export function B2cExactDuplicateReview({ onGroupsChanged }: Props) {
   };
 
   useEffect(() => { void load(); }, []);
-
-  const createGroups = async () => {
-    setCreating(true); setError(null);
-    try {
-      const response = await fetch("/api/admin/b2c/reconciliation/exact-duplicates/group", { method: "POST" });
-      if (!response.ok) throw new Error();
-      await Promise.all([load(), onGroupsChanged()]);
-    } catch { setError("Could not find exact duplicate groups."); }
-    finally { setCreating(false); }
-  };
 
   const decide = async (group: AdminExactDuplicateGroup, decisionState: "canonical" | "excluded") => {
     const decisionReason = reasons[group.groupId]?.trim() ?? "";
@@ -58,7 +54,6 @@ export function B2cExactDuplicateReview({ onGroupsChanged }: Props) {
   return <section className="mt-4 rounded-card border border-border bg-surface p-5 shadow-card" aria-labelledby="exact-duplicate-review-title">
     <h2 id="exact-duplicate-review-title" className="text-lg font-semibold tracking-[-0.02em] text-text-primary">Exact Finance duplicate review</h2>
     <p className="mt-1 text-sm leading-6 text-text-secondary">Both source rows remain retained. Select one canonical Finance candidate or exclude the group with a reason. This does not publish B2C revenue.</p>
-    <button type="button" disabled={creating} onClick={() => void createGroups()} className="mt-3 rounded-md border border-brand-primary px-4 py-2 text-sm font-semibold text-brand-primary disabled:cursor-not-allowed disabled:opacity-50">{creating ? "Finding…" : "Find exact duplicates"}</button>
     {loading && <p className="mt-3 text-sm text-text-muted">Loading exact duplicate groups…</p>}
     {error && <p className="mt-3 text-sm text-danger" role="alert">{error}</p>}
     {!loading && groups.length === 0 && <p className="mt-3 text-sm text-text-muted">No exact duplicate groups are awaiting a Finance decision.</p>}

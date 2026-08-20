@@ -22,12 +22,6 @@ export type ExactDuplicateGroupRow = {
 export class B2cExactDuplicateReconciliationRepository {
   constructor(private readonly client: DatabaseClient) {}
 
-  async createExactDuplicateGroups(): Promise<number> {
-    const { data, error } = await this.client.rpc("create_b2c_exact_duplicate_groups", {});
-    if (error || typeof data !== "number" || data < 0) throw new Error("Could not create exact B2C Finance duplicate groups.");
-    return data;
-  }
-
   async listPendingExactDuplicateGroups(): Promise<ExactDuplicateGroupRow[]> {
     const { data, error } = await this.client.from("b2c_reconciliation_groups")
       .select("id,reconciliation_state,b2c_reconciliation_finance_rows(finance_row_id,b2c_finance_staging_rows(source_tab,source_row_number,occurred_on,amount_usd,customer_name_raw,customer_email_raw,customer_phone_raw,category_raw,payment_method_raw))")

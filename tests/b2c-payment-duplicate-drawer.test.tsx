@@ -61,6 +61,15 @@ describe("B2C payment duplicate drawer action", () => {
     expect(within(dialog).getByRole("button", { name: "Exclude group" })).toBeInTheDocument();
   });
 
+  it("never shows a manual Find-exact-duplicates trigger -- groups are created automatically during Payment Tracker finalization", async () => {
+    stubFetch([["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })]]);
+    renderDrawer({ kind: "row", row: duplicateFlaggedRow() });
+    const dialog = screen.getByRole("dialog");
+
+    await within(dialog).findByText("B2C row 12");
+    expect(within(dialog).queryByRole("button", { name: "Find exact duplicates" })).not.toBeInTheDocument();
+  });
+
   it("records a decision through the existing per-group reconciliation route with one selection and one reason", async () => {
     const fetchMock = stubFetch([
       ["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })],

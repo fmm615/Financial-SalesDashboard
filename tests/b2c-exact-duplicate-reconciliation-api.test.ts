@@ -1,7 +1,5 @@
-import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as listGroups } from "@/app/api/admin/b2c/reconciliation/exact-duplicates/route";
-import { POST as createGroups } from "@/app/api/admin/b2c/reconciliation/exact-duplicates/group/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getApprovedRole } from "@/lib/auth/access";
 
@@ -12,32 +10,17 @@ const createServerClientMock = vi.mocked(createServerSupabaseClient);
 const getApprovedRoleMock = vi.mocked(getApprovedRole);
 const adminUser = { id: "11111111-1111-4111-8111-111111111111" };
 
+/**
+ * The manual "Find exact duplicates" creation trigger (and its
+ * `POST .../exact-duplicates/group` route) was removed: Task 1's
+ * `create_b2c_exact_duplicate_groups()` already runs automatically inside
+ * `finalize_b2c_finance_import_version`, so a second, manual discovery
+ * action would violate "no bulk shortcut, one owning action" (see the plan's
+ * "Remove" list). Only the read-only listing this drawer's duplicate-review
+ * fragment depends on remains live.
+ */
 describe("B2C exact duplicate reconciliation APIs", () => {
   beforeEach(() => vi.resetAllMocks());
-
-  it("rejects a Viewer before creating duplicate groups", async () => {
-    const rpc = vi.fn();
-    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: adminUser } }) }, rpc } as never);
-    getApprovedRoleMock.mockResolvedValue("viewer");
-
-    const response = await createGroups(new NextRequest("http://localhost/api/admin/b2c/reconciliation/exact-duplicates/group", { method: "POST" }));
-
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({ error: "Admin access is required." });
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it("asks the protected database function to create groups for an Admin", async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: 2, error: null });
-    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: adminUser } }) }, rpc } as never);
-    getApprovedRoleMock.mockResolvedValue("admin");
-
-    const response = await createGroups(new NextRequest("http://localhost/api/admin/b2c/reconciliation/exact-duplicates/group", { method: "POST" }));
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ createdGroups: 2 });
-    expect(rpc).toHaveBeenCalledWith("create_b2c_exact_duplicate_groups", {});
-  });
 
   it("returns only two selected Finance rows to an Admin reviewer", async () => {
     const groupRows = [{
