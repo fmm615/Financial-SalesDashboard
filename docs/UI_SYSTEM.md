@@ -48,6 +48,10 @@ Desktop retains the persistent sidebar. Tablet and mobile use a branded animated
 
 Visible focus rings use the violet focus token. Controls have labels, tables have captions and semantic headers, dialogs/drawers have appropriate roles and accessible close controls, and status information is text-based as well as colour-coded. The design is light mode only.
 
+## B2C workspace pattern
+
+`/operations/b2c` is one page with `Work queue`, `Ledger`, and `Sources` tabs stored in the URL query string, not three separate pages. Each live B2C action renders in exactly one place: a Ledger or Work queue row opens the shared record drawer through one `Review`/next-action button rather than several row-level triggers, and Sources is the sole owner of provider sync, backfill, evidence upload, and Payment Tracker import. Dense filter sets follow a disclosure pattern -- a few primary filters stay visible, with the rest collapsed under `More filters` and a count badge -- rather than an always-expanded filter wall.
+
 ## Component use
 
 `AppShell`, `MetricCard`, `ProgressMetric`, `StatusBadge`, `SectionCard`, `DataTable`, `FilterBar`, `DateRangeSelector`, chart components, state components, `AuditHistory`, `DetailDrawer`, `ConfirmationDialog`, and `FormField` are the shared presentation system. They do not contain financial calculations, provider logic, or authorization decisions.

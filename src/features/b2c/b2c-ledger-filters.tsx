@@ -43,18 +43,39 @@ export function B2cLedgerFilters({ filters, onChange, onTapStatementUnmatchedTog
     if (key === "foreignCurrencyOnly" || key === "tapStatementUnmatchedOnly") return value === true;
     return key === "status" || key === "source" || key === "category" || key === "issue" ? value !== "all" : value !== "";
   });
+  // Advanced filters live under "More filters"; the badge counts only those, so
+  // an Admin can tell at a glance whether a hidden filter is narrowing the ledger.
+  const advancedFilterCount = [
+    filters.dateFrom !== "",
+    filters.dateTo !== "",
+    filters.minAmount !== "",
+    filters.maxAmount !== "",
+    filters.category !== "all",
+    filters.foreignCurrencyOnly,
+    filters.tapStatementUnmatchedOnly,
+  ].filter(Boolean).length;
   return <div className="mb-5 rounded-input border border-border bg-surface-muted/30 p-4">
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-      <label className="lg:col-span-2 xl:col-span-1">Search<input name="search" value={filters.search} onChange={update} className={inputClass} placeholder="Name, email, mobile, or ID" /></label>
-      <label>Date from<input name="dateFrom" type="date" value={filters.dateFrom} onChange={update} className={inputClass} /></label>
-      <label>Date to<input name="dateTo" type="date" value={filters.dateTo} onChange={update} className={inputClass} /></label>
-      <label>Minimum USD<input name="minAmount" type="number" min="0" step="0.01" value={filters.minAmount} onChange={update} className={inputClass} placeholder="0.00" /></label>
-      <label>Maximum USD<input name="maxAmount" type="number" min="0" step="0.01" value={filters.maxAmount} onChange={update} className={inputClass} placeholder="0.00" /></label>
-      <label>Payment status<select name="status" value={filters.status} onChange={update} className={inputClass}><option value="all">All statuses</option><option value="Completed">Completed</option><option value="Failed">Failed</option><option value="Pending">Pending</option><option value="Refunded">Refunded</option></select></label>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <label className="sm:col-span-2 lg:col-span-1">Search<input name="search" value={filters.search} onChange={update} className={inputClass} placeholder="Name, email, mobile, or ID" /></label>
       <label>Source<select name="source" value={filters.source} onChange={update} className={inputClass}><option value="all">All sources</option>{sources.map((source) => <option key={source.value} value={source.value}>{source.label}</option>)}</select></label>
-      <label>PLAYBOOK category<select name="category" value={filters.category} onChange={update} className={inputClass}><option value="all">All categories</option>{categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
+      <label>Payment status<select name="status" value={filters.status} onChange={update} className={inputClass}><option value="all">All statuses</option><option value="Completed">Completed</option><option value="Failed">Failed</option><option value="Pending">Pending</option><option value="Refunded">Refunded</option></select></label>
       <label>Issue<select name="issue" value={filters.issue} onChange={update} className={inputClass}><option value="all">All issues</option><option value="none">No issue</option>{issues.map((issue) => <option key={issue.value} value={issue.value}>{issue.label}</option>)}</select></label>
     </div>
+    <details className="mt-4 group">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-brand-accent marker:content-none">
+        <span>More filters</span>
+        {advancedFilterCount > 0 && <span className="rounded-pill bg-brand-accent/10 px-2 py-0.5 text-xs font-semibold text-brand-accent">{advancedFilterCount}</span>}
+        <span className="text-xs font-normal text-text-muted group-open:hidden">Show</span>
+        <span className="hidden text-xs font-normal text-text-muted group-open:inline">Hide</span>
+      </summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+        <label>Date from<input name="dateFrom" type="date" value={filters.dateFrom} onChange={update} className={inputClass} /></label>
+        <label>Date to<input name="dateTo" type="date" value={filters.dateTo} onChange={update} className={inputClass} /></label>
+        <label>Minimum USD<input name="minAmount" type="number" min="0" step="0.01" value={filters.minAmount} onChange={update} className={inputClass} placeholder="0.00" /></label>
+        <label>Maximum USD<input name="maxAmount" type="number" min="0" step="0.01" value={filters.maxAmount} onChange={update} className={inputClass} placeholder="0.00" /></label>
+        <label>PLAYBOOK category<select name="category" value={filters.category} onChange={update} className={inputClass}><option value="all">All categories</option>{categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
+      </div>
+    </details>
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
       <span>Showing {shownCount.toLocaleString()} of {totalCount.toLocaleString()} records</span>
       <div className="flex flex-wrap items-center gap-3">

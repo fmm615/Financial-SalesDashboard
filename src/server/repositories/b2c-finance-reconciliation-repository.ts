@@ -17,6 +17,9 @@ export type B2cReconciliationSafeSummary = {
   counts: { stagedRows: number; validRows: number; needsReviewRows: number; zeroValueRows: number; invalidRows: number; unresolvedGroups: number };
 };
 
+/** Admin-only: the id an Admin's next Payment Tracker upload must declare as `supersedesImportId` to replace it. */
+export type B2cReconciliationSafeSummaryWithReplacement = B2cReconciliationSafeSummary & { latestCompletedPaymentTrackerImportId: string | null };
+
 export type FinanceImportVersionState = {
   previous: FinanceImportVersionPreviousRow[];
   representedPayments: FinanceImportVersionRepresentedPayment[];
@@ -149,5 +152,19 @@ export class SupabaseB2cFinanceReconciliationRepository {
     const { data, error } = await this.client.rpc("get_b2c_reconciliation_safe_summary", {});
     if (error || !data || typeof data !== "object" || Array.isArray(data)) throw new Error("Could not load the B2C reconciliation summary.");
     return data as B2cReconciliationSafeSummary;
+  }
+
+  /** Admin-only via RLS. The Sources card needs this id to declare replacement intent on the next upload. */
+  async getLatestCompletedPaymentTrackerImportId(): Promise<string | null> {
+    const { data, error } = await this.client
+      .from("b2c_finance_imports")
+      .select("id")
+      .eq("source_kind", "payment_tracker")
+      .eq("import_status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error("Could not load the latest B2C Payment Tracker import.");
+    return data?.id ?? null;
   }
 }

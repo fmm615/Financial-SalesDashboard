@@ -1,5 +1,6 @@
-import { B2cReconciliationPage } from "@/features/b2c/b2c-reconciliation-page";
+import { redirect } from "next/navigation";
 
+/** Kept only so an existing bookmark still resolves. Sources is now the one owner of provider sync, upload, and coverage. */
 export default function B2cReconciliationRoute() {
-  return <B2cReconciliationPage />;
+  redirect("/operations/b2c?tab=sources");
 }

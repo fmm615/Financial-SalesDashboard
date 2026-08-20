@@ -7,11 +7,16 @@ import { SupabaseB2cFinanceReconciliationRepository } from "@/server/repositorie
 export async function GET() {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await client.auth.getUser();
-  if (!user || !await getApprovedRole(client, user.id)) {
+  const role = user ? await getApprovedRole(client, user.id) : null;
+  if (!role) {
     return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   }
   try {
-    return NextResponse.json({ summary: await new SupabaseB2cFinanceReconciliationRepository(client).getSafeSummary() });
+    const repository = new SupabaseB2cFinanceReconciliationRepository(client);
+    const summary = await repository.getSafeSummary();
+    // Only an Admin ever uploads a replacement workbook, and only an Admin can read this id under RLS.
+    const latestCompletedPaymentTrackerImportId = role === "admin" ? await repository.getLatestCompletedPaymentTrackerImportId() : null;
+    return NextResponse.json({ summary: { ...summary, latestCompletedPaymentTrackerImportId } });
   } catch {
     return NextResponse.json({ error: "Could not load the B2C reconciliation summary." }, { status: 500 });
   }

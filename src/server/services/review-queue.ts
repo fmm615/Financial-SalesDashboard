@@ -16,7 +16,7 @@ export type ReviewQueueFlagRecord = {
 };
 
 export type ReviewQueueNextAction =
-  | { kind: "navigate"; href: "/admin" | "/operations/b2b" | "/operations/b2c"; label: string }
+  | { kind: "navigate"; href: string; label: string }
   | { kind: "note_only"; label: string };
 
 export type ReviewQueueItem = ReviewQueueFlagRecord & {
@@ -88,15 +88,21 @@ const sourceLabels: Record<string, string> = {
   integration: "Integration",
 };
 
-function getNextAction(sourceArea: string, flagType: ReviewQueueFlagType): ReviewQueueNextAction {
-  if (sourceArea === "b2c_payment" && flagType === "possible_duplicate") {
-    return { kind: "note_only", label: "Duplicate decision required" };
-  }
+/**
+ * B2C work items live in exactly one place: the `/operations/b2c` Work queue.
+ * Every B2C-sourced flag deep-links to its corresponding work item there
+ * instead of exposing a second, Review-Queue-local mutation surface.
+ */
+function b2cWorkItemHref(sourceRecordId: string): string {
+  return `/operations/b2c?tab=work&record=${sourceRecordId}`;
+}
+
+function getNextAction(sourceArea: string, flagType: ReviewQueueFlagType, sourceRecordId: string): ReviewQueueNextAction {
   if (sourceArea === "b2b_deal" && flagType === "possible_duplicate") {
     return { kind: "navigate", href: "/admin", label: "Open B2B duplicate review" };
   }
   if (sourceArea === "b2c_payment" || sourceArea === "b2c_refund" || sourceArea === "product_mapping") {
-    return { kind: "navigate", href: "/operations/b2c", label: "Open B2C Operations" };
+    return { kind: "navigate", href: b2cWorkItemHref(sourceRecordId), label: "Open B2C work item" };
   }
   if (sourceArea.startsWith("b2b_")) {
     return { kind: "navigate", href: "/operations/b2b", label: "Open B2B Operations" };
@@ -113,7 +119,7 @@ export function toReviewQueueItem(flag: ReviewQueueFlagRecord): ReviewQueueItem 
     ...flag,
     flagLabel: flagLabels[flag.flagType],
     sourceLabel: `${sourceLabel} · ${flag.sourceRecordId}`,
-    nextAction: getNextAction(flag.sourceArea, flag.flagType),
+    nextAction: getNextAction(flag.sourceArea, flag.flagType, flag.sourceRecordId),
   };
 }
 

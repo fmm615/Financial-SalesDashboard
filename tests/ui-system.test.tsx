@@ -63,11 +63,15 @@ describe("UI foundation", () => {
     expect(screen.getByText("Historical expense trends not loaded")).toBeInTheDocument();
   });
 
-  it("shows B2C Finance in Operations only for administrators", () => {
+  it("shows one B2C navigation entry for every role, and no separate reconciliation/Finance links", () => {
     const { rerender } = render(<RoleProvider role="admin"><AppShell title="Test" description="Test"><p>Body</p></AppShell></RoleProvider>);
-    expect(screen.getByRole("link", { name: "B2C Finance" })).toHaveAttribute("href", "/admin/b2c-finance");
+    expect(screen.getByRole("link", { name: "B2C" })).toHaveAttribute("href", "/operations/b2c");
+    expect(screen.queryByRole("link", { name: "B2C reconciliation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "B2C Finance" })).not.toBeInTheDocument();
 
     rerender(<RoleProvider role="viewer"><AppShell title="Test" description="Test"><p>Body</p></AppShell></RoleProvider>);
+    expect(screen.getByRole("link", { name: "B2C" })).toHaveAttribute("href", "/operations/b2c");
+    expect(screen.queryByRole("link", { name: "B2C reconciliation" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "B2C Finance" })).not.toBeInTheDocument();
   });
 

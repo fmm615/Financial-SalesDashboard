@@ -122,6 +122,18 @@ Both build on the existing `b2c-dashboard-repository.ts` snapshot instead of
 re-querying B2C sources, and that repository remains the compatibility facade
 other consumers keep using unchanged.
 
+`features/b2c/b2c-workspace.tsx` is the one client-rendered B2C workspace
+behind `features/b2c/b2c-operations.tsx`'s thin server-data bridge: it reads
+its `tab`/`queue`/`record` state from the URL, loads Work queue and Ledger
+content from `/api/b2c/workspace`, and keeps the four header totals from the
+server-fetched dashboard snapshot. `b2c-work-queue.tsx`, `b2c-ledger-table.tsx`,
+`b2c-source-management.tsx`, and `b2c-payment-review-drawer.tsx` are its three
+tabs and shared record drawer; `b2c-payment-tracker-upload.tsx`,
+`b2c-tap-statement-upload.tsx`, and `b2c-stripe-charges-upload.tsx` are the
+Sources tab's focused, state-machine upload controls. `/operations/b2c/reconciliation`
+and `/admin/b2c-finance` are now server redirects into this one workspace so
+old bookmarks keep resolving without a second live surface.
+
 ### `lib/supabase/` and `lib/validation/`
 
 Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.

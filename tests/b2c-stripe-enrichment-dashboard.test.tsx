@@ -1,14 +1,24 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import { B2cOperations } from "@/features/b2c/b2c-operations";
-import { resolveB2cContactDisplay, resolveB2cLedgerSourceLabel, type B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
+import { resolveB2cContactDisplay, resolveB2cLedgerSourceLabel, type B2cDashboardSnapshot, type B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/operations/b2c",
   useRouter: () => ({ push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams("tab=ledger"),
 }));
+
+afterEach(() => vi.unstubAllGlobals());
+
+/** The Ledger tab loads its rows from `/api/b2c/workspace`; the header totals still come from the snapshot prop. */
+function stubWorkspaceFetch(rows: B2cLedgerRow[]) {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ role: "admin", ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: null }),
+  }));
+}
 
 describe("B2C Stripe enrichment presentation", () => {
   it("labels approved Finance rows by their retained payment method", () => {
@@ -17,7 +27,7 @@ describe("B2C Stripe enrichment presentation", () => {
     expect(resolveB2cLedgerSourceLabel("finance_tracker", {})).toBe("Finance");
   });
 
-  it("shows mutable Stripe contacts as labelled fallbacks without making the payment reportable", () => {
+  it("shows mutable Stripe contacts as labelled fallbacks without making the payment reportable", async () => {
     const display = resolveB2cContactDisplay({
       customerName: null, customerEmail: null, customerPhone: null,
       hasLocalCorrection: false, correctedFields: [],
@@ -47,12 +57,21 @@ describe("B2C Stripe enrichment presentation", () => {
       reviewItems: 1, rows: [row],
     };
 
+    stubWorkspaceFetch([row]);
     render(<B2cOperations snapshot={snapshot} />);
-    expect(screen.getByText("current-profile@example.com")).toBeInTheDocument();
-    expect(screen.getAllByText("Stripe profile")).toHaveLength(2);
-    expect(screen.getByText("Stripe payment method")).toBeInTheDocument();
-    expect(screen.getAllByText("Missing customer email").length).toBeGreaterThan(0);
+
+    // The ledger row itself shows only customer, date, amount, source, status,
+    // and one `Review` action (see "Final B2C UI Inventory": desktop columns
+    // are limited to those six). Provider-supplied contact fallbacks and their
+    // evidence labels move into the shared drawer -- Task 5 populates that
+    // detail; Task 4 verifies the row is not blocked from opening it.
+    const table = await screen.findByRole("table", { name: "B2C ledger" });
+    expect(within(table).getByText("Missing customer email")).toBeInTheDocument();
     expect(screen.getAllByText("$0.00").length).toBeGreaterThan(0);
+
+    fireEvent.click(within(table).getByRole("button", { name: "Review" }));
+    const drawer = screen.getByRole("dialog");
+    expect(within(drawer).getByText("current-profile@example.com")).toBeInTheDocument();
   });
 
   it("keeps a local correction ahead of Stripe fallbacks", () => {
@@ -68,7 +87,7 @@ describe("B2C Stripe enrichment presentation", () => {
     });
   });
 
-  it("shows safe Stripe settlement evidence without changing the B2C reporting amount", () => {
+  it("shows safe Stripe settlement evidence without changing the B2C reporting amount", async () => {
     const row = {
       id: "payment-evidence-1", recordType: "Payment" as const,
       customerName: "Stripe customer", customerEmail: "customer@example.com", customerPhone: null,
@@ -90,21 +109,21 @@ describe("B2C Stripe enrichment presentation", () => {
       reviewItems: 0, rows: [row],
     };
 
+    stubWorkspaceFetch([row]);
     render(<B2cOperations snapshot={snapshot} />);
-    expect(screen.getByRole("columnheader", { name: "Source currency" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Description" })).toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "PLAYBOOK category" })).not.toBeInTheDocument();
-    expect(screen.getByText("Founding Membership renewal")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "View Stripe details" }));
 
-    expect(screen.getByRole("dialog", { name: "Stripe payment details" })).toBeInTheDocument();
-    expect(screen.getAllByText("Founding Membership renewal")).toHaveLength(2);
-    expect(screen.getByText("10.00 USD")).toBeInTheDocument();
-    expect(screen.getByText("48.67 BHD")).toBeInTheDocument();
-    expect(screen.getByText("0.376")).toBeInTheDocument();
-    expect(screen.getByText("10.00 USD → 10.00 BHD")).toBeInTheDocument();
+    // The fourteen-column ledger and its per-row `View Stripe details` dialog
+    // are removed (see "Remove" in the implementation plan's UI inventory):
+    // desktop columns are limited to customer, date, amount, source, status,
+    // and one `Review` action. Source currency, description, and Stripe
+    // settlement evidence move into the shared drawer, which Task 5 populates.
+    const table = await screen.findByRole("table", { name: "B2C ledger" });
+    expect(within(table).queryByRole("columnheader", { name: "Source currency" })).not.toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "Description" })).not.toBeInTheDocument();
+    expect(within(table).queryByRole("button", { name: "View Stripe details" })).not.toBeInTheDocument();
+    expect(within(table).getByText("Stripe customer")).toBeInTheDocument();
     // The pre-existing reportable metric remains the stored USD amount rather
     // than Stripe's separate BHD settlement/net-payout evidence.
-    expect(screen.getAllByText("$50.42").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("$50.42").length).toBeGreaterThan(0);
   });
 });

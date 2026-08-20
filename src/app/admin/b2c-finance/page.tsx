@@ -1,8 +1,6 @@
-import { AppShell } from "@/components/app-shell";
-import { B2cFinanceActionModule } from "@/features/b2c/b2c-finance-action-module";
+import { redirect } from "next/navigation";
 
+/** Kept only so an existing bookmark still resolves. The Work queue's Ready-to-post filter is now the one Finance posting surface. */
 export default function B2cFinanceAdministrationPage() {
-  return <AppShell title="B2C Finance" description="Resolve Finance workbook decisions, retain the source audit trail, and then add only eligible payments to the B2C ledger.">
-    <B2cFinanceActionModule />
-  </AppShell>;
+  redirect("/operations/b2c?tab=work&queue=ready_to_post");
 }

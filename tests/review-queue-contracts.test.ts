@@ -35,11 +35,11 @@ describe("Review Queue domain", () => {
     expect(reviewQueueNoteSchema.safeParse({ note: "Valid note", status: "resolved" }).success).toBe(false);
   });
 
-  it("keeps an open B2C possible duplicate in the note-only workflow", () => {
+  it("sends an open B2C possible duplicate to its corresponding B2C work item", () => {
     expect(toReviewQueueItem(b2cDuplicate)).toMatchObject({
       sourceLabel: "B2C payment · 22222222-2222-4222-8222-222222222222",
       flagLabel: "Possible duplicate",
-      nextAction: { kind: "note_only", label: "Duplicate decision required" },
+      nextAction: { kind: "navigate", href: "/operations/b2c?tab=work&record=22222222-2222-4222-8222-222222222222", label: "Open B2C work item" },
     });
   });
 

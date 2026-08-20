@@ -1,17 +1,28 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { B2cOperations } from "@/features/b2c/b2c-operations";
 import {
   mapTapStatementUnmatchedLedgerRows,
   resolveB2cReportingPeriod,
   type B2cDashboardSnapshot,
+  type B2cLedgerRow,
 } from "@/server/repositories/b2c-dashboard-repository";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/operations/b2c",
   useRouter: () => ({ push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams("tab=ledger"),
 }));
+
+afterEach(() => vi.unstubAllGlobals());
+
+/** The Ledger tab loads its rows from `/api/b2c/workspace`; the header totals still come from the snapshot prop. */
+function stubWorkspaceFetch(rows: B2cLedgerRow[]) {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ role: "admin", ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: null }),
+  }));
+}
 
 describe("Tap statement unmatched ledger review", () => {
   it("retains undated Tap statement evidence in All time review without inventing a business date", () => {
@@ -37,7 +48,7 @@ describe("Tap statement unmatched ledger review", () => {
     });
   });
 
-  it("keeps the Tap statement filter visible when no unmatched statement rows are loaded", () => {
+  it("keeps the Tap statement filter visible when no unmatched statement rows are loaded", async () => {
     const snapshot = {
       period: { month: "all", monthLabel: "All time", monthStart: "2026-08-01", monthEnd: "2026-08-31", isAllTime: true },
       sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-16T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
@@ -47,10 +58,11 @@ describe("Tap statement unmatched ledger review", () => {
       reviewItems: 0,
       rows: [],
     } as unknown as B2cDashboardSnapshot;
+    stubWorkspaceFetch([]);
 
     render(<B2cOperations snapshot={snapshot} />);
 
-    expect(screen.getByRole("button", { name: "Tap statement unmatched (0)" })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: "Tap statement unmatched (0)" })).toBeDisabled();
   });
 
   it("shows the retained global count even when an undated statement item is outside the selected month", () => {
@@ -64,13 +76,14 @@ describe("Tap statement unmatched ledger review", () => {
       tapStatementUnmatchedCount: 3,
       rows: [],
     } as unknown as B2cDashboardSnapshot;
+    stubWorkspaceFetch([]);
 
     render(<B2cOperations snapshot={snapshot} />);
 
     expect(screen.getByRole("button", { name: "Tap statement unmatched (3)" })).toBeEnabled();
   });
 
-  it("shows unmatched Tap statement sales through the existing ledger filter", () => {
+  it("shows unmatched Tap statement sales through the existing ledger filter", async () => {
     const snapshot = {
       period: { month: "all", monthLabel: "All time", monthStart: "2026-08-01", monthEnd: "2026-08-31", isAllTime: true },
       sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-16T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
@@ -95,14 +108,17 @@ describe("Tap statement unmatched ledger review", () => {
         },
       ],
     } as unknown as B2cDashboardSnapshot;
+    stubWorkspaceFetch(snapshot.rows);
 
     render(<B2cOperations snapshot={snapshot} />);
 
-    expect(screen.getByRole("button", { name: "Tap statement unmatched (1)" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Tap statement unmatched (1)" })).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: "B2C ledger" });
+    expect(within(table).getByText("Normal payment")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tap statement unmatched (1)" }));
 
-    expect(screen.getByText("Sale - Statement-only customer")).toBeInTheDocument();
-    expect(screen.getByText("Not matched to Tap API")).toBeInTheDocument();
-    expect(screen.queryByText("Normal payment")).not.toBeInTheDocument();
+    expect(await within(table).findByText("18.00 BHD")).toBeInTheDocument();
+    expect(within(table).getByText("Not matched to Tap API")).toBeInTheDocument();
+    expect(within(table).queryByText("Normal payment")).not.toBeInTheDocument();
   });
 });
