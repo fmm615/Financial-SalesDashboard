@@ -6,9 +6,10 @@ import type { B2cDecoratedLedgerRow } from "@/server/repositories/b2c-ledger-rep
 export type B2cSafeLedgerRow = Omit<B2cDecoratedLedgerRow, "stripeEvidence">;
 
 /**
- * Desktop columns are limited to customer, date, amount, source, status, and
- * next action. Provider IDs, contact details, currency, plan, evidence, and
- * audit history live in the shared drawer, opened by the row's one `Review`
+ * Desktop columns cover customer, email, mobile, date, amount, source,
+ * description (with a provider decline/seller message where one exists),
+ * status, and next action. Provider IDs, plan, full evidence, and audit
+ * history still live in the shared drawer, opened by the row's one `Review`
  * action. Mobile uses compact record cards instead of the fourteen-column table.
  */
 export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; onReview: (row: B2cSafeLedgerRow) => void }) {
@@ -17,18 +18,27 @@ export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; o
       <DataTable caption="B2C ledger">
         <TableHead>
           <TableHeader>Customer</TableHeader>
+          <TableHeader>Email</TableHeader>
+          <TableHeader>Mobile</TableHeader>
           <TableHeader>Date</TableHeader>
           <TableHeader>Amount</TableHeader>
           <TableHeader>Source</TableHeader>
+          <TableHeader>Description</TableHeader>
           <TableHeader>Status</TableHeader>
           <TableHeader><span className="sr-only">Next action</span></TableHeader>
         </TableHead>
         <tbody className="divide-y divide-border">
           {rows.map((row) => <tr key={`${row.recordType}-${row.id}`}>
-            <TableCell className="font-medium">{row.customerName ?? row.customerEmail ?? "—"}</TableCell>
+            <TableCell className="font-medium">{row.customerName ?? "—"}</TableCell>
+            <TableCell>{row.customerEmail ?? "—"}</TableCell>
+            <TableCell>{row.customerPhone ?? "—"}</TableCell>
             <TableCell>{row.date}</TableCell>
             <TableCell className="font-medium tabular-nums">{row.amountUsd}</TableCell>
             <TableCell>{row.source}</TableCell>
+            <TableCell>
+              <span>{row.sourceDescription ?? "—"}</span>
+              {row.sourceSellerMessage && <span className="mt-0.5 block text-xs text-warning">{row.sourceSellerMessage}</span>}
+            </TableCell>
             <TableCell>
               <div className="flex flex-col items-start gap-1">
                 {row.tapStatementUnmatched ? <span className="text-sm text-warning">Not matched to Tap API</span> : <StatusBadge status={row.paymentStatus} />}
@@ -51,9 +61,15 @@ export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; o
           <div className="min-w-0">
             <p className="truncate font-medium text-text-primary">{row.customerName ?? row.customerEmail ?? "—"}</p>
             <p className="mt-1 text-sm text-text-muted">{row.date} · {row.source}</p>
+            {row.customerEmail && <p className="mt-0.5 truncate text-sm text-text-muted">{row.customerEmail}</p>}
+            {row.customerPhone && <p className="mt-0.5 text-sm text-text-muted">{row.customerPhone}</p>}
           </div>
           <p className="shrink-0 font-medium tabular-nums text-text-primary">{row.amountUsd}</p>
         </div>
+        {(row.sourceDescription || row.sourceSellerMessage) && <div className="mt-2 text-sm text-text-secondary">
+          {row.sourceDescription && <p>{row.sourceDescription}</p>}
+          {row.sourceSellerMessage && <p className="mt-0.5 text-warning">{row.sourceSellerMessage}</p>}
+        </div>}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             {row.tapStatementUnmatched ? <span className="text-sm text-warning">Not matched</span> : <StatusBadge status={row.paymentStatus} />}

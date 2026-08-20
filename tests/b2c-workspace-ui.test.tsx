@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { B2cWorkspace } from "@/features/b2c/b2c-workspace";
 import { RoleProvider } from "@/lib/auth/role-context";
 import type { B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
+import type { B2cSafeLedgerRow } from "@/features/b2c/b2c-ledger-table";
 
 let currentSearch = new URLSearchParams();
 const pushMock = vi.fn();
@@ -27,7 +28,7 @@ const snapshot: B2cDashboardSnapshot = {
   reviewItems: 2, rows: [],
 };
 
-const ledgerRow = {
+const ledgerRow: B2cSafeLedgerRow = {
   id: "payment-1", recordType: "Payment" as const, customerName: "Maya Al Khalifa", customerEmail: "maya@example.com", customerPhone: null,
   customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
   date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$100.00", amountValueUsd: "100", sourceAmountUsd: "$100.00", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2026-08-09",
@@ -47,12 +48,13 @@ const workItems = {
   counts: { all: 4, data: 1, duplicates: 1, reconciliation: 1, ready_to_post: 1 },
 };
 
-function stubFetch(overrides: { role?: "admin" | "viewer" } = {}) {
+function stubFetch(overrides: { role?: "admin" | "viewer"; ledgerRows?: B2cSafeLedgerRow[] } = {}) {
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
     const url = String(input);
     if (url.includes("/api/b2c/workspace")) {
       const role = overrides.role ?? "admin";
-      return { ok: true, json: async () => ({ role, ledger: { rows: [ledgerRow], nextCursor: null, hasMore: false, totalCount: 1 }, workItems: role === "admin" ? workItems : null }) };
+      const rows = overrides.ledgerRows ?? [ledgerRow];
+      return { ok: true, json: async () => ({ role, ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: role === "admin" ? workItems : null }) };
     }
     if (url.includes("/api/b2c/reconciliation")) {
       return { ok: true, json: async () => ({ summary: {
@@ -153,25 +155,38 @@ describe("Work queue", () => {
 });
 
 describe("Ledger", () => {
-  it("limits desktop columns to customer, date, amount, source, status, and one Review action", async () => {
+  it("shows customer, email, mobile, date, amount, source, description, status, and one Review action", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
     stubFetch({ role: "admin" });
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
     const table = await screen.findByRole("table", { name: "B2C ledger" });
     expect(within(table).getByRole("columnheader", { name: "Customer" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Email" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Mobile" })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Date" })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Amount" })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Source" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Description" })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
     expect(within(table).queryByRole("columnheader", { name: "Provider ID" })).not.toBeInTheDocument();
-    expect(within(table).queryByRole("columnheader", { name: /email/i })).not.toBeInTheDocument();
+    expect(within(table).getByText("maya@example.com")).toBeInTheDocument();
 
     const row = within(table).getByText("Maya Al Khalifa").closest("tr") as HTMLElement;
     expect(within(row).getAllByRole("button")).toHaveLength(1);
     expect(within(row).getByRole("button", { name: "Review" })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "View Stripe details" })).not.toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Edit locally" })).not.toBeInTheDocument();
+  });
+
+  it("shows a provider's decline/seller message beside the description when one is retained", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin", ledgerRows: [{ ...ledgerRow, sourceDescription: "Subscription update", sourceSellerMessage: "Your card was declined: insufficient funds." }] });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const table = await screen.findByRole("table", { name: "B2C ledger" });
+    expect(within(table).getByText("Subscription update")).toBeInTheDocument();
+    expect(within(table).getByText("Your card was declined: insufficient funds.")).toBeInTheDocument();
   });
 
   it("shows Search, Source, Status, and Issue as primary filters and hides the rest behind More filters", async () => {

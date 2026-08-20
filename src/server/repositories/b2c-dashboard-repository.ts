@@ -37,6 +37,8 @@ export type B2cLedgerRow = {
   sourceOriginalCurrency?: string;
   /** Provider-supplied description retained from the local source record. */
   sourceDescription: string | null;
+  /** A provider's own decline/status message (e.g. an issuing bank's decline reason). Read-only, never a local decision. */
+  sourceSellerMessage?: string | null;
   /** True when the provider's original amount is not USD. */
   isForeignCurrency?: boolean;
   /** True only while a foreign source needs a Finance-approved local conversion. */
@@ -592,6 +594,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       sourceOriginalAmount: payment.original_amount,
       sourceOriginalCurrency: payment.original_currency,
       sourceDescription: resolveLedgerSourceDescription(payment.source_metadata, stripeEvidence?.description),
+      sourceSellerMessage: stripeEvidence?.sellerMessage ?? null,
       isForeignCurrency: payment.original_currency !== "USD",
       foreignCurrencyReview: payment.original_currency !== "USD" && effective.amountUsd === null,
       hasFxConversion: Boolean(conversion),

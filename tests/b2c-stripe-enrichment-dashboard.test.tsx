@@ -113,13 +113,14 @@ describe("B2C Stripe enrichment presentation", () => {
     render(<B2cOperations snapshot={snapshot} />);
 
     // The fourteen-column ledger and its per-row `View Stripe details` dialog
-    // are removed (see "Remove" in the implementation plan's UI inventory):
-    // desktop columns are limited to customer, date, amount, source, status,
-    // and one `Review` action. Source currency, description, and Stripe
-    // settlement evidence move into the shared drawer, which Task 5 populates.
+    // are removed (see "Remove" in the implementation plan's UI inventory).
+    // The provider-supplied description is still shown directly in the ledger
+    // (an Admin's explicit request); full Stripe settlement evidence still
+    // moves into the shared drawer, which Task 5 populates.
     const table = await screen.findByRole("table", { name: "B2C ledger" });
     expect(within(table).queryByRole("columnheader", { name: "Source currency" })).not.toBeInTheDocument();
-    expect(within(table).queryByRole("columnheader", { name: "Description" })).not.toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Description" })).toBeInTheDocument();
+    expect(within(table).getByText("Founding Membership renewal")).toBeInTheDocument();
     expect(within(table).queryByRole("button", { name: "View Stripe details" })).not.toBeInTheDocument();
     expect(within(table).getByText("Stripe customer")).toBeInTheDocument();
     // The pre-existing reportable metric remains the stored USD amount rather
