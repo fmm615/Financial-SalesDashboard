@@ -225,6 +225,21 @@ each surface their own queue item instead of either one becoming a second
 reportable payment -- and Ready-to-post always renders as the one aggregated
 item Task 2 already summarizes, never one Post button per lineage.
 
+Task 7's final ownership audit removed the write paths this section's exact
+grouping and lineage rules had already made redundant: the bulk
+canonical-decision and selected-duplicate-decision routes, and the
+data-quality/duplicate action components that only they served. The
+per-group `apply_b2c_finance_import_version_decision`/reconciliation-decision
+path above remains the sole duplicate write route. Read-only exact-duplicate
+listing (`GET /api/admin/b2c/reconciliation/exact-duplicates`) and its
+`b2c-exact-duplicate-review.tsx`/`b2c-exact-duplicate-review.ts` read model
+stayed live -- the shared record drawer still renders that component for its
+`choose_duplicate` action. The Date-authority and Finance-row correction
+routes also stayed: they still work against real data and are still tested,
+but nothing in the live workspace calls either of them since Task 5 left
+Date-authority "untouched" rather than wiring it into the drawer. Resolving
+that gap is future work, not something Task 7's cleanup pass performs.
+
 ## HubSpot
 
 Purpose: B2B deals, stages, and bookings.

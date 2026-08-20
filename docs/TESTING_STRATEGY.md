@@ -158,6 +158,22 @@ Cover critical workflows such as:
 - review queue resolution
 - report generation/download
 
+`tests/e2e/b2c-workspace-flow.spec.ts` is the first Playwright spec in this
+repository. It covers the single-workspace B2C acceptance flow end to end:
+Payment Tracker import and different-hash replacement without a double
+post, automatic exact cross-tab duplicate grouping, one shared-drawer
+correction/FX/exception/duplicate-decision path, the one batch Ready-to-post
+action, manual bank-transfer entry (including exact-match rejection and a
+later workbook linking to an already-manual payment), a known-value dataset
+matching this file's known-value rule, a negative-flow pass over every
+excluded record type, and a Viewer read-only pass -- each at 375px, 768px,
+1024px, and 1440px. It is not runnable yet: Playwright is not installed in
+this repository (no `@playwright/test` dependency, no `playwright.config.ts`,
+no seeded test Supabase project or Google-OAuth `storageState` fixtures), so
+`tests/e2e/**` is excluded from `npm run typecheck`, `npm run lint`, and
+`npx vitest run`. The spec file's own header comment lists the setup steps a
+follow-up task must complete before it can run for real.
+
 ## Regression tests
 
 When fixing a critical financial bug, add a test that would have caught that bug whenever practical.

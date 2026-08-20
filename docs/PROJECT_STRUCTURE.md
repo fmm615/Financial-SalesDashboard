@@ -134,6 +134,27 @@ Sources tab's focused, state-machine upload controls. `/operations/b2c/reconcili
 and `/admin/b2c-finance` are now server redirects into this one workspace so
 old bookmarks keep resolving without a second live surface.
 
+Task 7 removed the page-level UI these routes used to redirect from,
+plus the two bulk-duplicate-decision API routes it made obsolete:
+`features/b2c/b2c-reconciliation-page.tsx`, `b2c-finance-action-module.tsx`,
+`b2c-finance-data-quality-actions.tsx`, and `b2c-finance-duplicate-actions.tsx`,
+along with `api/admin/b2c/finance-actions/duplicates/bulk-canonical` and
+`.../duplicates/selected`. `features/b2c/b2c-exact-duplicate-review.tsx` and
+its `server/services/b2c-exact-duplicate-review.ts` read model stayed: the
+shared drawer's `choose_duplicate` action still renders that component, and
+`api/admin/b2c/reconciliation/exact-duplicates` (`GET`) is still the read
+path it depends on to list pending groups. `api/admin/b2c/finance-actions/date-authority`
+and `api/admin/b2c/finance-actions/[rowId]/correction` also stayed: they
+still work and are still tested, but no live component calls either of them
+now that their only callers are gone -- wiring a Finance staging-row date fix
+into the drawer remains open follow-up work, not a Task 7 deletion target.
+
+`tests/e2e/b2c-workspace-flow.spec.ts` is a Playwright acceptance spec for
+this workspace, written against the shipped selectors/routes but not yet
+runnable: Playwright is not installed in this repository. `tests/e2e/**` is
+excluded from `tsconfig.json`, `eslint.config.mjs`, and `vitest.config.ts`
+until a follow-up task adds the dependency and its own config.
+
 ### `lib/supabase/` and `lib/validation/`
 
 Request-scoped and trusted-server Supabase client factories live in `lib/supabase/`. Zod write contracts live in `lib/validation/`. Raw generated database rows belong in `types/database.generated.ts`; UI components must consume feature/domain types instead.

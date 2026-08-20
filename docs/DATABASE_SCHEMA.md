@@ -43,6 +43,7 @@ erDiagram
 | --- | --- | --- |
 | Access | `profiles`, `roles`, `approved_users`, `profile_roles` | Google Auth profile, email allowlist, and the two-role model. |
 | B2C | `customers`, `products`, `product_mappings`, `b2c_payments`, `b2c_payment_local_overrides`, `b2c_refunds` | B2C records only. Stripe and Tap source checks prevent a Stripe record becoming B2B. |
+| B2C Finance | `b2c_finance_staging_rows`, `b2c_finance_imports`, `b2c_finance_record_lineages`, `b2c_finance_row_lineage_links`, `b2c_finance_import_version_candidates`, `b2c_finance_import_version_decisions`, `b2c_finance_ledger_posts`, `b2c_provider_evidence_payment_links` | Payment Tracker staging, cross-workbook-version lineage identity, exact cross-tab duplicate grouping, and idempotent iOS/bank-transfer Finance posting. See `docs/DATABASE_RULES.md` and `docs/INTEGRATIONS.md` for the write/immutability rules. |
 | B2B | `b2b_companies`, `b2b_deals`, `b2b_deal_stages`, `b2b_deal_stage_history`, `b2b_bookings`, `b2b_invoices`, `b2b_receipts`, `b2b_recognised_sales` | Pipeline, booking, invoice, receipt, and recognised-sales concepts stay in separate tables. |
 | Finance | `financial_corrections`, `expenses`, `cash_position_snapshots`, `financial_targets`, `exchange_rates` | Explicit finance records and append-only correction entries. |
 | Summit | `summit_targets`, `summit_updates` | Tickets, sponsors, booths, revenue, costs, and progress. |
