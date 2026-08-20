@@ -10,6 +10,17 @@
 
 **Spec:** `docs/BUSINESS_RULES.md`, `docs/ARCHITECTURE.md`, `docs/DATABASE_RULES.md`, `docs/SECURITY.md`, `docs/TESTING_STRATEGY.md`, `docs/INTEGRATIONS.md`, `docs/PLAYBOOK_REQUIREMENTS_REFERENCE.md`, and `docs/superpowers/specs/2026-08-17-b2c-finance-workspace-and-adjustments-design.md`.
 
+## Progress & amendments
+
+Kept current as work happens, not just at task boundaries — this is the living status, the numbered tasks below are the original spec.
+
+**Status as of 2026-08-20:** Tasks 1-4 complete and merged. Task 5 in progress. Tasks 6-7 not started.
+
+- Task 1 (`9bb8866`), Task 2 (`9156d13`), Task 3 (`f304e5d`), Task 4 (`a1eccea`) shipped as specified, each independently re-verified line-by-line before commit. Task 1's implementation had a NUL-byte corruption bug caught and fixed pre-commit; Task 4's had a missing `supersedesImportId` wiring bug (would have broken every "Replace workbook" attempt) caught and fixed pre-commit.
+- **Not in the original plan, added by direct request (`8f8969a`, `aec5e68`, `50f13fe`, `340b4ea`):** the Ledger's 6-column table gained customer email/mobile and provider description/seller-message display; an "implausible future business date" check was added at both the Payment Tracker ingestion layer and the general decision layer (so it catches new imports *and* already-posted payments); day/month date-parsing safety was audited end to end and locked in with regression tests.
+- **Open finding, not yet resolved:** the only Payment Tracker import in the database (12 Aug 2026) predates the Task 1 lineage system by six days. Task 2's backfill only covered already-*posted* rows, so 1,002 of 1,163 valid staged rows have no lineage and no candidate — invisible to both Ledger and Work queue (86 iOS/bank-transfer rows, $6,839.52, genuinely should be reviewable; 916 other-method rows, $429,449.93, likely already captured via Stripe/Tap sync). **Decision: wipe and reimport all B2C source data from scratch** (Payment Tracker sheets, Stripe API, Tap) once Task 5 lands, rather than backfill nine months of historical staging data. A live posted payment (Hoor Alshubbar, `85edf4fe-346b-483a-8053-199e6b1e2961`, $48.45) currently carries the wrong future date from this same gap and stays as-is until Task 5's adjustment flow can correct it. Full detail and a post-reimport test-plan checklist live in the published "B2C Control Flow Review" artifact from this session (real figures, decision log, area-by-area checklist).
+- Whoever picks this plan up next: re-run the reimport test-plan checklist before treating Tasks 1-4 as fully proven against real data, not just against the unit/integration suite.
+
 ## Global Constraints
 
 - Stripe and Tap remain read-only. No task may create, update, refund, or delete provider records.
@@ -105,7 +116,7 @@ Manual bank entry is USD-only in B2C v1. Require bank reference, customer name, 
 
 ---
 
-### Task 1: Prevent Payment Tracker rows from being reposted across workbook versions
+### Task 1: Prevent Payment Tracker rows from being reposted across workbook versions — ✅ Complete (9bb8866)
 
 **Files:**
 - Create: `src/lib/b2c/finance-source-identity.ts`
@@ -138,7 +149,7 @@ Manual bank entry is USD-only in B2C v1. Require bank reference, customer name, 
 - Adds `b2c_finance_record_lineages`, immutable `b2c_finance_row_lineage_links`, persisted `b2c_finance_import_version_candidates`, and append-only `b2c_finance_import_version_decisions`. Task 2 connects ledger posts to the stable lineage.
 - Adds replacement-import provenance through `b2c_finance_imports.supersedes_import_id`.
 
-- [ ] **Step 1: Write identity and diff tests that demonstrate the current risk**
+- [x] **Step 1: Write identity and diff tests that demonstrate the current risk**
 
 ```ts
 it("gives the same real payment the same identity across workbook hashes and tabs", () => {
@@ -168,13 +179,13 @@ it("holds a later sheet bank row that matches a manual payment for explicit evid
 });
 ```
 
-- [ ] **Step 2: Run the new tests and verify they fail**
+- [x] **Step 2: Run the new tests and verify they fail**
 
 Run: `npm test -- tests/b2c-finance-source-identity.test.ts tests/payment-tracker-upload-api.test.ts tests/database-foundation.test.ts`
 
 Expected: FAIL because the identity, version diff, lineage tables, and replacement contract do not exist.
 
-- [ ] **Step 3: Implement the pure source-identity and version-diff functions**
+- [x] **Step 3: Implement the pure source-identity and version-diff functions**
 
 ```ts
 export type FinanceSourceIdentityInput = {
@@ -195,7 +206,7 @@ export type FinanceImportDiff = {
 
 Canonicalize decimals to six places and text with the existing Finance normalization rules before hashing. Never use staging UUID, file hash, tab, row number, or category as the business-payment identity.
 
-- [ ] **Step 4: Add lineage and import-version database constraints**
+- [x] **Step 4: Add lineage and import-version database constraints**
 
 The migration must enforce:
 
@@ -252,7 +263,7 @@ create table public.b2c_finance_import_version_decisions (
 
 Add Admin-only insert/RPC access, approved-user safe reads where required, immutable-link/candidate triggers, actor attribution, indexes, and audit triggers. A represented payment must exist, use source `manual_bank_transfer`, and cannot be swapped or cleared. Finalization persists the safe diff candidates in the same transaction as the replacement import. A replacement import cannot link new, existing-payment, or ambiguous candidates automatically.
 
-- [ ] **Step 5: Make preview and finalization declare replacement intent**
+- [x] **Step 5: Make preview and finalization declare replacement intent**
 
 The upload preview accepts an optional prior completed Payment Tracker import ID and returns safe counts only. Finalization requires the same `supersedesImportId` used for preview. If any prior Payment Tracker import exists, a new import without replacement intent is rejected.
 
@@ -266,7 +277,7 @@ Preview must show separate row counts for normalized `ios`, normalized `bank_tra
 
 Delete the older `/api/admin/b2c/finance-imports/preview` and `/finalize` JSON routes and their route test. They accept already-parsed rows and would create a second Finance ingestion contract that can bypass file hashing, private source storage, replacement intent, and lineage decisions. The `/api/admin/b2c/payment-tracker/*` routes are the only Payment Tracker intake path; shared pure assessment code may remain internal.
 
-- [ ] **Step 6: Add database assertions for version safety**
+- [x] **Step 6: Add database assertions for version safety**
 
 Assert that:
 
@@ -278,19 +289,19 @@ Assert that:
 - Viewers cannot create imports or lineage decisions;
 - an Admin actor is recorded for every link or decision.
 
-- [ ] **Step 7: Implement the lineage-decision API**
+- [x] **Step 7: Implement the lineage-decision API**
 
 Validate `FinanceLineageDecisionInput` with Zod. `confirm_new` creates a new lineage, `link_revision` links to the named existing lineage, and `link_existing_manual` links the workbook evidence to the named manual payment's reserved lineage while marking it already represented. An unresolved candidate has no decision row and no postable lineage, so it cannot post. The protected database function must lock the candidate and reject a second conflicting decision.
 
 Move the surviving one-group canonical/exclusion route assertions out of the deleted legacy import-route test and into `b2c-finance-duplicate-decision-api.test.ts`. Cover Viewer denial, canonical-row membership, meaningful reason, concurrent/second-decision rejection, and immutable source rows.
 
-- [ ] **Step 8: Run focused verification**
+- [x] **Step 8: Run focused verification**
 
 Run: `npm test -- tests/b2c-finance-source-identity.test.ts tests/payment-tracker-upload-api.test.ts tests/b2c-finance-lineage-api.test.ts tests/b2c-finance-duplicate-decision-api.test.ts tests/database-foundation.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/lib/b2c/finance-source-identity.ts src/server/services/b2c-finance-import-versioning.ts src/lib/validation/b2c-finance-lineage-contracts.ts 'src/app/api/admin/b2c/finance-imports/[importId]/lineage-decisions/route.ts' src/app/api/admin/b2c/finance-imports/preview/route.ts src/app/api/admin/b2c/finance-imports/finalize/route.ts src/server/services/payment-tracker-upload.ts src/server/repositories/b2c-finance-reconciliation-repository.ts src/lib/validation/payment-tracker-upload-contracts.ts supabase/migrations/20260818100000_b2c_finance_import_lineages.sql tests/b2c-finance-source-identity.test.ts tests/payment-tracker-upload-api.test.ts tests/b2c-finance-lineage-api.test.ts tests/b2c-finance-duplicate-decision-api.test.ts tests/b2c-finance-reconciliation-api.test.ts tests/database-foundation.test.ts supabase/tests/database_foundation.test.sql docs/DATABASE_SCHEMA.md docs/DATABASE_RULES.md docs/INTEGRATIONS.md
@@ -299,7 +310,7 @@ git commit -m "fix(b2c): prevent cross-import Finance double posting"
 
 ---
 
-### Task 2: Make Finance posting lineage-idempotent and treat revisions as adjustments
+### Task 2: Make Finance posting lineage-idempotent and treat revisions as adjustments — ✅ Complete (9156d13)
 
 **Files:**
 - Create: `supabase/migrations/20260818103000_b2c_finance_lineage_posting.sql`
@@ -322,7 +333,7 @@ git commit -m "fix(b2c): prevent cross-import Finance double posting"
 - Produces `FinancePostingReadiness = { readyLineages, readyIosLineages, readyBankTransferLineages, alreadyPostedLineages, blockedRows, ambiguousRows }`.
 - Produces `summarizeFinancePostingReadiness(rows): FinancePostingReadiness`.
 
-- [ ] **Step 1: Write failing cross-import posting tests**
+- [x] **Step 1: Write failing cross-import posting tests**
 
 ```ts
 it("counts a replacement-workbook row as already posted through its lineage", () => {
@@ -341,13 +352,13 @@ Add pgTAP setup with two completed imports, different hashes, two staging UUIDs,
 
 Add a second setup where a new manual bank transfer reserves an identity and a later workbook bank row is linked to it. Posting must leave exactly one `manual_bank_transfer` payment and zero new `finance_tracker` payments for that identity.
 
-- [ ] **Step 2: Run focused tests and verify failure**
+- [x] **Step 2: Run focused tests and verify failure**
 
 Run: `npm test -- tests/approved-finance-payment.test.ts tests/approved-finance-payment-api.test.ts tests/b2c-finance-action-center.test.ts tests/database-foundation.test.ts`
 
 Expected: FAIL because posting is still staging-row-idempotent.
 
-- [ ] **Step 3: Replace staging-row-only posting identity with lineage identity**
+- [x] **Step 3: Replace staging-row-only posting identity with lineage identity**
 
 The migration must:
 
@@ -360,13 +371,13 @@ The migration must:
 - return safe counts based on lineages, not raw source rows.
 - return separate ready counts for iOS and bank-transfer lineages so the single posting panel explains exactly what will be created.
 
-- [ ] **Step 4: Route replacement revisions safely**
+- [x] **Step 4: Route replacement revisions safely**
 
 For an unposted lineage, an Admin-confirmed revision becomes the current candidate. For a posted lineage, the UI explains that amount/date differences require an append-only posted adjustment and never offers `Post as new`.
 
 Keep one batch action rather than a per-row Post button plus a second global action. The Ready-to-post panel lists the eligible iOS and bank-transfer lineages, shows both counts, and exposes one `Post N Finance payments` button. A successful response reports posted/already-posted/blocked counts and refreshes the same queue.
 
-- [ ] **Step 5: Verify known-value behavior**
+- [x] **Step 5: Verify known-value behavior**
 
 Run after applying migrations locally: `npm run supabase:test`
 
@@ -376,7 +387,7 @@ Run: `npm test -- tests/approved-finance-payment.test.ts tests/approved-finance-
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add supabase/migrations/20260818103000_b2c_finance_lineage_posting.sql src/server/services/b2c-finance-action-center.ts src/server/repositories/b2c-finance-action-repository.ts src/server/repositories/b2c-finance-ledger-repository.ts src/features/b2c/b2c-approved-finance-posting.tsx tests/approved-finance-payment.test.ts tests/approved-finance-payment-api.test.ts tests/b2c-finance-action-center.test.ts tests/database-foundation.test.ts supabase/tests/database_foundation.test.sql docs/ARCHITECTURE.md docs/INTEGRATIONS.md docs/TESTING_STRATEGY.md
@@ -385,7 +396,7 @@ git commit -m "fix(b2c): post Finance payments by stable lineage"
 
 ---
 
-### Task 3: Create one accurate B2C decision and work-item layer
+### Task 3: Create one accurate B2C decision and work-item layer — ✅ Complete (f304e5d)
 
 **Files:**
 - Create: `src/lib/b2c/payment-decision.ts`
@@ -443,7 +454,7 @@ export type B2cWorkItem = {
 };
 ```
 
-- [ ] **Step 1: Write decision tests for independent dimensions**
+- [x] **Step 1: Write decision tests for independent dimensions**
 
 Cover succeeded USD mapped payment, missing e-mail without exception, missing e-mail with exception, failed payment, pending payment, missing business date, foreign currency with and without FX, unresolved duplicate, manual exclusion, approved Finance Tracker provenance, partial refund, and unmatched evidence.
 
@@ -451,17 +462,17 @@ Also cover an iOS tracker row, a bank-transfer tracker row, a new manual bank tr
 
 The partial-refund assertion must keep `sourceStatus: "succeeded"`; the refund remains a linked row and does not replace the payment decision.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `npm test -- tests/b2c-payment-decision.test.ts tests/b2c-work-items.test.ts tests/b2c-workspace-api.test.ts tests/b2c-payment-reportability.test.ts`
 
 Expected: FAIL because the decision/work-item contracts and API do not exist.
 
-- [ ] **Step 3: Implement the decision mapper without changing approved reportability**
+- [x] **Step 3: Implement the decision mapper without changing approved reportability**
 
 Use `b2cPaymentExclusionReasons()` as the initial financial gate. Do not make missing contact automatically reportable. Do not pass statement evidence through the payment gate.
 
-- [ ] **Step 4: Extract focused repository responsibilities**
+- [x] **Step 4: Extract focused repository responsibilities**
 
 Keep `b2c-dashboard-repository.ts` as a compatibility facade while moving:
 
@@ -474,11 +485,11 @@ The new ledger query accepts server-side `cursor`, `limit` (maximum `100`), peri
 
 Keep detailed queue reasons in the domain model while deriving only four visible groups plus `All`. FX and mapping belong under `Data`; source failures and provider mismatches belong under `Reconciliation`. `Ready to post` is aggregated into the one Finance posting panel and does not generate one Post button per row.
 
-- [ ] **Step 5: Implement the authenticated read API**
+- [x] **Step 5: Implement the authenticated read API**
 
 Validate query parameters with Zod. Return safe viewer fields only. Admin-only source contacts or evidence must remain behind existing Admin authorization boundaries.
 
-- [ ] **Step 6: Run focused verification**
+- [x] **Step 6: Run focused verification**
 
 Run: `npm test -- tests/b2c-payment-decision.test.ts tests/b2c-work-items.test.ts tests/b2c-workspace-api.test.ts tests/b2c-payment-reportability.test.ts`
 
@@ -492,7 +503,7 @@ Run: `npm run lint`
 
 Expected: exit `0`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/b2c/payment-decision.ts src/server/services/b2c-work-items.ts src/server/repositories/b2c-ledger-repository.ts src/server/repositories/b2c-workspace-repository.ts src/lib/b2c/payment-reportability.ts src/server/repositories/b2c-dashboard-repository.ts src/lib/validation/b2c-workspace-contracts.ts src/app/api/b2c/workspace/route.ts tests/b2c-payment-decision.test.ts tests/b2c-work-items.test.ts tests/b2c-workspace-api.test.ts tests/b2c-payment-reportability.test.ts docs/ARCHITECTURE.md docs/PROJECT_STRUCTURE.md docs/INTEGRATIONS.md
@@ -501,7 +512,7 @@ git commit -m "feat(b2c): add one decision and work-item model"
 
 ---
 
-### Task 4: Replace the three B2C front doors and duplicate Admin controls with one workspace
+### Task 4: Replace the three B2C front doors and duplicate Admin controls with one workspace — ✅ Complete (a1eccea)
 
 **Files:**
 - Create: `src/features/b2c/b2c-workspace.tsx`
@@ -536,7 +547,7 @@ git commit -m "feat(b2c): add one decision and work-item model"
 - Administration contains no B2C correction, mapping, manual-payment, Stripe, or Tap controls. It retains HubSpot and genuinely cross-product administration only.
 - Admins see all three tabs. Viewers default to Ledger, cannot open Work queue, and see Sources as read-only coverage/import history without any action controls.
 
-- [ ] **Step 1: Write navigation and workspace tests**
+- [x] **Step 1: Write navigation and workspace tests**
 
 ```tsx
 expect(screen.getByRole("link", { name: "B2C" })).toBeInTheDocument();
@@ -546,13 +557,13 @@ expect(screen.queryByRole("link", { name: "B2C Finance" })).not.toBeInTheDocumen
 
 Test Admin and Viewer defaults, URL-preserved tab/queue selection, redirects, queue-specific empty states, one primary action per work item, and B2C Review Queue deep links. Assert each B2C sync, upload, correction, and mapping action appears once across the B2C and Administration renders. Assert there is no `Add iOS payment`, `Find exact duplicates`, bulk Date-acceptance, second Post button, separate evidence button, or Viewer write button.
 
-- [ ] **Step 2: Run UI tests and verify failure**
+- [x] **Step 2: Run UI tests and verify failure**
 
 Run: `npm test -- tests/b2c-workspace-ui.test.tsx tests/b2c-ui-ownership.test.tsx tests/ui-system.test.tsx tests/review-queue-api.test.ts`
 
 Expected: FAIL because the unified workspace and redirects do not exist.
 
-- [ ] **Step 3: Build the workspace shell**
+- [x] **Step 3: Build the workspace shell**
 
 The page header shows selected period and a compact coverage/data-as-of status, then exactly four values: reportable cash, linked refunds, net cash, and blocker count. Move completed-source totals into `Why totals differ`; do not compete with the four operational values. Internal tabs are keyboard accessible and stored in the query string.
 
@@ -564,13 +575,13 @@ Each upload component is a state machine rather than two permanently visible but
 
 Create the shared drawer shell with accessible open/close, focus return, summary fields, and a slot for the current action component. Work queue and Ledger must both open this same shell; Task 5 completes its evidence, audit, and action consolidation without introducing another modal.
 
-- [ ] **Step 4: Make the ledger responsive and paged**
+- [x] **Step 4: Make the ledger responsive and paged**
 
 Desktop columns are limited to customer, date, amount, source, work/Finance status, and next action. Provider IDs, phone/e-mail, source currency, plan, evidence, and audit details move into the detail drawer. Mobile uses compact record cards rather than a fourteen-column table.
 
 Show Search, Source, Status, and Issue first. Put date range, amount range, category, currency/FX, and evidence filters in `More filters`; preserve active advanced filters through an applied-count badge. Put the existing completed/excluded/reportable/refund calculation bridge in a collapsed `Why totals differ` disclosure below the four summary values.
 
-- [ ] **Step 5: Remove duplicate navigation surfaces**
+- [x] **Step 5: Remove duplicate navigation surfaces**
 
 Rename the sidebar entry to `B2C`, remove the separate B2C Reconciliation and B2C Finance links, and implement server redirects at their existing routes. Do not delete route files while bookmarks still exist.
 
@@ -578,7 +589,7 @@ Remove the nonfunctional `Bank transfer entry`, `Correct a record`, and `Product
 
 Do not carry the staged Stripe contact table or `How this operates` card into the workspace. Evidence belongs in the drawer, and short contextual help belongs beside the action it explains. Keep one Ready-to-post container; do not nest the existing posting section inside another posting card.
 
-- [ ] **Step 6: Run responsive and interaction verification**
+- [x] **Step 6: Run responsive and interaction verification**
 
 Run: `npm test -- tests/b2c-workspace-ui.test.tsx tests/b2c-ui-ownership.test.tsx tests/ui-system.test.tsx tests/review-queue-api.test.ts`
 
@@ -586,7 +597,7 @@ Expected: PASS.
 
 Use Playwright at `375`, `768`, `1024`, and `1440` CSS pixels. Verify no page-level horizontal overflow, visible focus, predictable back behavior, at least `44px` interactive targets, stable loading space, one primary action per state, and no write controls for Viewers.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/features/b2c/b2c-workspace.tsx src/features/b2c/b2c-work-queue.tsx src/features/b2c/b2c-source-management.tsx src/features/b2c/b2c-payment-review-drawer.tsx src/features/b2c/b2c-payment-tracker-upload.tsx src/features/b2c/b2c-tap-statement-upload.tsx src/features/b2c/b2c-stripe-charges-upload.tsx src/features/b2c/b2c-ledger-table.tsx src/features/b2c/b2c-operations.tsx src/features/b2c/b2c-ledger-filters.tsx src/app/operations/b2c/page.tsx src/app/operations/b2c/reconciliation/page.tsx src/app/admin/b2c-finance/page.tsx src/components/app-shell.tsx src/features/admin/admin-page.tsx src/server/services/review-queue.ts tests/b2c-workspace-ui.test.tsx tests/b2c-ui-ownership.test.tsx tests/ui-system.test.tsx tests/review-queue-api.test.ts docs/UI_SYSTEM.md docs/PROJECT_STRUCTURE.md
@@ -595,7 +606,7 @@ git commit -m "feat(b2c): consolidate Admin work into one workspace"
 
 ---
 
-### Task 5: Consolidate payment review into one accessible detail drawer
+### Task 5: Consolidate payment review into one accessible detail drawer — 🔄 In progress
 
 **Files:**
 - Modify: `src/features/b2c/b2c-payment-review-drawer.tsx`
@@ -666,7 +677,7 @@ git commit -m "feat(b2c): unify record review in one drawer"
 
 ---
 
-### Task 6: Finish source management and live manual bank-transfer entry
+### Task 6: Finish source management and live manual bank-transfer entry — ⬜ Not started
 
 **Files:**
 - Create: `src/server/services/b2c-provider-evidence-reconciliation.ts`
@@ -784,7 +795,7 @@ git commit -m "feat(b2c): finish source intake and bank transfers"
 
 ---
 
-### Task 7: Prove the complete B2C workflow and remove superseded UI code
+### Task 7: Prove the complete B2C workflow and remove superseded UI code — ⬜ Not started
 
 **Files:**
 - Create: `tests/e2e/b2c-workspace-flow.spec.ts`
