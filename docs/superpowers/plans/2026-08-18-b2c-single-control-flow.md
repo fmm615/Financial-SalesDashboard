@@ -14,9 +14,10 @@
 
 Kept current as work happens, not just at task boundaries — this is the living status, the numbered tasks below are the original spec.
 
-**Status as of 2026-08-20:** Tasks 1-5 complete and merged. Tasks 6-7 not started.
+**Status as of 2026-08-20:** Tasks 1-6 complete and merged. Task 7 not started.
 
-- Task 1 (`9bb8866`), Task 2 (`9156d13`), Task 3 (`f304e5d`), Task 4 (`a1eccea`), Task 5 (`76d1022`) shipped as specified, each independently re-verified line-by-line before commit. Task 1's implementation had a NUL-byte corruption bug caught and fixed pre-commit; Task 4's had a missing `supersedesImportId` wiring bug (would have broken every "Replace workbook" attempt) caught and fixed pre-commit; Task 5 caught and fixed a real data leak in `src/app/operations/b2c/page.tsx` (the server component was serializing full Admin-only Stripe evidence into every role's page payload, unused by the client -- stripped it).
+- Task 1 (`9bb8866`), Task 2 (`9156d13`), Task 3 (`f304e5d`), Task 4 (`a1eccea`), Task 5 (`76d1022`), Task 6 (`dd389a4`) shipped as specified, each independently re-verified line-by-line before commit. Task 1's implementation had a NUL-byte corruption bug caught and fixed pre-commit; Task 4's had a missing `supersedesImportId` wiring bug (would have broken every "Replace workbook" attempt) caught and fixed pre-commit; Task 5 caught and fixed a real data leak in `src/app/operations/b2c/page.tsx` (the server component was serializing full Admin-only Stripe evidence into every role's page payload, unused by the client -- stripped it).
+- Task 6 replaced dead code rather than extending it: the pre-existing `manualBankTransferSchema`/`SupabaseB2cPaymentsRepository.createManualBankTransfer` let the browser supply currency/exchange-rate/gross/net/tax directly via a raw table insert -- exactly what the plan forbids. Nothing referenced either, so both were replaced outright with the plan's actual USD-only, server-derived shape and a protected RPC. The three-tier duplicate check (exact bank reference -> exact Finance source-identity, posted or unposted -> standard 48-hour content fingerprint) was hand-verified byte-for-byte against Task 1's existing identity formula and the existing content-fingerprint function; nothing was reinvented. pgTAP assertions were written but are unexecuted (no local Postgres in this environment) -- run `npm run supabase:test` for real once the migrations are applied.
 - **Task 5 unblocks the Hoor Alshubbar fix.** The append-only posted-adjustment flow (`adjust-b2c-finance-payment.ts` + `/api/admin/b2c/payments/[paymentId]/finance-adjustments`) is now live in the drawer -- a `finance_tracker` payment always routes to it as the primary action, regardless of blocking reason. The RPC parameter contract was verified directly against the migration SQL, and the RPC's own expected-state re-validation was confirmed to make a stale/wrong client-side read fail-safe (rejected write, never a wrong one). The payment itself has not been corrected yet -- that's a live admin action, not a code change, and still waits on the reimport decision below.
 - **Not in the original plan, added by direct request (`8f8969a`, `aec5e68`, `50f13fe`, `340b4ea`):** the Ledger's 6-column table gained customer email/mobile and provider description/seller-message display; an "implausible future business date" check was added at both the Payment Tracker ingestion layer and the general decision layer (so it catches new imports *and* already-posted payments); day/month date-parsing safety was audited end to end and locked in with regression tests.
 - **Open finding, not yet resolved:** the only Payment Tracker import in the database (12 Aug 2026) predates the Task 1 lineage system by six days. Task 2's backfill only covered already-*posted* rows, so 1,002 of 1,163 valid staged rows have no lineage and no candidate — invisible to both Ledger and Work queue (86 iOS/bank-transfer rows, $6,839.52, genuinely should be reviewable; 916 other-method rows, $429,449.93, likely already captured via Stripe/Tap sync). **Decision: wipe and reimport all B2C source data from scratch** (Payment Tracker sheets, Stripe API, Tap), rather than backfill nine months of historical staging data. A live posted payment (Hoor Alshubbar, `85edf4fe-346b-483a-8053-199e6b1e2961`, $48.45) currently carries the wrong future date from this same gap and stays as-is until an Admin actually runs the correction through Task 5's now-live adjustment flow. Full detail and a post-reimport test-plan checklist live in the published "B2C Control Flow Review" artifact from this session (real figures, decision log, area-by-area checklist).
@@ -678,7 +679,7 @@ git commit -m "feat(b2c): unify record review in one drawer"
 
 ---
 
-### Task 6: Finish source management and live manual bank-transfer entry — ⬜ Not started
+### Task 6: Finish source management and live manual bank-transfer entry — ✅ Complete (dd389a4)
 
 **Files:**
 - Create: `src/server/services/b2c-provider-evidence-reconciliation.ts`
@@ -718,7 +719,7 @@ git commit -m "feat(b2c): unify record review in one drawer"
 - A possible, non-exact match atomically creates the retained manual payment and an open `possible_duplicate` flag, so it remains excluded until an audited decision. A clear candidate creates one reportable `manual_bank_transfer` payment. Confirmation re-hashes the reviewed input and reruns every check inside the protected database transaction.
 - The same transaction creates a Finance-compatible source-identity reservation linked through `represented_payment_id`, so a future Payment Tracker version recognizes this manual payment and cannot repost it.
 
-- [ ] **Step 1: Write failing manual-entry tests**
+- [x] **Step 1: Write failing manual-entry tests**
 
 ```ts
 it("rejects a reused bank reference", async () => {
@@ -734,13 +735,13 @@ it("rejects a new manual row that is already an unposted tracker lineage", async
 
 Also test a posted tracker-lineage match, a clean new transfer received after the latest workbook, a possible 48-hour match, server-owned USD values/fingerprint, changed input after preview, and two concurrent confirmations for the same reference.
 
-- [ ] **Step 2: Run tests and verify failure**
+- [x] **Step 2: Run tests and verify failure**
 
 Run: `npm test -- tests/b2c-manual-bank-transfer.test.ts tests/b2c-manual-bank-transfer-api.test.ts tests/b2c-manual-bank-transfer-ui.test.tsx`
 
 Expected: FAIL because the live service, route, and workspace action do not exist.
 
-- [ ] **Step 3: Implement the server-owned duplicate checks and write**
+- [x] **Step 3: Implement the server-owned duplicate checks and write**
 
 Extend the repository with:
 
@@ -753,23 +754,23 @@ Require `bankReference`, `customerName`, and `customerEmail` in the live request
 
 Do not reuse the current direct table-insert repository implementation. The browser may not send `sourceSystem`, status, original currency, exchange rate, gross/net/tax amounts, duplicate fingerprint, actor, or reportability. Remove those fields from the public manual-bank request contract.
 
-- [ ] **Step 4: Add the one manual bank-transfer workflow**
+- [x] **Step 4: Add the one manual bank-transfer workflow**
 
 Place one `Add bank transfer` button in Sources and no `Add iOS payment` control anywhere. Step 1 collects the seven required facts plus optional membership tier, including the bank's transfer date and time rather than inventing a timestamp from a date. Submitting Step 1 calls preview and advances only after the server returns its duplicate assessment. Step 2 shows the exact amount/timestamp/derived business date/category/customer/reference/reason and one of: `No existing match`, `Existing Payment Tracker/payment found` with a link and no submit, or `Possible duplicate` with an explicit blocked-from-totals warning. The only final action is `Record bank transfer`; `Back` preserves the draft. Assert the B2C preview forms removed from Administration remain absent.
 
-- [ ] **Step 5: Add exact provider-evidence matching to the existing Sources controls**
+- [x] **Step 5: Add exact provider-evidence matching to the existing Sources controls**
 
 Preserve the existing focused upload components, hash confirmation, private Storage cleanup, safe counts, evidence-only language, and Admin-only controls. Show period/date coverage and latest successful import for each source where the source provides it.
 
 After a Stripe Charges or Tap statement import completes, run exact provider-ID reconciliation against the corresponding local API payment. Persist only exact links. A same-ID amount, currency, date, or status difference becomes a work-queue mismatch; evidence with no local API payment remains unmatched. Payment Tracker rows have no provider transaction ID and must never be automatically linked through name/amount guessing.
 
-- [ ] **Step 6: Add provider-evidence reconciliation tests**
+- [x] **Step 6: Add provider-evidence reconciliation tests**
 
 Cover exact Stripe/Tap ID matches, repeated evidence idempotency, amount mismatch, currency mismatch, date mismatch, status mismatch, unmatched evidence, Viewer read-only access, and the rule that no evidence link creates a B2C payment or changes a financial total.
 
 For manual entry, cover required fields, USD-only server values, no iOS entry action, exact reference rejection, posted/unposted Tracker-lineage rejection, existing provider/manual-payment rejection, possible-match retention with a blocking flag, clean new entry, identity-reservation creation, later-workbook recognition of the reserved identity, stale-preview rejection, concurrent confirmation idempotency, actor/reason audit, and Viewer denial at route and database layers.
 
-- [ ] **Step 7: Run focused verification**
+- [x] **Step 7: Run focused verification**
 
 Run: `npm test -- tests/b2c-manual-bank-transfer.test.ts tests/b2c-manual-bank-transfer-api.test.ts tests/b2c-manual-bank-transfer-ui.test.tsx tests/b2c-provider-evidence-reconciliation.test.ts tests/payment-tracker-upload-api.test.ts tests/tap-statement-upload-api.test.ts tests/stripe-charges-upload-api.test.ts tests/database-foundation.test.ts`
 
@@ -787,7 +788,7 @@ Run: `npm run lint`
 
 Expected: exit `0`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/server/services/b2c-provider-evidence-reconciliation.ts supabase/migrations/20260818110000_b2c_provider_evidence_links.sql supabase/migrations/20260818113000_b2c_manual_bank_transfer_entry.sql src/features/b2c/b2c-tap-statement-upload.tsx src/features/b2c/b2c-stripe-charges-upload.tsx src/features/b2c/b2c-manual-bank-transfer.tsx src/server/services/record-manual-bank-transfer.ts src/app/api/admin/b2c/payments/manual-bank-transfer/preview/route.ts src/app/api/admin/b2c/payments/manual-bank-transfer/route.ts src/lib/validation/financial-contracts.ts src/server/repositories/b2c-payments-repository.ts src/features/b2c/b2c-source-management.tsx tests/b2c-manual-bank-transfer.test.ts tests/b2c-manual-bank-transfer-api.test.ts tests/b2c-manual-bank-transfer-ui.test.tsx tests/b2c-provider-evidence-reconciliation.test.ts tests/payment-tracker-upload-api.test.ts tests/tap-statement-upload-api.test.ts tests/stripe-charges-upload-api.test.ts tests/database-foundation.test.ts supabase/tests/database_foundation.test.sql docs/BUSINESS_RULES.md docs/INTEGRATIONS.md docs/TESTING_STRATEGY.md
