@@ -50,7 +50,7 @@ function paymentStatusForDecision(row: B2cLedgerRow): "succeeded" | "failed" | "
  * Every input comes from a field the row already carries -- no new database
  * read, and no rule loosened beyond what `resolveB2cPaymentDecision` allows.
  */
-export function decorateB2cLedgerRow(row: B2cLedgerRow): B2cDecoratedLedgerRow {
+export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2cDecoratedLedgerRow {
   const openFlagTypes = new Set(row.openReviewFlags.flatMap((flag) => {
     const rawType = OPEN_FLAG_LABEL_TO_TYPE[flag.type];
     return rawType ? [rawType] : [];
@@ -68,7 +68,7 @@ export function decorateB2cLedgerRow(row: B2cLedgerRow): B2cDecoratedLedgerRow {
     isApprovedFinancePayment: row.sourceSystem === "finance_tracker",
     evidenceMatchState: row.tapStatementUnmatched ? "unmatched" : "not_required",
     financeLineageStatus: row.sourceSystem === "finance_tracker" ? "posted" : "not_applicable",
-  });
+  }, today);
   return { ...row, decision };
 }
 
@@ -116,6 +116,6 @@ export class SupabaseB2cLedgerRepository {
 
   async page(query: B2cLedgerQuery, today = new Date()): Promise<B2cLedgerPage> {
     const snapshot = await getB2cDashboardSnapshot(this.client, today, query.period);
-    return pageB2cLedgerRows(snapshot.rows.map(decorateB2cLedgerRow), query);
+    return pageB2cLedgerRows(snapshot.rows.map((row) => decorateB2cLedgerRow(row, today)), query);
   }
 }

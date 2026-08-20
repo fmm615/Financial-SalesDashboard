@@ -6,6 +6,7 @@ import {
   type FinanceWorkbookRowInput,
   type TapEvidenceRowInput,
 } from "@/lib/validation/b2c-finance-import-contracts";
+import { isImplausibleFutureBusinessDate } from "@/lib/b2c/business-date-plausibility";
 
 export type FinanceRowQuality = "valid" | "zero_value" | "needs_review" | "invalid";
 export type FinanceComparison = "unmatched" | "exact_duplicate_candidate" | "possible_duplicate" | "conflict";
@@ -115,14 +116,6 @@ function daysApart(left: string, right: string): number {
   return Math.abs((Date.parse(`${left}T00:00:00.000Z`) - Date.parse(`${right}T00:00:00.000Z`)) / 86_400_000);
 }
 
-/** A Payment Tracker row records cash already received, so a date more than one day past `today` is never plausible. */
-const FUTURE_DATE_GRACE_DAYS = 1;
-
-function isImplausibleFutureDate(occurredOn: string, today: Date): boolean {
-  const latestPlausible = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + FUTURE_DATE_GRACE_DAYS));
-  return occurredOn > latestPlausible.toISOString().slice(0, 10);
-}
-
 /** Assesses raw Finance data without repairing its source text or publishing a financial value. */
 export function assessFinanceRow(input: FinanceWorkbookRowInput, today = new Date()): AssessedFinanceRow {
   const row = financeWorkbookRowSchema.parse(input);
@@ -133,7 +126,7 @@ export function assessFinanceRow(input: FinanceWorkbookRowInput, today = new Dat
   const declaredYear = cleanText(row.declaredYear);
 
   if (!occurredOn) issues.push("unparseable_date");
-  if (occurredOn && isImplausibleFutureDate(occurredOn, today)) issues.push("implausible_future_date");
+  if (occurredOn && isImplausibleFutureBusinessDate(occurredOn, today)) issues.push("implausible_future_date");
   if (!amountUsd) issues.push(cleanText(row.amountUsdRaw) ? "invalid_amount" : "missing_amount");
   if (!cleanText(row.customerNameRaw)) issues.push("missing_customer_name");
   if (!cleanText(row.paymentMethodRaw)) issues.push("missing_payment_method");

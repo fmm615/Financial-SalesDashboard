@@ -80,6 +80,16 @@ describe("buildB2cRecordWorkItems", () => {
     expect(buildB2cRecordWorkItems(record({ decision }))).toEqual([]);
   });
 
+  it("produces one data-quality item for an implausible future business date, even on an already-posted payment", () => {
+    const decision = resolveB2cPaymentDecision({
+      ...succeededBase, sourceSystem: "finance_tracker", occurredOn: "2026-11-01",
+      isApprovedFinancePayment: true, financeLineageStatus: "posted",
+    }, new Date("2026-08-20T00:00:00.000Z"));
+    const items = buildB2cRecordWorkItems(record({ decision, customerLabel: "Hoor Alshubbar" }));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ queue: "data_quality", visibleGroup: "data", nextAction: "correct", title: "Correct the implausible date for Hoor Alshubbar" });
+  });
+
   it("produces an fx work item for a foreign-currency record awaiting conversion", () => {
     const decision = resolveB2cPaymentDecision({ ...succeededBase, originalCurrency: "BHD", amountUsd: null });
     const items = buildB2cRecordWorkItems(record({ decision }));

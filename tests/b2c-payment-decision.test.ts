@@ -80,6 +80,33 @@ describe("resolveB2cPaymentDecision", () => {
     expect(decision.reconciliationStatus).toBe("duplicate_pending");
   });
 
+  it("blocks a payment whose business date has not happened yet, even when it is already posted", () => {
+    const decision = resolveB2cPaymentDecision({
+      ...base, sourceSystem: "finance_tracker", occurredOn: "2026-11-01", isApprovedFinancePayment: true,
+      financeLineageStatus: "posted",
+    }, new Date("2026-08-20T00:00:00.000Z"));
+
+    expect(decision.blockingReasons).toContain("implausible_future_date");
+    expect(decision.reportingDecision).toBe("blocked");
+    expect(decision.postingStatus).toBe("posted");
+  });
+
+  it("never lets a Finance exception waive an implausible future date", () => {
+    const decision = resolveB2cPaymentDecision({
+      ...base, occurredOn: "2026-11-01", hasFinanceException: true,
+    }, new Date("2026-08-20T00:00:00.000Z"));
+
+    expect(decision.blockingReasons).toContain("implausible_future_date");
+    expect(decision.reportingDecision).toBe("blocked");
+  });
+
+  it("allows a business date up to one day ahead of today", () => {
+    const decision = resolveB2cPaymentDecision({ ...base, occurredOn: "2026-08-21" }, new Date("2026-08-20T00:00:00.000Z"));
+
+    expect(decision.blockingReasons).not.toContain("implausible_future_date");
+    expect(decision.reportingDecision).toBe("reportable");
+  });
+
   it("excludes a record through an explicit, separately audited manual exclusion", () => {
     const decision = resolveB2cPaymentDecision({ ...base, hasManualExclusion: true });
     expect(decision.reportingDecision).toBe("excluded");

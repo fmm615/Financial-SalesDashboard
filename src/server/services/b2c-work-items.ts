@@ -62,6 +62,11 @@ const REASON_PLAN: Partial<Record<B2cBlockingReason, ReasonPlan>> = {
     title: (name) => `Enter the missing business date for ${name}`,
     explanation: "This record has no available business date. Enter the verified date.",
   },
+  implausible_future_date: {
+    queue: "data_quality", nextAction: "correct",
+    title: (name) => `Correct the implausible date for ${name}`,
+    explanation: "This record's business date has not happened yet. Verify the source and enter the correct date.",
+  },
   missing_customer_email: {
     queue: "data_quality", nextAction: "correct",
     title: (name) => `Add the missing customer email for ${name}`,

@@ -1,4 +1,5 @@
 import { b2cPaymentExclusionReasons, type B2cPaymentExclusionReason, type B2cPaymentReportabilityInput } from "@/lib/b2c/payment-reportability";
+import { isImplausibleFutureBusinessDate } from "@/lib/b2c/business-date-plausibility";
 
 /**
  * The one accurate B2C decision shape. Every dimension is an independent
@@ -27,6 +28,7 @@ export type B2cBlockingReason =
   | "unmatched_evidence"
   | "manual_exclusion"
   | "ambiguous_finance_lineage"
+  | "implausible_future_date"
   | "other_open_review";
 
 /**
@@ -111,6 +113,7 @@ function explain(reportingDecision: B2cPaymentDecision["reportingDecision"], blo
     unmatched_evidence: "provider evidence that does not match",
     manual_exclusion: "an explicit audited exclusion",
     ambiguous_finance_lineage: "an unresolved Finance Payment Tracker lineage decision",
+    implausible_future_date: "a business date that has not happened yet",
     other_open_review: "an open review item",
   };
   return `Blocked by ${blockingReasons.map((reason) => reasonText[reason]).join(", ")}.`;
@@ -122,11 +125,12 @@ function explain(reportingDecision: B2cPaymentDecision["reportingDecision"], blo
  * gate first; this function only translates and extends that result, and it
  * never loosens or bypasses a rule the gate already enforces.
  */
-export function resolveB2cPaymentDecision(input: B2cPaymentDecisionInput): B2cPaymentDecision {
+export function resolveB2cPaymentDecision(input: B2cPaymentDecisionInput, today = new Date()): B2cPaymentDecision {
   const gateReasons = b2cPaymentExclusionReasons(toGateInput(input));
   const blockingReasons: B2cBlockingReason[] = [];
 
   if (!input.occurredOn) blockingReasons.push("missing_business_date");
+  if (input.occurredOn && isImplausibleFutureBusinessDate(input.occurredOn, today)) blockingReasons.push("implausible_future_date");
   for (const reason of gateReasons) blockingReasons.push(translateGateReason(reason, input));
   if (input.evidenceMatchState === "unmatched" || input.evidenceMatchState === "mismatch") blockingReasons.push("unmatched_evidence");
   if (input.financeLineageStatus === "ambiguous") blockingReasons.push("ambiguous_finance_lineage");

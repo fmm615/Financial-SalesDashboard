@@ -99,7 +99,7 @@ export class SupabaseB2cWorkspaceRepository {
       new B2cFinanceActionRepository(this.client).getFinancePostingReadinessRows(),
     ]);
     return buildB2cWorkspaceOverview({
-      ledgerRows: snapshot.rows.map(decorateB2cLedgerRow),
+      ledgerRows: snapshot.rows.map((row) => decorateB2cLedgerRow(row, today)),
       sourceFailures,
       postingReadinessRows,
     });
