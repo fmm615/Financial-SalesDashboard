@@ -1,6 +1,78 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createFinanceSourceIdentity } from "@/lib/b2c/finance-source-identity";
 import { previewFinanceImportVersion } from "@/server/services/b2c-finance-import-versioning";
+
+/**
+ * Independently mirrors the identity string the SQL writers build, so this
+ * suite actually crosses the TypeScript/SQL boundary instead of only ever
+ * comparing TypeScript to itself.
+ *
+ * The SQL sites are:
+ *   - reserve_b2c_finance_manual_bank_transfer_lineage() (20260818100000)
+ *       canonical_name || ' ' || to_char(occurred_on,'YYYY-MM-DD') || ' '
+ *         || amount_usd::text || ' bank transfer'
+ *   - the posted-row backfill loop (20260818103000)
+ *   - record_b2c_manual_bank_transfer() (20260818113000)
+ *
+ * All three join with a single space. A TypeScript separator that drifts from
+ * that (a raw NUL byte shipped in the first implementation and went unnoticed
+ * for six commits, because it renders as a space in most editors and no test
+ * compared the two languages) silently breaks every cross-boundary duplicate
+ * check while the whole suite stays green.
+ */
+function sqlSourceIdentity(input: {
+  normalizedCustomerName: string;
+  occurredOn: string;
+  amountUsd: string;
+  normalizedPaymentMethod: string;
+}): string {
+  const identityText = [
+    input.normalizedCustomerName,
+    input.occurredOn,
+    input.amountUsd,
+    input.normalizedPaymentMethod,
+  ].join(" ");
+  return createHash("sha256").update(identityText, "utf8").digest("hex");
+}
+
+describe("createFinanceSourceIdentity agrees with the SQL writers", () => {
+  it("produces the byte-identical hash the SQL sites store for the same payment", () => {
+    const input = {
+      normalizedCustomerName: "hoor alshubbar",
+      occurredOn: "2026-11-01",
+      amountUsd: "48.450000",
+      normalizedPaymentMethod: "ios",
+    };
+
+    expect(createFinanceSourceIdentity(input)).toBe(sqlSourceIdentity(input));
+  });
+
+  it("agrees with SQL for a bank transfer, the path manual entry reserves a lineage on", () => {
+    const input = {
+      normalizedCustomerName: "maya al khalifa",
+      occurredOn: "2026-08-01",
+      amountUsd: "399.000000",
+      normalizedPaymentMethod: "bank transfer",
+    };
+
+    expect(createFinanceSourceIdentity(input)).toBe(sqlSourceIdentity(input));
+  });
+
+  it("joins identity fields with a single space and never a control character", () => {
+    // Guards the exact regression above: a raw NUL (or any control byte) in
+    // the separator is invisible on screen but changes every hash.
+    const source = readFileSync("src/lib/b2c/finance-source-identity.ts", "utf8");
+
+    const hasControlByte = [...source].some((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 && code !== 9 && code !== 10 && code !== 13;
+    });
+    expect(hasControlByte).toBe(false);
+    expect(source).toContain('const FIELD_SEPARATOR = " ";');
+  });
+});
 
 describe("createFinanceSourceIdentity", () => {
   it("gives the same real payment the same identity across workbook hashes and tabs", () => {
