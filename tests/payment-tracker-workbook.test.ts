@@ -53,6 +53,21 @@ describe("Payment Tracker workbook parser", () => {
     ]));
   });
 
+  it("extracts a genuine Excel date cell by its actual calendar value, never by a locale-formatted guess", async () => {
+    // A real Date-typed cell for 3 November 2025 would be genuinely ambiguous
+    // if it were ever round-tripped through a slash-formatted string (03/11
+    // vs 11/03). Reading it directly from the Date object's UTC fields must
+    // never depend on any locale/display-format interpretation.
+    const bytes = await workbookBytes([
+      { name: "B2C", rows: [b2cHeaders, [new Date(Date.UTC(2025, 10, 3)), "Reham", "", 475, "Membership", "Stripe", 2025, "", "Received"]] },
+      { name: "B2C Cons", rows: [b2cConsHeaders, ["05/10/2025", "Reham", "", 475, "Membership", "Individual", "Stripe", "October", 2025, "", "Received"]] },
+    ]);
+
+    await expect(parsePaymentTrackerWorkbook("payment-tracker.xlsx", bytes)).resolves.toMatchObject({
+      rows: expect.arrayContaining([expect.objectContaining({ sourceTab: "B2C", reportedDateRaw: "2025-11-03" })]),
+    });
+  });
+
   it("accepts the Finance workbook's lowercase B2C cons tab name as the canonical B2C Cons source", async () => {
     const bytes = await workbookBytes([
       { name: "B2C", rows: [b2cHeaders, ["2025-10-05", "Reham", "", 475, "Membership", "Stripe", 2025, "", "Received"]] },

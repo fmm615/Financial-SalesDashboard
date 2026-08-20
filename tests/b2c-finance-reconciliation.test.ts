@@ -29,6 +29,50 @@ describe("B2C Finance workbook assessment", () => {
     expect(result.issues).toContain("declared_month_conflicts_with_date");
   });
 
+  it("parses a slash-formatted date as day/month/year only when the first number cannot be a month", () => {
+    const result = assessFinanceRow({
+      sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "25/12/2025",
+      amountUsdRaw: "100", customerNameRaw: "Abeer", paymentMethodRaw: "Stripe",
+    });
+
+    expect(result.occurredOn).toBe("2025-12-25");
+    expect(result.quality).toBe("valid");
+  });
+
+  it("never guesses month-before-day vs day-before-month for a genuinely ambiguous slash date -- it holds the row for review instead", () => {
+    // "05/06/2025" could mean 5 June or 6 May; guessing wrong would silently
+    // record the wrong business date, so this must never resolve to a date.
+    const result = assessFinanceRow({
+      sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "05/06/2025",
+      amountUsdRaw: "100", customerNameRaw: "Abeer", paymentMethodRaw: "Stripe",
+    });
+
+    expect(result.occurredOn).toBeNull();
+    expect(result.quality).toBe("needs_review");
+    expect(result.issues).toContain("unparseable_date");
+  });
+
+  it("never lets an impossible calendar date silently roll into the next month (e.g. 31 April)", () => {
+    // Day 31 is unambiguous (>12, so day-first), but April has only 30 days.
+    // JS Date.UTC would otherwise silently roll this to 1 May.
+    const result = assessFinanceRow({
+      sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "31/04/2025",
+      amountUsdRaw: "100", customerNameRaw: "Abeer", paymentMethodRaw: "Stripe",
+    });
+
+    expect(result.occurredOn).toBeNull();
+    expect(result.issues).toContain("unparseable_date");
+  });
+
+  it("never silently reinterprets an ISO date -- year-month-day order is fixed and unambiguous", () => {
+    const result = assessFinanceRow({
+      sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "2025-03-04",
+      amountUsdRaw: "100", customerNameRaw: "Abeer", paymentMethodRaw: "Stripe",
+    });
+
+    expect(result.occurredOn).toBe("2025-03-04");
+  });
+
   it("holds a business date beyond today for review instead of accepting a future payment as valid", () => {
     const result = assessFinanceRow({
       sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "2026-11-01",
