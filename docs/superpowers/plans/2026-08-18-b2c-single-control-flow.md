@@ -14,10 +14,13 @@
 
 Kept current as work happens, not just at task boundaries — this is the living status, the numbered tasks below are the original spec.
 
-**Status as of 2026-08-20:** Tasks 1-6 complete and merged. Task 7 not started.
+**Status as of 2026-08-20:** All 7 tasks implemented and merged. One real acceptance criterion remains open: Task 7 Step 5 (reconcile one real approved month against Finance's own totals) needs live data and a human, not code.
 
-- Task 1 (`9bb8866`), Task 2 (`9156d13`), Task 3 (`f304e5d`), Task 4 (`a1eccea`), Task 5 (`76d1022`), Task 6 (`dd389a4`) shipped as specified, each independently re-verified line-by-line before commit. Task 1's implementation had a NUL-byte corruption bug caught and fixed pre-commit; Task 4's had a missing `supersedesImportId` wiring bug (would have broken every "Replace workbook" attempt) caught and fixed pre-commit; Task 5 caught and fixed a real data leak in `src/app/operations/b2c/page.tsx` (the server component was serializing full Admin-only Stripe evidence into every role's page payload, unused by the client -- stripped it).
+- Task 1 (`9bb8866`), Task 2 (`9156d13`), Task 3 (`f304e5d`), Task 4 (`a1eccea`), Task 5 (`76d1022`), Task 6 (`dd389a4`), Task 7 (`2fcd21d`, `f72e897`) shipped, each independently re-verified line-by-line before commit. Task 1's implementation had a NUL-byte corruption bug caught and fixed pre-commit; Task 4's had a missing `supersedesImportId` wiring bug (would have broken every "Replace workbook" attempt) caught and fixed pre-commit; Task 5 caught and fixed a real data leak in `src/app/operations/b2c/page.tsx` (the server component was serializing full Admin-only Stripe evidence into every role's page payload, unused by the client -- stripped it); Task 7 caught and removed a manual "Find exact duplicates" button that had survived inside the shared drawer (Task 4/5 reused a pre-existing component wholesale without noticing it violated the plan's "Remove" list, since Task 1 already auto-creates duplicate groups during import) -- fixed directly by the orchestrating session in `2fcd21d` before the rest of Task 7 was delegated.
 - Task 6 replaced dead code rather than extending it: the pre-existing `manualBankTransferSchema`/`SupabaseB2cPaymentsRepository.createManualBankTransfer` let the browser supply currency/exchange-rate/gross/net/tax directly via a raw table insert -- exactly what the plan forbids. Nothing referenced either, so both were replaced outright with the plan's actual USD-only, server-derived shape and a protected RPC. The three-tier duplicate check (exact bank reference -> exact Finance source-identity, posted or unposted -> standard 48-hour content fingerprint) was hand-verified byte-for-byte against Task 1's existing identity formula and the existing content-fingerprint function; nothing was reinvented. pgTAP assertions were written but are unexecuted (no local Postgres in this environment) -- run `npm run supabase:test` for real once the migrations are applied.
+- **Task 7's plan text was partly stale by the time it ran** -- some files it says to delete (`b2c-exact-duplicate-review.tsx`/`.ts`, `GET .../reconciliation/exact-duplicates`) turned out to still be live, reused by Task 5's drawer for its `choose_duplicate` action. Verified actual usage with `rg` before deleting anything rather than trusting the original file list. Also found and deliberately left alone: `finance-actions/date-authority` and `finance-actions/[rowId]/correction` are now orphaned (no live caller) but still real, still-tested mechanisms -- Task 5 never wired the Finance-staging-row date-authority flow into the new drawer. **This is open follow-up work**, not a regression: any Payment Tracker row with a `declared_month_conflicts_with_date`/`declared_year_conflicts_with_date` quality issue currently has no live UI path to resolve it.
+- `tests/e2e/b2c-workspace-flow.spec.ts` is written (positive flow, negative flow, known-value dataset, 4 viewports) but **not runnable in this environment** -- no `@playwright/test` dependency, no config, no seeded Supabase project, and this app's sign-in is Google-OAuth-only so real auth fixtures need a `global-setup.ts` creating a Supabase test session directly. The spec's own header comment lists exactly what a follow-up task needs to do to make it real. `tests/e2e/**` is excluded from `tsconfig.json`/`eslint.config.mjs`/`vitest.config.ts` in the meantime.
+- **Before calling B2C fully done:** (1) run the reimport test-plan checklist from the "B2C Control Flow Review" artifact once the planned data wipe+reimport happens, (2) wire `date-authority` into the drawer or formally retire it, (3) install Playwright and run the real e2e spec against seeded data, (4) do Task 7 Step 5's real-month reconciliation with Finance.
 - **Task 5 unblocks the Hoor Alshubbar fix.** The append-only posted-adjustment flow (`adjust-b2c-finance-payment.ts` + `/api/admin/b2c/payments/[paymentId]/finance-adjustments`) is now live in the drawer -- a `finance_tracker` payment always routes to it as the primary action, regardless of blocking reason. The RPC parameter contract was verified directly against the migration SQL, and the RPC's own expected-state re-validation was confirmed to make a stale/wrong client-side read fail-safe (rejected write, never a wrong one). The payment itself has not been corrected yet -- that's a live admin action, not a code change, and still waits on the reimport decision below.
 - **Not in the original plan, added by direct request (`8f8969a`, `aec5e68`, `50f13fe`, `340b4ea`):** the Ledger's 6-column table gained customer email/mobile and provider description/seller-message display; an "implausible future business date" check was added at both the Payment Tracker ingestion layer and the general decision layer (so it catches new imports *and* already-posted payments); day/month date-parsing safety was audited end to end and locked in with regression tests.
 - **Open finding, not yet resolved:** the only Payment Tracker import in the database (12 Aug 2026) predates the Task 1 lineage system by six days. Task 2's backfill only covered already-*posted* rows, so 1,002 of 1,163 valid staged rows have no lineage and no candidate — invisible to both Ledger and Work queue (86 iOS/bank-transfer rows, $6,839.52, genuinely should be reviewable; 916 other-method rows, $429,449.93, likely already captured via Stripe/Tap sync). **Decision: wipe and reimport all B2C source data from scratch** (Payment Tracker sheets, Stripe API, Tap), rather than backfill nine months of historical staging data. A live posted payment (Hoor Alshubbar, `85edf4fe-346b-483a-8053-199e6b1e2961`, $48.45) currently carries the wrong future date from this same gap and stays as-is until an Admin actually runs the correction through Task 5's now-live adjustment flow. Full detail and a post-reimport test-plan checklist live in the published "B2C Control Flow Review" artifact from this session (real figures, decision log, area-by-area checklist).
@@ -797,7 +800,7 @@ git commit -m "feat(b2c): finish source intake and bank transfers"
 
 ---
 
-### Task 7: Prove the complete B2C workflow and remove superseded UI code — ⬜ Not started
+### Task 7: Prove the complete B2C workflow and remove superseded UI code — 🔶 Mostly complete (f72e897); Step 5 pending real data
 
 **Files:**
 - Create: `tests/e2e/b2c-workspace-flow.spec.ts`
@@ -827,7 +830,7 @@ git commit -m "feat(b2c): finish source intake and bank transfers"
 - The E2E workflow uses one B2C route and its query-string tabs/queues.
 - All financial totals use the existing shared reportability and effective-ledger rules; the UI never calculates an independent total.
 
-- [ ] **Step 1: Write the end-to-end acceptance tests**
+- [x] **Step 1: Write the end-to-end acceptance tests**
 
 Positive flow:
 
@@ -857,7 +860,7 @@ Negative flow:
 8. There is no manual iOS entry action.
 9. A Viewer has no Work queue or B2C write buttons.
 
-- [ ] **Step 2: Add known-value financial assertions**
+- [x] **Step 2: Add known-value financial assertions**
 
 Use a small dataset whose totals are calculated in the test description:
 
@@ -868,7 +871,7 @@ Use a small dataset whose totals are calculated in the test description:
 - failed/pending/ambiguous rows: `0.00` contribution;
 - expected net cash: `175.00`.
 
-- [ ] **Step 3: Remove superseded components and duplicate tests safely**
+- [x] **Step 3: Remove superseded components and duplicate tests safely**
 
 Run `rg` for each listed component/service before deletion. Delete it only after its behavior is present in the workspace/drawer and its imports are zero. Remove the two old page-level UI test files after their behavioral assertions exist in workspace/drawer tests; do not maintain the same workflow through parallel test harnesses. Keep route redirect files.
 
@@ -876,7 +879,7 @@ Delete the bulk-canonical, selected-duplicate, manual exact-grouping, and separa
 
 Run a final ownership audit with `rg`: the Payment Tracker has one preview/finalize route pair; provider mapping and duplicate decisions each have one write route; each Stripe/Tap sync, backfill, and upload control is rendered only from Sources; each correction, FX, duplicate, exception, and posted adjustment is reachable only through the shared drawer; the Ready-to-post queue has one batch Post action; manual entry has one Sources action; no iOS-entry action exists; Administration contains no B2C controls.
 
-- [ ] **Step 4: Run the complete verification suite**
+- [x] **Step 4: Run the complete verification suite**
 
 Run:
 
@@ -904,7 +907,7 @@ Finance supplies the approved source totals. Compare:
 
 Record only counts and approved totals in the validation note. Do not commit customer data, raw provider IDs, source files, or credentials.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/e2e/b2c-workspace-flow.spec.ts tests/b2c-finance-reconciliation-ui.test.tsx tests/b2c-finance-action-ui.test.tsx tests/b2c-finance-action-api.test.ts tests/b2c-exact-duplicate-reconciliation-api.test.ts tests/database-foundation.test.ts supabase/tests/database_foundation.test.sql docs/ARCHITECTURE.md docs/DATABASE_SCHEMA.md docs/PROJECT_STRUCTURE.md docs/TESTING_STRATEGY.md docs/INTEGRATIONS.md src/features/b2c/b2c-reconciliation-page.tsx src/features/b2c/b2c-finance-action-module.tsx src/features/b2c/b2c-finance-data-quality-actions.tsx src/features/b2c/b2c-finance-duplicate-actions.tsx src/features/b2c/b2c-exact-duplicate-review.tsx src/server/services/b2c-exact-duplicate-review.ts src/app/api/admin/b2c/finance-actions/duplicates/bulk-canonical/route.ts src/app/api/admin/b2c/finance-actions/duplicates/selected/route.ts src/app/api/admin/b2c/reconciliation/exact-duplicates/group/route.ts src/app/api/admin/b2c/reconciliation/exact-duplicates/route.ts
