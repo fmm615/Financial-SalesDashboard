@@ -14,7 +14,20 @@
 
 Kept current as work happens, not just at task boundaries — this is the living status, the numbered tasks below are the original spec.
 
-**Status as of 2026-08-20:** All 7 tasks implemented and merged. One real acceptance criterion remains open: Task 7 Step 5 (reconcile one real approved month against Finance's own totals) needs live data and a human, not code.
+**Status as of 2026-08-20:** All 7 tasks implemented and merged, but **an external audit found four real defects after Task 7 closed** — one of them critical and now fixed (`399e694`), three still open. Do not treat B2C as release-ready until the remaining three are resolved. Task 7 Step 5 (reconcile one real approved month against Finance's own totals) also still needs live data and a human, not code.
+
+### Post-completion audit findings (2026-08-20)
+
+An external review of the finished branch surfaced four defects the entire 453-test suite could not see. All four were independently reproduced before being accepted.
+
+1. **[FIXED — `399e694`] Finance identity disagreed between TypeScript and SQL.** `createFinanceSourceIdentity` joined its fields with a **raw NUL byte**; all three SQL writers join with a **single space**. The same payment hashed two different ways, defeating the core double-posting protection: a later workbook could not recognize an existing manual bank transfer, and replacement workbooks could not match Task 2's backfilled posted rows, so an Admin could confirm the bogus "new" candidate and create a duplicate payment. Verified against live data — all 161 stored lineages were space-hashed, zero NUL-hashed, so aligning TypeScript needed no data migration. **Root cause of the miss:** a raw NUL renders as an ordinary space in editors, diffs, and the file-reading tooling, so it looked correct on every inspection; and every test compared TS to TS, so nothing in the suite ever crossed the TS/SQL boundary. The earlier claim in this log that Task 6's duplicate check was "hand-verified byte-for-byte" was **wrong** — it was verified by reading, not by computing. A cross-boundary test now reconstructs the SQL identity string independently and asserts byte-identical hashes; it was confirmed to fail when the NUL is reintroduced.
+2. **[OPEN] Exact cross-tab pairs cannot become postable.** `previewFinanceImportVersion` never carries `sourceTab`, so it cannot distinguish the plan-approved `B2C` + `B2C Cons` exact pair from a genuine repeat — both classify as `ambiguous`. The database then refuses `confirm_new` for ambiguous candidates and requires an existing lineage for `link_revision`, so a first-import exact pair is unpostable even after the Admin picks its canonical row. Current tests encode this broken behavior as expected, contradicting the written plan.
+3. **[OPEN] Import-version decisions have no reachable UI.** `/lineage-decisions` has zero frontend callers, and `b2c-workspace-repository.ts` never turns pending import candidates into work items — it builds them only from posted ledger rows plus the readiness summary. New/ambiguous/existing-manual candidates are therefore invisible and unresolvable in the live workspace.
+4. **[OPEN] First-import rows leave permanent phantom candidates.** The finalize RPC auto-links first-import `new` candidates but never records a decision for them, while `get_b2c_finance_posting_readiness` counts every candidate lacking a decision. Those candidates are stuck visible forever, and deciding one would fail because its row is already linked.
+
+Also flagged by the same audit, not yet verified in depth: provider-evidence *mismatches* are computed but never persisted or surfaced as work items; generic `possible_duplicate` payments route to the Finance workbook exact-pair component rather than a correct keep/exclude flow; ledger filters apply only to already-loaded browser rows rather than server-side; and the manual-transfer timestamp UI assumes the browser's timezone while the RPC does not verify an explicit offset.
+
+**Process lesson for whoever continues this:** a green unit suite here proves very little about the TS↔SQL contract, because no unit test crosses it. The pgTAP suite is the only layer that would have caught defect 1, and it has never once run (no local Postgres). Treat "all tests pass" as necessary, not sufficient, and get pgTAP running before trusting any further lineage work.
 
 - Task 1 (`9bb8866`), Task 2 (`9156d13`), Task 3 (`f304e5d`), Task 4 (`a1eccea`), Task 5 (`76d1022`), Task 6 (`dd389a4`), Task 7 (`2fcd21d`, `f72e897`) shipped, each independently re-verified line-by-line before commit. Task 1's implementation had a NUL-byte corruption bug caught and fixed pre-commit; Task 4's had a missing `supersedesImportId` wiring bug (would have broken every "Replace workbook" attempt) caught and fixed pre-commit; Task 5 caught and fixed a real data leak in `src/app/operations/b2c/page.tsx` (the server component was serializing full Admin-only Stripe evidence into every role's page payload, unused by the client -- stripped it); Task 7 caught and removed a manual "Find exact duplicates" button that had survived inside the shared drawer (Task 4/5 reused a pre-existing component wholesale without noticing it violated the plan's "Remove" list, since Task 1 already auto-creates duplicate groups during import) -- fixed directly by the orchestrating session in `2fcd21d` before the rest of Task 7 was delegated.
 - Task 6 replaced dead code rather than extending it: the pre-existing `manualBankTransferSchema`/`SupabaseB2cPaymentsRepository.createManualBankTransfer` let the browser supply currency/exchange-rate/gross/net/tax directly via a raw table insert -- exactly what the plan forbids. Nothing referenced either, so both were replaced outright with the plan's actual USD-only, server-derived shape and a protected RPC. The three-tier duplicate check (exact bank reference -> exact Finance source-identity, posted or unposted -> standard 48-hour content fingerprint) was hand-verified byte-for-byte against Task 1's existing identity formula and the existing content-fingerprint function; nothing was reinvented. pgTAP assertions were written but are unexecuted (no local Postgres in this environment) -- run `npm run supabase:test` for real once the migrations are applied.
@@ -121,7 +134,7 @@ Manual bank entry is USD-only in B2C v1. Require bank reference, customer name, 
 
 ---
 
-### Task 1: Prevent Payment Tracker rows from being reposted across workbook versions — ✅ Complete (9bb8866)
+### Task 1: Prevent Payment Tracker rows from being reposted across workbook versions — ⚠️ Complete (9bb8866) with a critical identity bug fixed later in 399e694; exact-pair handling still broken (audit finding 2)
 
 **Files:**
 - Create: `src/lib/b2c/finance-source-identity.ts`
@@ -401,7 +414,7 @@ git commit -m "fix(b2c): post Finance payments by stable lineage"
 
 ---
 
-### Task 3: Create one accurate B2C decision and work-item layer — ✅ Complete (f304e5d)
+### Task 3: Create one accurate B2C decision and work-item layer — ⚠️ Complete (f304e5d); pending import candidates never become work items (audit finding 3)
 
 **Files:**
 - Create: `src/lib/b2c/payment-decision.ts`
