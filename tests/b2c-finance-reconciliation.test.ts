@@ -29,6 +29,33 @@ describe("B2C Finance workbook assessment", () => {
     expect(result.issues).toContain("declared_month_conflicts_with_date");
   });
 
+  it("holds a business date beyond today for review instead of accepting a future payment as valid", () => {
+    const result = assessFinanceRow({
+      sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "2026-11-01",
+      amountUsdRaw: "48.45", customerNameRaw: "Hoor Alshubbar", paymentMethodRaw: "iOS",
+    }, new Date("2026-08-20T00:00:00.000Z"));
+
+    expect(result.occurredOn).toBe("2026-11-01");
+    expect(result.quality).toBe("needs_review");
+    expect(result.issues).toContain("implausible_future_date");
+  });
+
+  it("accepts a date at or one day past today, so a same-day entry near midnight is never wrongly held", () => {
+    const today = assessFinanceRow({
+      sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "2026-08-20",
+      amountUsdRaw: "100", customerNameRaw: "Abeer", paymentMethodRaw: "Stripe",
+    }, new Date("2026-08-20T00:00:00.000Z"));
+    const tomorrow = assessFinanceRow({
+      sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "2026-08-21",
+      amountUsdRaw: "100", customerNameRaw: "Abeer", paymentMethodRaw: "Stripe",
+    }, new Date("2026-08-20T00:00:00.000Z"));
+
+    expect(today.issues).not.toContain("implausible_future_date");
+    expect(tomorrow.issues).not.toContain("implausible_future_date");
+    expect(today.quality).toBe("valid");
+    expect(tomorrow.quality).toBe("valid");
+  });
+
   it("keeps a zero-value source row out of valid Finance revenue candidates", () => {
     const result = assessFinanceRow({
       sourceTab: "B2C", sourceRowNumber: 2, reportedDateRaw: "2026-08-01", amountUsdRaw: "0",
