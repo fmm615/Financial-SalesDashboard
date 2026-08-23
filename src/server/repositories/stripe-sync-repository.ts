@@ -192,16 +192,6 @@ export class SupabaseB2cProviderSyncRepository {
     if (mergedName.conflict || mergedEmail.conflict || mergedPhone.conflict) await this.openFlag(payment.id, "needs_follow_up", `${this.providerLabel} returned conflicting transaction contact evidence. The higher-priority retained value remains in use pending Admin review.`);
     if (!mapping) await this.openFlag(payment.id, "unmapped_product", `${this.providerLabel} payment has no approved product mapping. It is retained for traceability and excluded from financial totals until an Admin maps the product.`);
     if (input.paymentStatus === "failed") await this.openFlag(payment.id, "failed", `${this.providerLabel} payment failed. It is retained for follow-up and excluded from financial totals.`);
-    // A failed card attempt followed by a successful retry commonly has the same
-    // email, amount, and day. Only two completed payments can be financial
-    // duplicate candidates; failed or pending attempts never taint a success.
-    if (input.paymentStatus === "succeeded" && mergedEmail.value) {
-      const duplicatePaymentIds = await this.findRecentContentDuplicates(payment.id, duplicateFingerprint, input.occurredAt);
-      if (duplicatePaymentIds.length) {
-        const reason = "Another completed B2C payment has the same customer, amount, category, and Bahrain business date within 48 hours. It is excluded from financial totals pending Admin review.";
-        await Promise.all([payment.id, ...duplicatePaymentIds].map((paymentId) => this.openFlag(paymentId, "possible_duplicate", reason)));
-      }
-    }
     return { paymentId: payment.id, inserted: existing === null };
   }
 
@@ -319,14 +309,6 @@ export class SupabaseB2cProviderSyncRepository {
       .eq("source_system", this.provider).eq("external_product_id", productReference).maybeSingle();
     if (error) throw new Error(`Could not load ${this.providerLabel} product mapping: ${error.message}`);
     return data ? { id: data.id, categoryCode: data.category_code, membershipTier: data.membership_tier } : null;
-  }
-
-  private async findRecentContentDuplicates(paymentId: string, fingerprint: string, occurredAt: string): Promise<string[]> {
-    const start = new Date(new Date(occurredAt).getTime() - 48 * 60 * 60 * 1000).toISOString();
-    const end = new Date(new Date(occurredAt).getTime() + 48 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await this.client.from("b2c_payments").select("id").eq("payment_status", "succeeded").eq("duplicate_fingerprint", fingerprint).gte("occurred_at", start).lte("occurred_at", end).neq("id", paymentId);
-    if (error) throw new Error(`Could not check ${this.providerLabel} content duplicates: ${error.message}`);
-    return (data ?? []).map((payment) => payment.id);
   }
 
   private async openFlag(recordId: string, flagType: "unmapped_product" | "failed" | "possible_duplicate" | "refunded" | "needs_follow_up" | "needs_fx_review", reason: string, sourceArea: "b2c_payment" | "b2c_refund" = "b2c_payment"): Promise<void> {

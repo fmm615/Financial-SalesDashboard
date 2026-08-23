@@ -87,10 +87,33 @@ audited note. The queue has no generic browser-side "resolve" action and does
 not calculate or alter B2B/B2C financial values.
 
 Suggested actions are source-aware: B2B possible duplicates link to their
-existing duplicate-review workflow, while B2C possible duplicates remain open
-until Finance defines an explicit audited keep/exclude workflow. The generic
-B2C resolution RPC rejects an open possible-duplicate flag so an ordinary
-queue action cannot accidentally make a payment reportable.
+existing duplicate-review workflow. B2C payment content duplicates are instead
+constructed and resolved by the protected database-group workflow below; a
+generic review-flag resolution cannot make an open group reportable.
+
+## B2C payment duplicate boundary
+
+`20260820111000_b2c_payment_duplicate_groups.sql` makes B2C content-duplicate
+construction SQL-authoritative. A succeeded payment write (including a verified
+local correction) can open or extend one immutable payment duplicate group from
+effective e-mail, USD amount, category, business date, and the approved 48-hour
+window. Stripe and Tap repositories retain provider transaction-ID idempotency
+and ordinary data-quality flags, but never query for content candidates or
+write `possible_duplicate` flags themselves.
+
+Group and member history is immutable. An open group blocks every member from
+reporting; an Admin supplies an auditable reason and atomically chooses
+`keep_all` or `keep_one`. `keep_all` includes every member, while `keep_one`
+includes exactly the selected member; any resolved exclusion takes precedence
+over a later include. Safe reporting-state booleans are available without group
+membership, while group membership and decision writes are Admin-only through
+request-scoped authenticated clients and protected RPCs. The guarded historical
+backfill preserves unprovable flags for review, and only a stale orphan flag
+with no current candidate can be dismissed.
+
+Payment duplicate groups contain only `b2c_payments`. They are intentionally
+separate from the Admin-reviewed Finance workbook exact groups in
+`b2c_reconciliation_groups`; each has its own work item and drawer action.
 
 ## Targets boundary
 

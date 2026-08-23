@@ -35,7 +35,7 @@ Every task below closes one or more of these. IDs are referenced by task.
 | D4 | High | Import-version decisions have no reachable UI; candidates never become work items | Open |
 | D5 | High | First-import auto-link never records a decision → permanent phantom candidates in readiness | Open |
 | D6 | Medium | Provider-evidence mismatches computed then discarded; never persisted or surfaced | Open |
-| D7 | Medium | Generic `possible_duplicate` payments route to the Finance workbook exact-pair component | Open |
+| D7 | Medium | Generic `possible_duplicate` payments route to the Finance workbook exact-pair component | **Fixed** — `20260820111000_b2c_payment_duplicate_groups.sql` and its protected Admin workflow separate B2C payment groups from Finance workbook exact groups; each has a distinct work item and drawer action. |
 | D8 | Medium | Ledger filters apply only to already-loaded rows, not server-side | Open |
 | D9 | Medium | Manual-transfer timestamp: RPC accepts a timestamp with no explicit offset | Open |
 | D10 | Medium | `date-authority` staging-row date fix has no live UI caller | Open |
@@ -53,6 +53,7 @@ Every task below closes one or more of these. IDs are referenced by task.
 - `supabase/migrations/20260820100000_b2c_shared_identity_canonicalization.sql` — one canonical-text SQL function, replacing three inline copies (D2)
 - `supabase/migrations/20260820103000_b2c_exact_pair_and_candidate_decisions.sql` — exact-pair confirm + first-import decision rows (D3, D5)
 - `supabase/migrations/20260820110000_b2c_provider_evidence_mismatches.sql` — persist mismatches (D6)
+- `supabase/migrations/20260820111000_b2c_payment_duplicate_groups.sql` — SQL-authoritative B2C payment duplicate groups (D7)
 - `supabase/migrations/20260820113000_b2c_manual_transfer_offset_guard.sql` — require explicit UTC offset (D9)
 - `tests/b2c-identity-parity-corpus.ts` — the shared golden corpus, imported by both the Vitest parity test and the pgTAP fixture generator (D2)
 - `tests/b2c-finance-identity-parity.test.ts` — Vitest half of the parity check (D2)
@@ -815,19 +816,19 @@ Every `possible_duplicate` maps to `choose_duplicate`, and the drawer renders th
 **Interfaces:**
 - Produces: `B2cPaymentDecision.blockingReasons` distinguishes `possible_duplicate` (a `b2c_payments` content flag) from `finance_exact_duplicate` (an unresolved `b2c_reconciliation_groups` pair).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/b2c-payment-duplicate-routing.test.tsx`: a `finance_tracker` row with an unresolved cross-tab group renders the exact-pair review; a `manual_bank_transfer` row flagged `possible_duplicate` renders the payment-level keep/exclude flow and **not** the workbook component.
 
-- [ ] **Step 2: Add the distinct blocking reason**
+- [x] **Step 2: Add the distinct blocking reason**
 
 Add `"finance_exact_duplicate"` to `B2cBlockingReason`, set it when the row is `finance_tracker` with an unresolved reconciliation group, and keep `possible_duplicate` for the payment-level flag. Add its `reasonText` entry and a `REASON_PLAN` entry mapping it to `choose_duplicate`.
 
-- [ ] **Step 3: Route each to its own fragment**
+- [x] **Step 3: Route each to its own fragment**
 
 In the drawer, render `B2cExactDuplicateReview` only for `finance_exact_duplicate`. For `possible_duplicate`, render a payment-level fragment that resolves the review flag through the existing review-flag resolution route with a required reason.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 npx vitest run && npm run typecheck && npm run lint
@@ -835,6 +836,16 @@ git add src/features/b2c/b2c-payment-review-drawer.tsx src/lib/b2c/payment-decis
   tests/b2c-payment-duplicate-routing.test.tsx
 git commit -m "fix(b2c): give payment-level duplicates their own review action"
 ```
+
+**Status: Done.** The original generic-flag design was replaced by the
+database-owned payment duplicate-group workflow in
+`20260820111000_b2c_payment_duplicate_groups.sql`: successful payment writes
+construct auditable groups, only the protected Admin decision RPC can choose
+`keep_all` or `keep_one`, and reportability is derived server-side. Finance
+workbook exact pairs remain in `b2c_reconciliation_groups`, with a separate
+work item and review component. Provider repositories no longer perform a
+second client-side content-duplicate scan or directly upsert payment
+`possible_duplicate` flags.
 
 ---
 

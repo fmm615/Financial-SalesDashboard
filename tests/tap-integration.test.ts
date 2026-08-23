@@ -1,4 +1,6 @@
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { normaliseTapCharge, normaliseTapRefund, TapRefundNotSucceededError } from "@/lib/integrations/tap/normalise";
 import { isValidTapWebhookSignature } from "@/lib/integrations/tap/signature";
@@ -13,6 +15,16 @@ const charge = {
 const refund = { id: "ref_TS01", status: "REFUNDED", amount: "10.000", currency: "USD", charge: "chg_TS01", created: "2026-08-04T09:00:00.000Z", reference: { gateway: "gw_2", payment: "p_2" } };
 
 describe("Tap normalisation and signed event processing", () => {
+  it("uses the shared SQL-authoritative content duplicate boundary", () => {
+    const repositorySource = readFileSync(
+      path.join(process.cwd(), "src/server/repositories/stripe-sync-repository.ts"),
+      "utf8",
+    );
+
+    expect(repositorySource).not.toContain("findRecentContentDuplicates");
+    expect(repositorySource).not.toContain("[payment.id, ...duplicatePaymentIds]");
+  });
+
   it("keeps direct Tap fields, uses Bahrain business date, and never guesses a product", () => {
     const payment = normaliseTapCharge(charge, "product_id");
     expect(payment).toMatchObject({ chargeId: "chg_TS01", paymentStatus: "succeeded", customerName: "Khansa Khatoon", customerEmail: "khansa@example.com", customerPhone: "+97316825644112", productReference: "tap_price_founding", originalAmount: "50.42", amountUsd: "50.42", originalCurrency: "USD" });

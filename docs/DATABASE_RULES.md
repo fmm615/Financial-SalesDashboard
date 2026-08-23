@@ -71,3 +71,24 @@ Store money as `numeric(20,6)` and FX rates as `numeric(20,10)`. Do not use floa
 Foreign-currency B2C source rows keep their provider amount and have no USD amount until Finance records an append-only conversion in `b2c_payment_fx_conversions` or `b2c_refund_fx_conversions`. These tables are read-only to approved users; only authenticated Admin RPCs may insert. The RPC locks the source record, computes the USD amount from the source amount and entered rate, creates a `financial_corrections` record, and records the authenticated actor. Direct generic USD overrides for foreign source rows are rejected.
 
 `b2c_finance_row_lineage_links`, `b2c_finance_import_version_candidates`, and `b2c_finance_import_version_decisions` are insert-only and immutable: a trigger rejects any update or delete. All three are Admin-only write and every insert is audited; a link or decision row always records the authenticated actor who created it, never a client-supplied value. `finalize_b2c_finance_import_version` is the only way to create a Payment Tracker import going forward — the plain JSON `finalize_b2c_finance_import` intake path and its `/api/admin/b2c/finance-imports/preview` and `/finalize` routes are removed. A lineage decision is written only through the protected `apply_b2c_finance_import_version_decision` trigger, which locks the target candidate and rejects a second, conflicting decision on it.
+
+## B2C payment duplicate groups
+
+`20260820111000_b2c_payment_duplicate_groups.sql` follows
+`20260820110000_b2c_provider_evidence_mismatches.sql` in migration order. It
+is the sole authority for B2C payment content candidates: the protected SQL
+constructor uses effective e-mail, verified USD amount, category, business
+date, and the approved 48-hour window. Application repositories must not
+reimplement that query or create `possible_duplicate` flags for content matches.
+
+`b2c_payment_duplicate_groups` and
+`b2c_payment_duplicate_group_members` retain immutable, audited group/member
+history. An open group blocks reporting. An Admin-only atomic RPC resolves it
+as `keep_all` (every member included) or `keep_one` (exactly one member
+included); a resolved exclusion always wins over an include when reporting
+eligibility is calculated. Only Admins can read membership or make decisions;
+approved reporting consumers receive only safe per-payment state booleans.
+Finance workbook exact pairs remain in `b2c_reconciliation_groups` and must
+never be mixed into payment duplicate groups. Historical backfill is guarded:
+unprovable flags remain open, while only a stale orphaned duplicate flag with
+no current candidate can be dismissed by the protected Admin function.
