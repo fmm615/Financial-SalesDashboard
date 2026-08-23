@@ -1,6 +1,6 @@
 begin;
 
-select plan(88);
+select plan(91);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -1081,6 +1081,57 @@ select throws_ok(
 );
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+-- This crosses the TypeScript/SQL boundary through the generated parity
+-- fixture. `Ł` is deliberately included because unaccent() changes it to
+-- `l`, while the approved JavaScript NFKD rule preserves it as `ł`.
+select is(
+  public.b2c_canonical_identity_text('Łukasz Nowak'),
+  'łukasz nowak',
+  'B2C canonical identity text follows the approved NFKD rule'
+);
+
+-- This is the SQL half of the shared golden corpus. The tracked fixture used
+-- by Vitest is generated from this exact database query; keeping the expected
+-- JSON here means an SQL-only change cannot silently leave the fixture stale.
+select is(
+  (select json_object_agg(name, public.b2c_canonical_identity_text(name))::jsonb
+   from (values
+     ('Maya Al Khalifa'), ('hoor alshubbar'), ('  Reham   Garash  '),
+     ('MAYA AL KHALIFA'), ('José García'), ('Müller'),
+     ('Ḥasan Ibn Sīnā'), ('Łukasz Nowak'), ('Ærik Ø'),
+     ('Ahmad Al-Sayed'), ('محمّد عبدالله'), ('O''Brien'),
+     ('Jean-Luc Picard')
+   ) as corpus(name)),
+  $$
+  {
+    "Maya Al Khalifa": "maya al khalifa", "hoor alshubbar": "hoor alshubbar",
+    "  Reham   Garash  ": "reham garash", "MAYA AL KHALIFA": "maya al khalifa",
+    "José García": "jose garcia", "Müller": "muller", "Ḥasan Ibn Sīnā": "hasan ibn sina",
+    "Łukasz Nowak": "łukasz nowak", "Ærik Ø": "ærik ø", "Ahmad Al-Sayed": "ahmad al-sayed",
+    "محمّد عبدالله": "محمد عبدالله", "O'Brien": "o'brien", "Jean-Luc Picard": "jean-luc picard"
+  }
+  $$::jsonb,
+  'the SQL canonicalizer covers every TypeScript parity-corpus entry'
+);
+
+select public.record_b2c_manual_bank_transfer(
+  'MANUAL-CANONICAL-Ł-1', 'lukasz@playbook.test', 'Łukasz Nowak', 'membership', null, '125.000000',
+  '2026-08-16T09:00:00+03:00', 'Unicode canonicalization fixture.',
+  encode(extensions.digest(
+    'MANUAL-CANONICAL-Ł-1|lukasz@playbook.test|Łukasz Nowak|membership||125.000000|2026-08-16T09:00:00+03:00|Unicode canonicalization fixture.',
+    'sha256'
+  ), 'hex')
+);
+
+select is(
+  (select lineages.source_identity::text
+   from public.b2c_finance_record_lineages lineages
+   join public.b2c_payments payments on payments.id = lineages.represented_payment_id
+   where payments.provider_transaction_id = 'MANUAL-CANONICAL-Ł-1'),
+  encode(extensions.digest('łukasz nowak 2026-08-16 125.000000 bank transfer', 'sha256'), 'hex'),
+  'manual-transfer lineage reservation uses the shared Unicode canonicalization rule'
+);
 
 select * from finish();
 

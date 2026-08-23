@@ -24,7 +24,12 @@ export type FinanceSourceIdentityInput = {
  */
 const FIELD_SEPARATOR = " ";
 
-function canonicalIdentityText(value: string): string {
+/**
+ * Mirrors public.b2c_canonical_identity_text(text). The two are asserted
+ * byte-identical over a shared corpus by
+ * tests/b2c-finance-identity-parity.test.ts.
+ */
+export function canonicalIdentityText(value: string): string {
   return value
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
