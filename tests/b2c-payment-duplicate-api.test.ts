@@ -307,6 +307,24 @@ describe("B2C payment duplicate decision API", () => {
     expect(payload).not.toContain("private-card-data");
     expect(payload).not.toContain("duplicate key");
   });
+
+  it("converts a rejected decision RPC into the same safe error response", async () => {
+    repositoryMocks.getOpenGroup.mockResolvedValue(openGroupRow());
+    const client = mockClient();
+    client.rpc.mockRejectedValue(new Error("source_metadata raw SQL exception"));
+
+    const response = await saveDuplicateDecision(
+      jsonRequest(`http://localhost/api/admin/b2c/payment-duplicate-groups/${groupId}/decision`, {
+        decision: "keep_all", canonicalPaymentId: null, reason: "Both receipts are separate payments.",
+      }),
+      routeContext("groupId", groupId),
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({
+      error: "The B2C payment duplicate decision could not be saved.",
+    });
+  });
 });
 
 describe("stale B2C possible-duplicate dismissal API", () => {
@@ -362,5 +380,20 @@ describe("stale B2C possible-duplicate dismissal API", () => {
     const payload = JSON.stringify(await response.json());
     expect(payload).not.toContain("review_flags");
     expect(payload).not.toContain("raw SQL");
+  });
+
+  it("converts a rejected stale-dismissal RPC into the same safe error response", async () => {
+    const client = mockClient();
+    client.rpc.mockRejectedValue(new Error("raw_payload review_flags SQL exception"));
+
+    const response = await dismissStaleDuplicate(
+      jsonRequest(`http://localhost/api/admin/b2c/review-flags/${flagId}/dismiss-stale-duplicate`, { reason }),
+      routeContext("flagId", flagId),
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({
+      error: "The stale B2C possible-duplicate review item could not be dismissed.",
+    });
   });
 });

@@ -44,18 +44,24 @@ export async function POST(
     );
   }
 
-  const { error } = await client.rpc("resolve_b2c_payment_duplicate_group", {
-    p_group_id: groupId,
-    p_decision: parsed.data.decision,
-    p_canonical_payment_id: parsed.data.canonicalPaymentId,
-    p_reason: parsed.data.reason,
-  });
-  if (error) {
+  let rpcError: unknown;
+  try {
+    const result = await client.rpc("resolve_b2c_payment_duplicate_group", {
+      p_group_id: groupId,
+      p_decision: parsed.data.decision,
+      p_canonical_payment_id: parsed.data.canonicalPaymentId,
+      p_reason: parsed.data.reason,
+    });
+    rpcError = result.error;
+  } catch {
+    rpcError = true;
+  }
+
+  if (rpcError) {
     return NextResponse.json(
       { error: "The B2C payment duplicate decision could not be saved." },
       { status: 422 },
     );
   }
-
   return NextResponse.json({ groupId, resolvedPaymentIds }, { status: 201 });
 }

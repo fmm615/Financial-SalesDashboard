@@ -26,16 +26,22 @@ export async function POST(
     return NextResponse.json({ error: "Invalid stale duplicate dismissal." }, { status: 422 });
   }
 
-  const { error } = await client.rpc("dismiss_stale_b2c_possible_duplicate_flag", {
-    p_flag_id: flagId,
-    p_reason: parsed.data.reason,
-  });
-  if (error) {
+  let rpcError: unknown;
+  try {
+    const result = await client.rpc("dismiss_stale_b2c_possible_duplicate_flag", {
+      p_flag_id: flagId,
+      p_reason: parsed.data.reason,
+    });
+    rpcError = result.error;
+  } catch {
+    rpcError = true;
+  }
+
+  if (rpcError) {
     return NextResponse.json(
       { error: "The stale B2C possible-duplicate review item could not be dismissed." },
       { status: 422 },
     );
   }
-
   return NextResponse.json({ ok: true });
 }
