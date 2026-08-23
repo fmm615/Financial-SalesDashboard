@@ -456,6 +456,16 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("public.is_admin()");
     expect(sql).toContain("public.write_audit_event()");
 
+    const constructor = sql.slice(
+      sql.indexOf("create or replace function public.open_b2c_payment_duplicate_group"),
+      sql.indexOf("create or replace function public.resolve_b2c_payment_duplicate_group"),
+    );
+    const advisoryLock = constructor.indexOf("pg_advisory_xact_lock");
+    const firstRowLock = constructor.indexOf("for update");
+    expect(advisoryLock).toBeGreaterThan(-1);
+    expect(firstRowLock).toBeGreaterThan(-1);
+    expect(advisoryLock).toBeLessThan(firstRowLock);
+
     const paymentTrigger = sql.indexOf("create trigger open_b2c_payment_duplicate_group_after_payment_write");
     expect(sql.lastIndexOf("create or replace function public.record_b2c_manual_bank_transfer")).toBeGreaterThan(paymentTrigger);
     expect(sql.lastIndexOf("create or replace function public.apply_b2c_payment_local_correction")).toBeGreaterThan(paymentTrigger);

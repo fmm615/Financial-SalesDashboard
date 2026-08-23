@@ -152,14 +152,6 @@ begin
     raise exception 'Only an authenticated administrator or trusted database session can create B2C payment duplicate groups';
   end if;
 
-  perform 1
-  from public.b2c_payments payment
-  where payment.id = p_payment_id
-  for update;
-  if not found then
-    return null;
-  end if;
-
   -- Preserve the evidence set captured when this case opened even if a local
   -- correction changes the payment while Finance is reviewing it.
   select duplicate_group.id into existing_group_id
@@ -180,6 +172,17 @@ begin
   end if;
 
   perform pg_advisory_xact_lock(hashtext('b2c_payment_duplicate:' || target.fingerprint));
+
+  -- Every constructor for this fingerprint takes the shared advisory lock
+  -- before any member-specific row lock. This common order prevents two
+  -- callers targeting different members from deadlocking each other.
+  perform 1
+  from public.b2c_payments payment
+  where payment.id = p_payment_id
+  for update;
+  if not found then
+    return null;
+  end if;
 
   with candidate_facts as (
     select facts.*
