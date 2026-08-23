@@ -44,7 +44,7 @@ export class SupabaseB2cFinanceReconciliationRepository {
   private async getPreviousImportLineagedRows(importId: string): Promise<FinanceImportVersionPreviousRow[]> {
     const { data: rows, error } = await this.client
       .from("b2c_finance_staging_rows")
-      .select("id,normalized_customer_name,occurred_on,amount_usd,payment_method_raw")
+      .select("id,source_tab,normalized_customer_name,occurred_on,amount_usd,payment_method_raw")
       .eq("import_id", importId);
     if (error) throw new Error("Could not load the superseded B2C Finance import rows.");
     if (!rows || rows.length === 0) return [];
@@ -65,6 +65,7 @@ export class SupabaseB2cFinanceReconciliationRepository {
       return [{
         financeRowId: row.id,
         lineageId,
+        sourceTab: row.source_tab,
         sourceIdentity: createFinanceSourceIdentity({
           normalizedCustomerName: row.normalized_customer_name,
           occurredOn: row.occurred_on,

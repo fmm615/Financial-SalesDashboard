@@ -81,9 +81,9 @@ describe("Payment Tracker upload boundary", () => {
       preview: {
         sourceFileSha256: fileHash,
         summary: { totalRows: 2 },
-        // The fixture's two rows (B2C and B2C Cons) share one customer/date/amount/method identity,
-        // so they hold each other as ambiguous rather than each becoming an independent new candidate.
-        versionDiff: { unchangedCount: 0, newCount: 0, removedCount: 0, ambiguousCount: 2, existingPaymentCount: 0 },
+        // One B2C row plus one B2C Cons row with the same identity is the
+        // approved two-sheet representation of one payment, not a repeat.
+        versionDiff: { unchangedCount: 0, newCount: 1, removedCount: 0, ambiguousCount: 0, existingPaymentCount: 0 },
       },
     });
     expect("storage" in client).toBe(false);

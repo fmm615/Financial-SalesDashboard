@@ -114,10 +114,12 @@ describe("previewFinanceImportVersion", () => {
       normalizedPaymentMethod: "bank transfer",
     }),
     lineageId: "20000000-0000-4000-8000-000000000001",
+    sourceTab: "B2C" as const,
   };
   const samePaymentNewRow = {
     financeRowId: "10000000-0000-4000-8000-000000000002",
     sourceIdentity: priorRow.sourceIdentity,
+    sourceTab: "B2C" as const,
   };
 
   it("classifies a row retained in a replacement workbook as unchanged", () => {
@@ -139,15 +141,48 @@ describe("previewFinanceImportVersion", () => {
       amountUsd: "50",
       normalizedPaymentMethod: "ios",
     });
-    const first = { financeRowId: "10000000-0000-4000-8000-000000000010", sourceIdentity: sharedIdentity };
-    const second = { financeRowId: "10000000-0000-4000-8000-000000000011", sourceIdentity: sharedIdentity };
-    const third = { financeRowId: "10000000-0000-4000-8000-000000000012", sourceIdentity: sharedIdentity };
+    const first = { financeRowId: "10000000-0000-4000-8000-000000000010", sourceIdentity: sharedIdentity, sourceTab: "B2C" as const };
+    const second = { financeRowId: "10000000-0000-4000-8000-000000000011", sourceIdentity: sharedIdentity, sourceTab: "B2C" as const };
+    const third = { financeRowId: "10000000-0000-4000-8000-000000000012", sourceIdentity: sharedIdentity, sourceTab: "B2C" as const };
 
     const diff = previewFinanceImportVersion({ previous: [], replacement: [first, second, third] });
 
     expect(diff.ambiguousCandidates).toHaveLength(3);
     expect(diff.newCandidates).toHaveLength(0);
     expect(diff.unchanged).toHaveLength(0);
+  });
+
+  it("treats one B2C row and one B2C Cons row with the same identity as one approved exact pair, not ambiguous", () => {
+    const identity = createFinanceSourceIdentity({
+      normalizedCustomerName: "reham garash",
+      occurredOn: "2026-08-01",
+      amountUsd: "475",
+      normalizedPaymentMethod: "stripe",
+    });
+    const b2cRow = { financeRowId: "10000000-0000-4000-8000-000000000030", sourceIdentity: identity, sourceTab: "B2C" as const };
+    const consRow = { financeRowId: "10000000-0000-4000-8000-000000000031", sourceIdentity: identity, sourceTab: "B2C Cons" as const };
+
+    const diff = previewFinanceImportVersion({ previous: [], replacement: [b2cRow, consRow] });
+
+    expect(diff.ambiguousCandidates).toHaveLength(0);
+    expect(diff.newCandidates).toHaveLength(1);
+    expect(diff.newCandidates[0].financeRowIds).toEqual([b2cRow.financeRowId, consRow.financeRowId]);
+  });
+
+  it("still holds two rows from the same tab as ambiguous", () => {
+    const identity = createFinanceSourceIdentity({
+      normalizedCustomerName: "sara ahmed",
+      occurredOn: "2026-08-05",
+      amountUsd: "50",
+      normalizedPaymentMethod: "ios",
+    });
+    const first = { financeRowId: "10000000-0000-4000-8000-000000000040", sourceIdentity: identity, sourceTab: "B2C" as const };
+    const second = { financeRowId: "10000000-0000-4000-8000-000000000041", sourceIdentity: identity, sourceTab: "B2C" as const };
+
+    const diff = previewFinanceImportVersion({ previous: [], replacement: [first, second] });
+
+    expect(diff.newCandidates).toHaveLength(0);
+    expect(diff.ambiguousCandidates).toHaveLength(2);
   });
 
   it("holds a later sheet bank row that matches a manual payment for explicit evidence linking", () => {
@@ -157,7 +192,7 @@ describe("previewFinanceImportVersion", () => {
       amountUsd: "1200",
       normalizedPaymentMethod: "bank transfer",
     });
-    const sheetBankRow = { financeRowId: "10000000-0000-4000-8000-000000000020", sourceIdentity: manualIdentity };
+    const sheetBankRow = { financeRowId: "10000000-0000-4000-8000-000000000020", sourceIdentity: manualIdentity, sourceTab: "B2C" as const };
     const manualBankPayment = {
       paymentId: "30000000-0000-4000-8000-000000000001",
       lineageId: "20000000-0000-4000-8000-000000000002",
@@ -195,7 +230,7 @@ describe("previewFinanceImportVersion", () => {
       amountUsd: "80",
       normalizedPaymentMethod: "ios",
     });
-    const row = { financeRowId: "10000000-0000-4000-8000-000000000030", sourceIdentity: newIdentity };
+    const row = { financeRowId: "10000000-0000-4000-8000-000000000030", sourceIdentity: newIdentity, sourceTab: "B2C" as const };
 
     const diff = previewFinanceImportVersion({ previous: [], replacement: [row] });
 
