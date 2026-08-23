@@ -39,6 +39,43 @@ export type B2cSourceFailureRecord = {
   href: string;
 };
 
+/** One unresolved Payment Tracker import-version candidate, with source-row context for an Admin. */
+export type B2cPendingCandidateRecord = {
+  candidateId: string;
+  importId: string;
+  candidateKind: "new" | "ambiguous" | "existing_payment";
+  sourceIdentity: string;
+  financeRowIds: string[];
+  priorLineageIds: string[];
+  priorPaymentIds: string[];
+  customerLabel: string;
+  amountUsd: string | null;
+  occurredOn: string | null;
+};
+
+const CANDIDATE_EXPLANATION: Record<B2cPendingCandidateRecord["candidateKind"], string> = {
+  new: "This replacement-workbook row has no prior Payment Tracker row or existing payment with the same identity. Confirm it as a genuinely new payment, or link it to the record it revises.",
+  ambiguous: "Several rows share this payment identity, so PLAYBOOK cannot resolve them automatically. Decide each one explicitly.",
+  existing_payment: "This workbook row matches an existing manual bank transfer. Link it as evidence — it must never become a second payment.",
+};
+
+/** An undecided import-version candidate blocks its rows from posting until an Admin resolves it. */
+export function buildB2cPendingCandidateWorkItems(records: B2cPendingCandidateRecord[]): B2cWorkItem[] {
+  return records.map((record) => ({
+    id: `candidate:${record.candidateId}`,
+    recordId: record.candidateId,
+    recordKind: "finance_row",
+    queue: "reconciliation",
+    visibleGroup: "reconciliation",
+    financeMethod: null,
+    title: `Resolve the Payment Tracker version decision for ${record.customerLabel}`,
+    explanation: CANDIDATE_EXPLANATION[record.candidateKind],
+    financialImpactUsd: record.amountUsd,
+    nextAction: "review_import_version",
+    href: `/operations/b2c?tab=work&candidate=${record.candidateId}`,
+  }));
+}
+
 type ReasonPlan = {
   queue: B2cWorkItem["queue"];
   nextAction: B2cWorkItem["nextAction"];

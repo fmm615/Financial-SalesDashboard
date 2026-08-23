@@ -3,11 +3,13 @@ import { resolveB2cPaymentDecision } from "@/lib/b2c/payment-decision";
 import {
   buildB2cReadyToPostWorkItem,
   buildB2cRecordWorkItems,
+  buildB2cPendingCandidateWorkItems,
   buildB2cSourceFailureWorkItems,
   buildB2cWorkItems,
   visibleGroupForQueue,
   type B2cWorkItemRecord,
 } from "@/server/services/b2c-work-items";
+import { buildB2cWorkspaceOverview, chunkB2cWorkspaceQueryValues } from "@/server/repositories/b2c-workspace-repository";
 
 const succeededBase = {
   sourceSystem: "stripe" as const,
@@ -143,6 +145,57 @@ describe("buildB2cRecordWorkItems", () => {
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ queue: "duplicate", nextAction: "choose_duplicate", recordId: "manual-1" });
     expect(items.some((item) => item.queue === "ready_to_post")).toBe(false);
+  });
+});
+
+describe("buildB2cPendingCandidateWorkItems", () => {
+  it("turns an undecided import-version candidate into one reconciliation work item", () => {
+    const items = buildB2cPendingCandidateWorkItems([{
+      candidateId: "candidate-1",
+      importId: "import-1",
+      candidateKind: "new",
+      sourceIdentity: "a".repeat(64),
+      financeRowIds: ["row-1"],
+      priorLineageIds: [],
+      priorPaymentIds: [],
+      customerLabel: "Maya Al Khalifa",
+      amountUsd: "399.000000",
+      occurredOn: "2026-08-01",
+    }]);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      id: "candidate:candidate-1",
+      recordId: "candidate-1",
+      recordKind: "finance_row",
+      queue: "reconciliation",
+      visibleGroup: "reconciliation",
+      nextAction: "review_import_version",
+      href: "/operations/b2c?tab=work&candidate=candidate-1",
+    });
+  });
+
+  it("includes unresolved candidates in the workspace reconciliation count", () => {
+    const overview = buildB2cWorkspaceOverview({
+      ledgerRows: [],
+      pendingCandidates: [{
+        candidateId: "candidate-1", importId: "import-1", candidateKind: "ambiguous",
+        sourceIdentity: "b".repeat(64), financeRowIds: ["row-1"], priorLineageIds: [], priorPaymentIds: [],
+        customerLabel: "Hoor Alshubbar", amountUsd: "399.000000", occurredOn: "2026-08-01",
+      }],
+    });
+
+    expect(overview.counts).toMatchObject({ all: 1, reconciliation: 1 });
+    expect(overview.items[0]).toMatchObject({ recordId: "candidate-1", nextAction: "review_import_version" });
+  });
+});
+
+describe("chunkB2cWorkspaceQueryValues", () => {
+  it("bounds large candidate source-row lookups below URL-size limits", () => {
+    const batches = chunkB2cWorkspaceQueryValues(Array.from({ length: 20_000 }, (_, index) => `row-${index}`));
+    expect(batches).toHaveLength(200);
+    expect(batches.every((batch) => batch.length <= 100)).toBe(true);
+    expect(batches.flat()).toHaveLength(20_000);
   });
 });
 

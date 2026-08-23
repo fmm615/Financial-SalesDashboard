@@ -48,13 +48,27 @@ const workItems = {
   counts: { all: 4, data: 1, duplicates: 1, reconciliation: 1, ready_to_post: 1 },
 };
 
-function stubFetch(overrides: { role?: "admin" | "viewer"; ledgerRows?: B2cSafeLedgerRow[] } = {}) {
+const candidateWorkItems = {
+  items: [
+    { id: "candidate:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", recordId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", recordKind: "finance_row" as const, queue: "reconciliation" as const, visibleGroup: "reconciliation" as const, financeMethod: null, title: "Resolve the Payment Tracker version decision for Maya Al Khalifa", explanation: "Several rows share this payment identity.", financialImpactUsd: "399.000000", nextAction: "review_import_version" as const, href: "/operations/b2c?tab=work&candidate=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+  ],
+  counts: { all: 1, data: 0, duplicates: 0, reconciliation: 1, ready_to_post: 0 },
+  pendingCandidates: [{ candidateId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", importId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", candidateKind: "ambiguous" as const, sourceIdentity: "a".repeat(64), financeRowIds: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"], priorLineageIds: ["dddddddd-dddd-4ddd-8ddd-dddddddddddd"], priorPaymentIds: ["eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"], customerLabel: "Maya Al Khalifa", amountUsd: "399.000000", occurredOn: "2026-08-01" }],
+};
+
+const emptyWorkItems = {
+  items: [],
+  counts: { all: 0, data: 0, duplicates: 0, reconciliation: 0, ready_to_post: 0 },
+  pendingCandidates: [],
+};
+
+function stubFetch(overrides: { role?: "admin" | "viewer"; ledgerRows?: B2cSafeLedgerRow[]; overview?: typeof workItems | typeof candidateWorkItems } = {}) {
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
     const url = String(input);
     if (url.includes("/api/b2c/workspace")) {
       const role = overrides.role ?? "admin";
       const rows = overrides.ledgerRows ?? [ledgerRow];
-      return { ok: true, json: async () => ({ role, ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: role === "admin" ? workItems : null }) };
+      return { ok: true, json: async () => ({ role, ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: role === "admin" ? (overrides.overview ?? workItems) : null }) };
     }
     if (url.includes("/api/b2c/reconciliation")) {
       return { ok: true, json: async () => ({ summary: {
@@ -117,6 +131,40 @@ describe("B2cWorkspace tab defaults and URL state", () => {
 });
 
 describe("Work queue", () => {
+  it("opens an unresolved import-version candidate in the decision drawer", async () => {
+    currentSearch = new URLSearchParams("tab=work&candidate=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    stubFetch({ role: "admin", overview: candidateWorkItems });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("radio", { name: "Confirm as a new payment" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Maya Al Khalifa")).toBeInTheDocument();
+  });
+
+  it("removes a candidate from the queue after its decision is confirmed", async () => {
+    currentSearch = new URLSearchParams("tab=work&candidate=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    let workspaceRequests = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/b2c/workspace")) {
+        workspaceRequests += 1;
+        const overview = workspaceRequests === 1 ? candidateWorkItems : emptyWorkItems;
+        return { ok: true, json: async () => ({ role: "admin", ledger: { rows: [ledgerRow], nextCursor: null, hasMore: false, totalCount: 1 }, workItems: overview }) };
+      }
+      if (url.includes("/lineage-decisions") && init?.method === "POST") return { ok: true, json: async () => ({ decisionId: "decision-1" }) };
+      return { ok: false, json: async () => ({ error: "unexpected" }) };
+    }));
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/Reason \/ evidence/), { target: { value: "Verified against the original workbook." } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Record import-version decision" }));
+
+    await screen.findByText("No work items in this filter");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(workspaceRequests).toBeGreaterThanOrEqual(2);
+  });
+
   it("shows five filter chips with counts and exactly one primary action per item", async () => {
     stubFetch({ role: "admin" });
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);

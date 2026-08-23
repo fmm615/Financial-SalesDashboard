@@ -12,7 +12,7 @@ import { B2cWorkQueue, type B2cWorkQueueFilter } from "@/features/b2c/b2c-work-q
 import { B2cSourceManagement } from "@/features/b2c/b2c-source-management";
 import { B2cPaymentReviewDrawer, type B2cPaymentReviewDrawerTarget } from "@/features/b2c/b2c-payment-review-drawer";
 import type { B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
-import type { B2cWorkspaceOverview } from "@/server/repositories/b2c-workspace-repository";
+import { summarizeB2cWorkItemCounts, type B2cWorkspaceOverview } from "@/server/repositories/b2c-workspace-repository";
 import type { B2cWorkItem } from "@/server/services/b2c-work-items";
 
 type WorkspaceTab = "work" | "ledger" | "sources";
@@ -103,6 +103,7 @@ export function B2cWorkspace({
   const activeTab: WorkspaceTab = requestedTab === "work" && !canManage ? "ledger" : (requestedTab ?? (canManage ? "work" : "ledger"));
   const activeQueue = (searchParams.get("queue") as B2cWorkQueueFilter | null) ?? "all";
   const recordParam = searchParams.get("record");
+  const candidateParam = searchParams.get("candidate");
 
   function setQuery(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -184,16 +185,21 @@ export function B2cWorkspace({
 
   // A record deep-linked from the Work queue or Review Queue opens the same shared drawer.
   useEffect(() => {
+    if (candidateParam) {
+      const candidate = workItems?.pendingCandidates?.find((item) => item.candidateId === candidateParam);
+      if (candidate) setDrawerTarget({ kind: "candidate", candidate });
+      return;
+    }
     if (!recordParam) { setDrawerTarget(null); return; }
     const row = ledgerRows.find((candidate) => candidate.id === recordParam);
     if (row) { setDrawerTarget({ kind: "row", row }); return; }
     const item = workItems?.items.find((candidate) => candidate.recordId === recordParam);
     if (item) setDrawerTarget({ kind: "workItem", item });
-  }, [recordParam, ledgerRows, workItems]);
+  }, [candidateParam, recordParam, ledgerRows, workItems]);
 
   function closeDrawer() {
     setDrawerTarget(null);
-    setQuery({ record: null });
+    setQuery({ record: null, candidate: null });
   }
 
   function openRow(row: B2cSafeLedgerRow) {
@@ -206,6 +212,20 @@ export function B2cWorkspace({
     // drawer with either the full loaded row (Ledger-quality detail) or, when
     // the record isn't on the current ledger page, the work item itself.
     router.push(item.href);
+  }
+
+  function handleCandidateResolved(candidateId: string) {
+    setWorkItems((current) => {
+      if (!current) return current;
+      const items = current.items.filter((item) => item.recordId !== candidateId);
+      return {
+        ...current,
+        items,
+        counts: summarizeB2cWorkItemCounts(items),
+        pendingCandidates: current.pendingCandidates?.filter((candidate) => candidate.candidateId !== candidateId),
+      };
+    });
+    void reload();
   }
 
   const financialTotalsAvailable = snapshot?.sourceCoverage.reportingTotalsReady ?? false;
@@ -268,6 +288,6 @@ export function B2cWorkspace({
       {activeTab === "sources" && <B2cSourceManagement />}
     </div>
 
-    <B2cPaymentReviewDrawer target={drawerTarget} onClose={closeDrawer} />
+    <B2cPaymentReviewDrawer target={drawerTarget} onClose={closeDrawer} onCandidateResolved={handleCandidateResolved} />
   </AppShell>;
 }

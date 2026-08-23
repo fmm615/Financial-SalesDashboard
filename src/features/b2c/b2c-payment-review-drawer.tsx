@@ -7,6 +7,7 @@ import { PrimaryButton, StatusBadge } from "@/components/ui";
 import { useCanManage } from "@/lib/auth/role-context";
 import type { B2cBlockingReason } from "@/lib/b2c/payment-decision";
 import type { B2cWorkItem } from "@/server/services/b2c-work-items";
+import type { B2cPendingCandidateRecord } from "@/server/services/b2c-work-items";
 import type { B2cPostedFinanceAdjustmentContext } from "@/server/services/adjust-b2c-finance-payment";
 import type { PostedFinanceAdjustmentRequest } from "@/lib/validation/b2c-posted-adjustment-contracts";
 import { B2cPaymentFinanceDecisionFragment, B2cPaymentLocalValuesFragment, type B2cReviewRow } from "@/features/b2c/b2c-payment-review-actions";
@@ -14,10 +15,12 @@ import { B2cRefundFxReviewActions } from "@/features/b2c/b2c-refund-fx-review-ac
 import { B2cSourceEvidencePanel } from "@/features/b2c/b2c-source-evidence-panel";
 import { B2cAuditTimeline } from "@/features/b2c/b2c-audit-timeline";
 import { B2cExactDuplicateReview } from "@/features/b2c/b2c-exact-duplicate-review";
+import { B2cImportVersionDecision } from "@/features/b2c/b2c-import-version-decision";
 
 export type B2cPaymentReviewDrawerTarget =
   | { kind: "row"; row: B2cReviewRow }
-  | { kind: "workItem"; item: B2cWorkItem };
+  | { kind: "workItem"; item: B2cWorkItem }
+  | { kind: "candidate"; candidate: B2cPendingCandidateRecord };
 
 const inputClass = "mt-1 block h-10 w-full min-w-0 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
 const textareaClass = "mt-1 block min-h-24 w-full min-w-0 resize-y rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent";
@@ -188,7 +191,7 @@ function ViewerReadOnlyNote() {
  * to dialog-free fragments this drawer owns directly -- there is no separate
  * evidence dialog, edit modal, or refund-FX modal at the row level.
  */
-export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPaymentReviewDrawerTarget | null; onClose: () => void }) {
+export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved }: { target: B2cPaymentReviewDrawerTarget | null; onClose: () => void; onCandidateResolved?: (candidateId: string) => void }) {
   const canManage = useCanManage();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -205,11 +208,15 @@ export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPayment
       previouslyFocused?.focus();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target ? (target.kind === "row" ? target.row.id : target.item.id) : null]);
+  }, [target ? (target.kind === "row" ? target.row.id : target.kind === "candidate" ? target.candidate.candidateId : target.item.id) : null]);
 
   if (!target) return null;
 
-  const title = target.kind === "row" ? (target.row.customerName ?? target.row.customerEmail ?? "B2C record") : target.item.title;
+  const title = target.kind === "row"
+    ? (target.row.customerName ?? target.row.customerEmail ?? "B2C record")
+    : target.kind === "candidate"
+      ? `Resolve the Payment Tracker version decision for ${target.candidate.customerLabel}`
+      : target.item.title;
   // A save keeps the Admin in the same queue: it never removes the item
   // optimistically. Closing only happens after the server confirms the
   // write, at which point the Ledger/Work queue refetch on their own.
@@ -231,7 +238,7 @@ export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPayment
         </button>
       </div>
 
-      {target.kind === "row" ? <RowSummary row={target.row} /> : <WorkItemSummary item={target.item} />}
+      {target.kind === "row" ? <RowSummary row={target.row} /> : target.kind === "workItem" ? <WorkItemSummary item={target.item} /> : null}
 
       {target.kind === "row" && <>
         <Section title="Source evidence">
@@ -255,6 +262,10 @@ export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPayment
 
       {target.kind === "workItem" && <Section title="Finance decision">
         {!canManage ? <ViewerReadOnlyNote /> : <p className="text-sm leading-6 text-text-secondary">{target.item.explanation} Open this item from the Ledger once its record is loaded to review and act on the current values.</p>}
+      </Section>}
+
+      {target.kind === "candidate" && <Section title="Finance decision">
+        <B2cImportVersionDecision candidate={target.candidate} onSaved={(candidateId) => { onCandidateResolved?.(candidateId); onClose(); }} />
       </Section>}
     </section>
   </div>;
