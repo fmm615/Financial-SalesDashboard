@@ -61,8 +61,12 @@ insert into public.b2c_refunds (
   ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'stripe', 're_test_001', 25.000000, 'USD', 1.0000000000, 25.000000, 'Partial member refund (fake)', '2026-08-02 09:00:00+00')
 on conflict do nothing;
 
+-- 'sales' was a placeholder metric_code written before
+-- 20260811100000_target_management.sql restricted financial_targets to an
+-- approved metric list; 'total_recognised_sales' is the closest approved
+-- equivalent to the original placeholder intent.
 insert into public.financial_targets (id, metric_code, period_start, period_end, target_amount_usd, notes, created_by, updated_by)
-values ('15151515-1515-4515-8515-151515151515', 'sales', '2026-08-01', '2026-08-31', 200000.000000, 'Fake development target', '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111')
+values ('15151515-1515-4515-8515-151515151515', 'total_recognised_sales', '2026-08-01', '2026-08-31', 200000.000000, 'Fake development target', '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111')
 on conflict do nothing;
 
 insert into public.summit_targets (id, metric_code, period_start, period_end, target_value, value_currency, created_by, updated_by)

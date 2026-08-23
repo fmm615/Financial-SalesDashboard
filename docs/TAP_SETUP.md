@@ -18,7 +18,7 @@ The key must never use a `NEXT_PUBLIC_` prefix and must never be committed. Set 
 In Supabase SQL Editor run:
 
 ```text
-supabase/migrations/20260805120000_tap_b2c_mapping.sql
+supabase/migrations/20260805130000_tap_b2c_mapping.sql
 ```
 
 This creates a local Tap product-mapping function and an index. It makes no connection to Tap and changes no Tap data.

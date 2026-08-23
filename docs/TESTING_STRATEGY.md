@@ -92,6 +92,14 @@ a generic resolution must not clear the flag or make the payment reportable.
 
 Phase 2 keeps database assertions in `supabase/tests/database_foundation.test.sql` and contract tests in `tests/database-foundation.test.ts`. After applying migrations manually to a local Supabase instance, run `npm run supabase:test` to exercise the pgTAP assertions. They cover provider-ID duplication, Stripe/B2B separation, linked partial refunds, booking versus recognised-sales separation, audit attribution, retained review history, backfill state, and RLS enablement.
 
+pgTAP is the only layer that verifies a formula duplicated across the
+TypeScript/SQL boundary. It requires Docker running plus `npm run
+supabase:start`; `npm run supabase:reset` applies every migration and `npm
+run supabase:test` runs the assertions. Run it before trusting any change to
+B2C Finance identity, lineage, posting, or duplicate logic -- the Vitest suite
+compares TypeScript to TypeScript only and cannot see a cross-language
+divergence.
+
 Target database assertions additionally cover quantity-unit constraints,
 append-only operational evidence, and atomic operational revisions that archive
 the former active target before creating its replacement. The revision functions
