@@ -1,6 +1,6 @@
 begin;
 
-select plan(92);
+select plan(93);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -460,10 +460,10 @@ select public.finalize_b2c_finance_import_version(
 );
 
 select ok(
-  (select linked_by = '11111111-1111-4111-8111-111111111111' and link_kind = 'initial'
+  (select linked_by = '11111111-1111-4111-8111-111111111111' and link_kind = 'admin_confirmed_new'
     from public.b2c_finance_row_lineage_links
     where finance_row_id = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1'),
-  'the first-ever import auto-links its one unambiguous new row and attributes the acting admin'
+  'the first-ever import records its automatic confirmation and links its one unambiguous new row as the acting admin'
 );
 
 -- Assertion was wrong (both below): throws_ok() requires an exact message
@@ -496,6 +496,19 @@ select is(
      and lineage_id = (select id from public.b2c_finance_record_lineages where source_identity = repeat('2', 64))),
   2,
   'both rows of an approved first-import cross-tab pair link to that one lineage'
+);
+
+select is(
+  (select count(*)::int
+     from public.b2c_finance_import_version_candidates candidates
+     where not exists (
+       select 1
+       from public.b2c_finance_import_version_decisions decisions
+       where decisions.candidate_id = candidates.id
+     )
+       and candidates.candidate_kind = 'new'),
+  0,
+  'a first-ever import leaves no auto-confirmed candidate without its decision row'
 );
 
 -- Assertion was wrong: throws_ok() requires an exact message match, so this
