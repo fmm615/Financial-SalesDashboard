@@ -1,10 +1,12 @@
 import type { DatabaseClient } from "@/lib/supabase/server";
 import { B2cFinanceActionRepository } from "@/server/repositories/b2c-finance-action-repository";
+import { B2cExactDuplicateReconciliationRepository } from "@/server/repositories/b2c-exact-duplicate-reconciliation-repository";
 import { decorateB2cLedgerRow, type B2cDecoratedLedgerRow } from "@/server/repositories/b2c-ledger-repository";
 import { getB2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
 import { summarizeFinancePostingReadiness } from "@/server/services/b2c-finance-action-center";
 import {
   buildB2cPendingCandidateWorkItems,
+  buildB2cFinanceExactDuplicateWorkItems,
   buildB2cProviderEvidenceMismatchWorkItems,
   buildB2cWorkItems,
   type B2cPendingCandidateRecord,
@@ -13,6 +15,7 @@ import {
   type B2cWorkItem,
   type B2cWorkItemRecord,
 } from "@/server/services/b2c-work-items";
+import { toAdminExactDuplicateGroups, type AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
 export type B2cWorkspaceCounts = { all: number; data: number; duplicates: number; reconciliation: number; ready_to_post: number };
 
@@ -20,6 +23,7 @@ export type B2cWorkspaceOverview = {
   items: B2cWorkItem[];
   counts: B2cWorkspaceCounts;
   pendingCandidates?: B2cPendingCandidateRecord[];
+  financeDuplicateGroups?: AdminExactDuplicateGroup[];
 };
 
 /** Summarizes the internally detailed work items into the five visible Work queue filter counts. */
@@ -68,8 +72,10 @@ export function buildB2cWorkspaceOverview(input: {
   postingReadinessRows?: Parameters<typeof summarizeFinancePostingReadiness>[0];
   pendingCandidates?: B2cPendingCandidateRecord[];
   providerEvidenceMismatches?: B2cProviderEvidenceMismatchRecord[];
+  financeDuplicateGroups?: AdminExactDuplicateGroup[];
 }): B2cWorkspaceOverview {
   const items = [
+    ...buildB2cFinanceExactDuplicateWorkItems(input.financeDuplicateGroups ?? []),
     ...buildB2cPendingCandidateWorkItems(input.pendingCandidates ?? []),
     ...buildB2cProviderEvidenceMismatchWorkItems(input.providerEvidenceMismatches ?? []),
     ...buildB2cWorkItems({
@@ -79,7 +85,12 @@ export function buildB2cWorkspaceOverview(input: {
     readyToPostHref: READY_TO_POST_HREF,
     }),
   ];
-  return { items, counts: summarizeB2cWorkItemCounts(items), pendingCandidates: input.pendingCandidates ?? [] };
+  return {
+    items,
+    counts: summarizeB2cWorkItemCounts(items),
+    pendingCandidates: input.pendingCandidates ?? [],
+    financeDuplicateGroups: input.financeDuplicateGroups ?? [],
+  };
 }
 
 type FailedSyncRun = { id: string; provider: "stripe" | "tap" };
@@ -204,12 +215,13 @@ export class SupabaseB2cWorkspaceRepository {
   }
 
   async overview(today = new Date()): Promise<B2cWorkspaceOverview> {
-    const [snapshot, sourceFailures, postingReadinessRows, pendingCandidates, providerEvidenceMismatches] = await Promise.all([
+    const [snapshot, sourceFailures, postingReadinessRows, pendingCandidates, providerEvidenceMismatches, financeDuplicateRows] = await Promise.all([
       getB2cDashboardSnapshot(this.client, today),
       this.listFailedSourceRuns(),
       new B2cFinanceActionRepository(this.client).getFinancePostingReadinessRows(),
       this.listPendingImportVersionCandidates(),
       this.listProviderEvidenceMismatches(),
+      new B2cExactDuplicateReconciliationRepository(this.client).listPendingExactDuplicateGroups(),
     ]);
     return buildB2cWorkspaceOverview({
       ledgerRows: snapshot.rows.map((row) => decorateB2cLedgerRow(row, today)),
@@ -217,6 +229,7 @@ export class SupabaseB2cWorkspaceRepository {
       postingReadinessRows,
       pendingCandidates,
       providerEvidenceMismatches,
+      financeDuplicateGroups: toAdminExactDuplicateGroups(financeDuplicateRows),
     });
   }
 }

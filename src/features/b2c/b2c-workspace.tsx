@@ -104,6 +104,7 @@ export function B2cWorkspace({
   const activeQueue = (searchParams.get("queue") as B2cWorkQueueFilter | null) ?? "all";
   const recordParam = searchParams.get("record");
   const candidateParam = searchParams.get("candidate");
+  const financeDuplicateParam = searchParams.get("financeDuplicate");
 
   function setQuery(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -185,6 +186,11 @@ export function B2cWorkspace({
 
   // A record deep-linked from the Work queue or Review Queue opens the same shared drawer.
   useEffect(() => {
+    if (financeDuplicateParam) {
+      const group = workItems?.financeDuplicateGroups?.find((item) => item.groupId === financeDuplicateParam);
+      setDrawerTarget(group ? { kind: "financeDuplicate", group } : null);
+      return;
+    }
     if (candidateParam) {
       const candidate = workItems?.pendingCandidates?.find((item) => item.candidateId === candidateParam);
       if (candidate) setDrawerTarget({ kind: "candidate", candidate });
@@ -195,11 +201,11 @@ export function B2cWorkspace({
     if (row) { setDrawerTarget({ kind: "row", row }); return; }
     const item = workItems?.items.find((candidate) => candidate.recordId === recordParam);
     if (item) setDrawerTarget({ kind: "workItem", item });
-  }, [candidateParam, recordParam, ledgerRows, workItems]);
+  }, [candidateParam, financeDuplicateParam, recordParam, ledgerRows, workItems]);
 
   function closeDrawer() {
     setDrawerTarget(null);
-    setQuery({ record: null, candidate: null });
+    setQuery({ record: null, candidate: null, financeDuplicate: null });
   }
 
   function openRow(row: B2cSafeLedgerRow) {

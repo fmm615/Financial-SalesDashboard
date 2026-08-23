@@ -16,11 +16,13 @@ import { B2cSourceEvidencePanel } from "@/features/b2c/b2c-source-evidence-panel
 import { B2cAuditTimeline } from "@/features/b2c/b2c-audit-timeline";
 import { B2cExactDuplicateReview } from "@/features/b2c/b2c-exact-duplicate-review";
 import { B2cImportVersionDecision } from "@/features/b2c/b2c-import-version-decision";
+import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
 export type B2cPaymentReviewDrawerTarget =
   | { kind: "row"; row: B2cReviewRow }
   | { kind: "workItem"; item: B2cWorkItem }
-  | { kind: "candidate"; candidate: B2cPendingCandidateRecord };
+  | { kind: "candidate"; candidate: B2cPendingCandidateRecord }
+  | { kind: "financeDuplicate"; group: AdminExactDuplicateGroup };
 
 const inputClass = "mt-1 block h-10 w-full min-w-0 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
 const textareaClass = "mt-1 block min-h-24 w-full min-w-0 resize-y rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent";
@@ -33,7 +35,7 @@ const fieldClass = "block min-w-0 text-sm font-medium text-text-secondary";
  */
 type DrawerPrimaryAction =
   | "correct" | "map" | "convert_fx" | "review_exception"
-  | "choose_duplicate" | "compare" | "review_import_version"
+  | "choose_payment_duplicate" | "compare" | "review_import_version"
   | "posted_adjustment" | "retry_source" | "post"
   | null;
 
@@ -46,7 +48,7 @@ const REASON_TO_ACTION: Partial<Record<B2cBlockingReason, DrawerPrimaryAction>> 
   other_open_review: "correct",
   unmapped_category: "map",
   missing_fx: "convert_fx",
-  possible_duplicate: "choose_duplicate",
+  possible_duplicate: "choose_payment_duplicate",
   unmatched_evidence: "compare",
   ambiguous_finance_lineage: "review_import_version",
 };
@@ -164,7 +166,7 @@ function ActionSlot({ row, primary, onSaved }: { row: B2cReviewRow; primary: Dra
   // The pending Finance Tracker duplicate-decision review already renders
   // dialog-free and writes only through the existing per-group decision
   // route; the drawer reuses it directly rather than duplicating it.
-  if (primary === "choose_duplicate") return <B2cExactDuplicateReview onGroupsChanged={async () => onSaved()} />;
+  if (primary === "choose_payment_duplicate") return <p className="text-sm leading-6 text-text-muted">This payment has an unresolved duplicate group. Review the linked payment records before recording its duplicate decision.</p>;
   if (primary === "compare") return <p className="text-sm leading-6 text-text-muted">Retained provider evidence does not match this record. Provider sync, backfill, and import history are reviewed from Sources.</p>;
   if (primary === "review_import_version") return <p className="text-sm leading-6 text-text-muted">This Payment Tracker row needs an explicit new/revision/existing-payment decision. Payment Tracker import history is reviewed from Sources.</p>;
   if (primary === "retry_source") return <p className="text-sm leading-6 text-text-muted">Retry the failed provider sync from Sources.</p>;
@@ -208,7 +210,7 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved }:
       previouslyFocused?.focus();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target ? (target.kind === "row" ? target.row.id : target.kind === "candidate" ? target.candidate.candidateId : target.item.id) : null]);
+  }, [target ? (target.kind === "row" ? target.row.id : target.kind === "candidate" ? target.candidate.candidateId : target.kind === "financeDuplicate" ? target.group.groupId : target.item.id) : null]);
 
   if (!target) return null;
 
@@ -216,7 +218,9 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved }:
     ? (target.row.customerName ?? target.row.customerEmail ?? "B2C record")
     : target.kind === "candidate"
       ? `Resolve the Payment Tracker version decision for ${target.candidate.customerLabel}`
-      : target.item.title;
+      : target.kind === "financeDuplicate"
+        ? "Choose the canonical Payment Tracker row"
+        : target.item.title;
   // A save keeps the Admin in the same queue: it never removes the item
   // optimistically. Closing only happens after the server confirms the
   // write, at which point the Ledger/Work queue refetch on their own.
@@ -266,6 +270,10 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved }:
 
       {target.kind === "candidate" && <Section title="Finance decision">
         <B2cImportVersionDecision candidate={target.candidate} onSaved={(candidateId) => { onCandidateResolved?.(candidateId); onClose(); }} />
+      </Section>}
+
+      {target.kind === "financeDuplicate" && <Section title="Finance decision">
+        {!canManage ? <ViewerReadOnlyNote /> : <B2cExactDuplicateReview key={target.group.groupId} initialGroups={[target.group]} onGroupsChanged={async () => { handleSaved(); }} />}
       </Section>}
     </section>
   </div>;

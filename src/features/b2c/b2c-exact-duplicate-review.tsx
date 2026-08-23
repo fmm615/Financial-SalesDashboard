@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
-type Props = { onGroupsChanged: () => Promise<void> };
+type Props = { initialGroups?: AdminExactDuplicateGroup[]; onGroupsChanged: () => Promise<void> };
 
 /**
  * Admin-only review controls for two retained Finance rows; this component
@@ -13,11 +13,11 @@ type Props = { onGroupsChanged: () => Promise<void> };
  * `finalize_b2c_finance_import_version`); there is no manual "Find exact
  * duplicates" trigger here.
  */
-export function B2cExactDuplicateReview({ onGroupsChanged }: Props) {
-  const [groups, setGroups] = useState<AdminExactDuplicateGroup[]>([]);
+export function B2cExactDuplicateReview({ initialGroups, onGroupsChanged }: Props) {
+  const [groups, setGroups] = useState<AdminExactDuplicateGroup[]>(initialGroups ?? []);
   const [selectedRows, setSelectedRows] = useState<Record<string, string>>({});
   const [reasons, setReasons] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialGroups);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +32,7 @@ export function B2cExactDuplicateReview({ onGroupsChanged }: Props) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { if (!initialGroups) void load(); }, [initialGroups]);
 
   const decide = async (group: AdminExactDuplicateGroup, decisionState: "canonical" | "excluded") => {
     const decisionReason = reasons[group.groupId]?.trim() ?? "";

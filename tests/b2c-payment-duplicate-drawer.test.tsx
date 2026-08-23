@@ -25,7 +25,7 @@ function duplicateFlaggedRow(): B2cReviewRow {
   } as B2cReviewRow;
 }
 
-const group = {
+const group: Extract<B2cPaymentReviewDrawerTarget, { kind: "financeDuplicate" }>["group"] = {
   groupId: "22222222-2222-4222-8222-222222222222", state: "exact_duplicate_candidate", rows: [
     { financeRowId: "33333333-3333-4333-8333-333333333333", sourceTab: "B2C", sourceRowNumber: 12, occurredOn: "2025-10-05", amountUsd: "475", customerName: "Reham", customerEmail: "rgarash@example.com", customerPhone: null, category: "B2C-Membership", paymentMethod: "Stripe" },
     { financeRowId: "44444444-4444-4444-8444-444444444444", sourceTab: "B2C Cons", sourceRowNumber: 33, occurredOn: "2025-10-05", amountUsd: "475", customerName: "Reham", customerEmail: "rgarash@example.com", customerPhone: null, category: "B2C-Membership", paymentMethod: "Stripe" },
@@ -50,36 +50,33 @@ function renderDrawer(target: B2cPaymentReviewDrawerTarget, role: "admin" | "vie
   return onClose;
 }
 
-describe("B2C payment duplicate drawer action", () => {
-  it("shows the pending exact-duplicate decision as the row's one primary Finance-decision action", async () => {
-    stubFetch([["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })]]);
+describe("B2C payment and Finance duplicate drawer actions", () => {
+  it("keeps a payment duplicate in its payment-record drawer instead of rendering a Finance exact pair", () => {
+    const fetchMock = stubFetch([]);
     renderDrawer({ kind: "row", row: duplicateFlaggedRow() });
     const dialog = screen.getByRole("dialog");
 
-    expect(await within(dialog).findByText("B2C row 12")).toBeInTheDocument();
-    expect(within(dialog).getByText("B2C Cons row 33")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Confirm canonical Finance row" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Exclude group" })).toBeInTheDocument();
+    expect(within(dialog).getByText(/This payment has an unresolved duplicate group/)).toBeInTheDocument();
+    expect(within(dialog).queryByText("B2C row 12")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/reconciliation/exact-duplicates"), expect.anything());
   });
 
   it("never shows a manual Find-exact-duplicates trigger -- groups are created automatically during Payment Tracker finalization", async () => {
-    stubFetch([["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })]]);
+    stubFetch([]);
     renderDrawer({ kind: "row", row: duplicateFlaggedRow() });
     const dialog = screen.getByRole("dialog");
 
-    await within(dialog).findByText("B2C row 12");
     expect(within(dialog).queryByRole("button", { name: "Find exact duplicates" })).not.toBeInTheDocument();
   });
 
-  it("records a decision through the existing per-group reconciliation route with one selection and one reason", async () => {
+  it("records a Finance exact-pair decision through the existing per-group reconciliation route with one selection and one reason", async () => {
     const fetchMock = stubFetch([
-      ["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })],
       ["/decision", () => ({ ok: true, json: async () => ({ decisionId: "decision-1" }) })],
     ]);
-    const onClose = renderDrawer({ kind: "row", row: duplicateFlaggedRow() });
+    const onClose = renderDrawer({ kind: "financeDuplicate", group });
     const dialog = screen.getByRole("dialog");
 
-    await within(dialog).findByText("B2C row 12");
+    expect(within(dialog).getByText("B2C row 12")).toBeInTheDocument();
     const confirm = within(dialog).getByRole("button", { name: "Confirm canonical Finance row" });
     expect(confirm).toBeDisabled();
 
@@ -95,13 +92,29 @@ describe("B2C payment duplicate drawer action", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
-  it("never lets a Viewer see or trigger the duplicate decision", () => {
-    const fetchMock = stubFetch([["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })]]);
-    renderDrawer({ kind: "row", row: duplicateFlaggedRow() }, "viewer");
+  it("replaces the retained Finance pair when a direct Finance deep link changes groups", () => {
+    const nextGroup = {
+      ...group,
+      groupId: "55555555-5555-4555-8555-555555555555",
+      rows: group.rows.map((row, index) => ({ ...row, sourceRowNumber: index === 0 ? 88 : 99 })),
+    };
+    const onClose = vi.fn();
+    const rendered = render(<RoleProvider role="admin"><B2cPaymentReviewDrawer target={{ kind: "financeDuplicate", group }} onClose={onClose} /></RoleProvider>);
+    expect(screen.getByText("B2C row 12")).toBeInTheDocument();
+
+    rendered.rerender(<RoleProvider role="admin"><B2cPaymentReviewDrawer target={{ kind: "financeDuplicate", group: nextGroup }} onClose={onClose} /></RoleProvider>);
+
+    expect(screen.getByText("B2C row 88")).toBeInTheDocument();
+    expect(screen.queryByText("B2C row 12")).not.toBeInTheDocument();
+  });
+
+  it("never lets a Viewer see or trigger a Finance duplicate decision", () => {
+    const fetchMock = stubFetch([]);
+    renderDrawer({ kind: "financeDuplicate", group }, "viewer");
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getAllByText("Viewer access is read-only. Only an Admin can take this action.").length).toBeGreaterThanOrEqual(1);
     expect(within(dialog).queryByText("B2C row 12")).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/reconciliation/exact-duplicates"), expect.anything());
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

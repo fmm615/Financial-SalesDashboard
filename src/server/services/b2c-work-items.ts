@@ -1,5 +1,6 @@
 import type { B2cBlockingReason, B2cPaymentDecision } from "@/lib/b2c/payment-decision";
 import type { FinancePostingReadiness } from "@/server/services/b2c-finance-action-center";
+import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
 /**
  * One accurate B2C work item. Internal `queue` values stay detailed so each
@@ -16,7 +17,7 @@ export type B2cWorkItem = {
   title: string;
   explanation: string;
   financialImpactUsd: string | null;
-  nextAction: "correct" | "map" | "convert_fx" | "choose_duplicate" | "compare" | "post" | "retry_source" | "review_exception" | "review_import_version";
+  nextAction: "correct" | "map" | "convert_fx" | "choose_payment_duplicate" | "choose_finance_duplicate" | "compare" | "post" | "retry_source" | "review_exception" | "review_import_version";
   href: string;
 };
 
@@ -157,7 +158,7 @@ const REASON_PLAN: Partial<Record<B2cBlockingReason, ReasonPlan>> = {
     explanation: "This foreign-currency record needs a Finance-approved USD conversion.",
   },
   possible_duplicate: {
-    queue: "duplicate", nextAction: "choose_duplicate",
+    queue: "duplicate", nextAction: "choose_payment_duplicate",
     title: (name) => `Choose the duplicate for ${name}`,
     explanation: "This record has an unresolved possible duplicate. Review both records and record one decision.",
   },
@@ -172,6 +173,23 @@ const REASON_PLAN: Partial<Record<B2cBlockingReason, ReasonPlan>> = {
     explanation: "This Payment Tracker row needs an explicit new/revision/existing-payment decision.",
   },
 };
+
+/** Finance exact groups are distinct from payment duplicate groups and open only their retained workbook pair. */
+export function buildB2cFinanceExactDuplicateWorkItems(groups: AdminExactDuplicateGroup[]): B2cWorkItem[] {
+  return groups.map((group) => ({
+    id: `finance-exact-duplicate:${group.groupId}`,
+    recordId: group.groupId,
+    recordKind: "finance_row",
+    queue: "duplicate",
+    visibleGroup: "duplicates",
+    financeMethod: null,
+    title: "Choose the canonical Payment Tracker row",
+    explanation: "Two retained Finance workbook rows are an unresolved exact cross-tab pair.",
+    financialImpactUsd: group.rows[0]?.amountUsd ?? null,
+    nextAction: "choose_finance_duplicate",
+    href: `/operations/b2c?tab=work&financeDuplicate=${group.groupId}`,
+  }));
+}
 
 export function visibleGroupForQueue(queue: B2cWorkItem["queue"]): B2cWorkItem["visibleGroup"] {
   if (queue === "duplicate") return "duplicates";

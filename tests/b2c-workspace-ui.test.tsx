@@ -42,11 +42,26 @@ const ledgerRow: B2cSafeLedgerRow = {
 const workItems = {
   items: [
     { id: "payment-2:missing_amount", recordId: "payment-2", recordKind: "provider_payment" as const, queue: "data_quality" as const, visibleGroup: "data" as const, financeMethod: null, title: "Enter the missing amount for Sam", explanation: "This record has no available USD amount.", financialImpactUsd: null, nextAction: "correct" as const, href: "/operations/b2c?tab=work&record=payment-2" },
-    { id: "payment-3:possible_duplicate", recordId: "payment-3", recordKind: "provider_payment" as const, queue: "duplicate" as const, visibleGroup: "duplicates" as const, financeMethod: null, title: "Choose the duplicate for Noor", explanation: "This record has an unresolved possible duplicate.", financialImpactUsd: "$40.00", nextAction: "choose_duplicate" as const, href: "/operations/b2c?tab=work&record=payment-3" },
+    { id: "payment-3:possible_duplicate", recordId: "payment-3", recordKind: "provider_payment" as const, queue: "duplicate" as const, visibleGroup: "duplicates" as const, financeMethod: null, title: "Choose the duplicate for Noor", explanation: "This record has an unresolved possible duplicate.", financialImpactUsd: "$40.00", nextAction: "choose_payment_duplicate" as const, href: "/operations/b2c?tab=work&record=payment-3" },
     { id: "run-1:source_failure", recordId: "run-1", recordKind: "source_run" as const, queue: "source_failure" as const, visibleGroup: "reconciliation" as const, financeMethod: null, title: "Retry the Stripe sync", explanation: "The last Stripe sync failed. Retry it from Sources.", financialImpactUsd: null, nextAction: "retry_source" as const, href: "/operations/b2c?tab=sources" },
     { id: "ready-to-post", recordId: "ready-to-post", recordKind: "finance_row" as const, queue: "ready_to_post" as const, visibleGroup: "ready_to_post" as const, financeMethod: null, title: "Post 2 Finance payments", explanation: "1 iOS and 1 bank transfer Finance rows are ready to post.", financialImpactUsd: null, nextAction: "post" as const, href: "/operations/b2c?tab=work&queue=ready_to_post" },
   ],
   counts: { all: 4, data: 1, duplicates: 1, reconciliation: 1, ready_to_post: 1 },
+};
+
+const financeDuplicateWorkItems = {
+  items: [
+    { id: "finance-exact-duplicate:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", recordId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", recordKind: "finance_row" as const, queue: "duplicate" as const, visibleGroup: "duplicates" as const, financeMethod: null, title: "Choose the canonical Payment Tracker row", explanation: "Two retained Finance workbook rows are an unresolved exact cross-tab pair.", financialImpactUsd: "100.000000", nextAction: "choose_finance_duplicate" as const, href: "/operations/b2c?tab=work&financeDuplicate=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+  ],
+  counts: { all: 1, data: 0, duplicates: 1, reconciliation: 0, ready_to_post: 0 },
+  pendingCandidates: [],
+  financeDuplicateGroups: [{
+    groupId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", state: "exact_duplicate_candidate" as const,
+    rows: [
+      { financeRowId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", sourceTab: "B2C" as const, sourceRowNumber: 12, occurredOn: "2026-08-01", amountUsd: "100.000000", customerName: "Maya Al Khalifa", customerEmail: "maya@example.com", customerPhone: null, category: "membership", paymentMethod: "Stripe" },
+      { financeRowId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", sourceTab: "B2C Cons" as const, sourceRowNumber: 33, occurredOn: "2026-08-01", amountUsd: "100.000000", customerName: "Maya Al Khalifa", customerEmail: "maya@example.com", customerPhone: null, category: "membership", paymentMethod: "Stripe" },
+    ],
+  }],
 };
 
 const candidateWorkItems = {
@@ -63,7 +78,7 @@ const emptyWorkItems = {
   pendingCandidates: [],
 };
 
-function stubFetch(overrides: { role?: "admin" | "viewer"; ledgerRows?: B2cSafeLedgerRow[]; overview?: typeof workItems | typeof candidateWorkItems } = {}) {
+function stubFetch(overrides: { role?: "admin" | "viewer"; ledgerRows?: B2cSafeLedgerRow[]; overview?: typeof workItems | typeof candidateWorkItems | typeof financeDuplicateWorkItems } = {}) {
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
     const url = String(input);
     if (url.includes("/api/b2c/workspace")) {
@@ -132,6 +147,28 @@ describe("B2cWorkspace tab defaults and URL state", () => {
 });
 
 describe("Work queue", () => {
+  it("opens only a Finance exact group from financeDuplicate, never the payment duplicate drawer target", async () => {
+    currentSearch = new URLSearchParams("tab=work&financeDuplicate=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    stubFetch({ role: "admin", overview: financeDuplicateWorkItems });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("radio", { name: "Use B2C row 12 as canonical" })).toBeInTheDocument();
+    expect(within(dialog).queryByText("Choose the duplicate for Noor")).not.toBeInTheDocument();
+  });
+
+  it("keeps a payment duplicate on its payment record target and never loads the Finance exact-pair component", async () => {
+    currentSearch = new URLSearchParams("tab=work&record=payment-3");
+    stubFetch({ role: "admin" });
+    const fetchMock = vi.mocked(global.fetch);
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Choose the duplicate for Noor")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Exact Finance duplicate review")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/reconciliation/exact-duplicates"), expect.anything());
+  });
+
   it("opens an unresolved import-version candidate in the decision drawer", async () => {
     currentSearch = new URLSearchParams("tab=work&candidate=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     stubFetch({ role: "admin", overview: candidateWorkItems });

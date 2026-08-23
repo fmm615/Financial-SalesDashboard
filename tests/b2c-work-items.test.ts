@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveB2cPaymentDecision } from "@/lib/b2c/payment-decision";
 import {
   buildB2cReadyToPostWorkItem,
+  buildB2cFinanceExactDuplicateWorkItems,
   buildB2cProviderEvidenceMismatchWorkItems,
   buildB2cRecordWorkItems,
   buildB2cPendingCandidateWorkItems,
@@ -11,6 +12,7 @@ import {
   type B2cWorkItemRecord,
 } from "@/server/services/b2c-work-items";
 import { buildB2cWorkspaceOverview, chunkB2cWorkspaceQueryValues } from "@/server/repositories/b2c-workspace-repository";
+import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
 const succeededBase = {
   sourceSystem: "stripe" as const,
@@ -34,6 +36,22 @@ function record(overrides: Partial<B2cWorkItemRecord> & { decision: B2cWorkItemR
     ...overrides,
   };
 }
+
+const financeRow = (
+  financeRowId: string,
+  sourceTab: "B2C" | "B2C Cons",
+): AdminExactDuplicateGroup["rows"][number] => ({
+  financeRowId,
+  sourceTab,
+  sourceRowNumber: sourceTab === "B2C" ? 12 : 33,
+  occurredOn: "2026-08-01",
+  amountUsd: "100.000000",
+  customerName: "Maya Al Khalifa",
+  customerEmail: "member@example.com",
+  customerPhone: null,
+  category: "membership",
+  paymentMethod: "Stripe",
+});
 
 describe("visibleGroupForQueue", () => {
   it("groups FX and mapping under data", () => {
@@ -70,7 +88,7 @@ describe("buildB2cRecordWorkItems", () => {
     const decision = resolveB2cPaymentDecision({ ...succeededBase, openFlagTypes: new Set(["possible_duplicate"]) });
     const items = buildB2cRecordWorkItems(record({ decision }));
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ queue: "duplicate", visibleGroup: "duplicates", nextAction: "choose_duplicate" });
+    expect(items[0]).toMatchObject({ queue: "duplicate", visibleGroup: "duplicates", nextAction: "choose_payment_duplicate" });
   });
 
   it("produces no work item for a failed or pending source payment -- nothing is actionable in this workspace", () => {
@@ -144,8 +162,34 @@ describe("buildB2cRecordWorkItems", () => {
     });
     const items = buildB2cRecordWorkItems(record({ id: "manual-1", decision, financeMethod: "bank_transfer" }));
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ queue: "duplicate", nextAction: "choose_duplicate", recordId: "manual-1" });
+    expect(items[0]).toMatchObject({ queue: "duplicate", nextAction: "choose_payment_duplicate", recordId: "manual-1" });
     expect(items.some((item) => item.queue === "ready_to_post")).toBe(false);
+  });
+});
+
+describe("duplicate work-item targets", () => {
+  it("routes payment duplicate groups and Finance exact groups to different drawer targets", () => {
+    const financeGroup: AdminExactDuplicateGroup = {
+      groupId: "group-1",
+      state: "exact_duplicate_candidate",
+      rows: [
+        financeRow("finance-row-1", "B2C"),
+        financeRow("finance-row-2", "B2C Cons"),
+      ],
+    };
+    const paymentItems = buildB2cRecordWorkItems(record({
+      decision: resolveB2cPaymentDecision({ ...succeededBase, hasOpenPaymentDuplicate: true }),
+    }));
+    const financeItems = buildB2cFinanceExactDuplicateWorkItems([financeGroup]);
+
+    expect(paymentItems[0]).toMatchObject({
+      nextAction: "choose_payment_duplicate",
+      href: "/operations/b2c?tab=work&record=payment-1",
+    });
+    expect(financeItems[0]).toMatchObject({
+      nextAction: "choose_finance_duplicate",
+      href: "/operations/b2c?tab=work&financeDuplicate=group-1",
+    });
   });
 });
 
