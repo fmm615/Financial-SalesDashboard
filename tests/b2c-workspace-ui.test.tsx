@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { B2cWorkspace } from "@/features/b2c/b2c-workspace";
 import { RoleProvider } from "@/lib/auth/role-context";
@@ -164,6 +164,20 @@ describe("Work queue", () => {
 
     await screen.findByText("Choose the canonical Payment Tracker row");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("clears an open Finance drawer when its group ID moves from financeDuplicate to record", async () => {
+    const financeGroupId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    currentSearch = new URLSearchParams(`tab=work&financeDuplicate=${financeGroupId}`);
+    stubFetch({ role: "admin", overview: financeDuplicateWorkItems });
+    const view = render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    currentSearch = new URLSearchParams(`tab=work&record=${financeGroupId}`);
+    view.rerender(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("keeps a payment duplicate on its payment record target and never loads the Finance exact-pair component", async () => {

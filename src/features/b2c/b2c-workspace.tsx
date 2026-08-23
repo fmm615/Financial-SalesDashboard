@@ -193,14 +193,14 @@ export function B2cWorkspace({
     }
     if (candidateParam) {
       const candidate = workItems?.pendingCandidates?.find((item) => item.candidateId === candidateParam);
-      if (candidate) setDrawerTarget({ kind: "candidate", candidate });
+      setDrawerTarget(candidate ? { kind: "candidate", candidate } : null);
       return;
     }
     if (!recordParam) { setDrawerTarget(null); return; }
     const row = ledgerRows.find((candidate) => candidate.id === recordParam);
     if (row) { setDrawerTarget({ kind: "row", row }); return; }
     const item = workItems?.items.find((candidate) => candidate.nextAction !== "choose_finance_duplicate" && candidate.recordId === recordParam);
-    if (item) setDrawerTarget({ kind: "workItem", item });
+    setDrawerTarget(item ? { kind: "workItem", item } : null);
   }, [candidateParam, financeDuplicateParam, recordParam, ledgerRows, workItems]);
 
   function closeDrawer() {
