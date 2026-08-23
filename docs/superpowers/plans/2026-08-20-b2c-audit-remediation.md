@@ -85,7 +85,7 @@ The 88 pgTAP assertions across Tasks 1–6 were written blind and have **never e
 **Interfaces:**
 - Produces: a green `npm run supabase:test`, which every later task in this plan depends on for verification.
 
-- [ ] **Step 1: Start the local stack**
+- [x] **Step 1: Start the local stack**
 
 Docker is installed but its daemon is stopped. Start Docker Desktop, then:
 
@@ -95,7 +95,7 @@ docker info --format '{{.ServerVersion}}'
 
 Expected: a version string, not "Cannot connect to the Docker daemon".
 
-- [ ] **Step 2: Bring up Supabase and apply every migration**
+- [x] **Step 2: Bring up Supabase and apply every migration**
 
 ```bash
 npm run supabase:start && npm run supabase:reset
@@ -103,7 +103,7 @@ npm run supabase:start && npm run supabase:reset
 
 Expected: all migrations in `supabase/migrations/` apply cleanly, in filename order. If a migration fails here, that is a real defect in that migration — fix it before continuing, and note it in the plan's status section.
 
-- [ ] **Step 3: Run pgTAP for the first time ever**
+- [x] **Step 3: Run pgTAP for the first time ever**
 
 ```bash
 npm run supabase:test
@@ -111,7 +111,7 @@ npm run supabase:test
 
 Expected: **failures.** Record the full output before changing anything. Typical causes to expect: fixture rows that violate constraints added by a later migration, `plan(N)` counts that no longer match the number of assertions, and assertions written against a function signature that changed.
 
-- [ ] **Step 4: Fix each failure, smallest first**
+- [x] **Step 4: Fix each failure, smallest first**
 
 For each failing assertion decide, and write the reason in a comment above it:
 - the **assertion** is wrong (written blind against an imagined schema) → fix the assertion;
@@ -119,7 +119,7 @@ For each failing assertion decide, and write the reason in a comment above it:
 
 Do not delete an assertion to make the suite green. If an assertion cannot be made to pass, that is a finding, not a cleanup.
 
-- [ ] **Step 5: Verify green**
+- [x] **Step 5: Verify green**
 
 ```bash
 npm run supabase:test
@@ -127,7 +127,7 @@ npm run supabase:test
 
 Expected: PASS, with the `plan(N)` count matching the actual number of assertions.
 
-- [ ] **Step 6: Document the workflow**
+- [x] **Step 6: Document the workflow**
 
 Add to `docs/TESTING_STRATEGY.md`, in the pgTAP section:
 
@@ -141,12 +141,29 @@ compares TypeScript to TypeScript only and cannot see a cross-language
 divergence.
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add supabase/tests/database_foundation.test.sql docs/TESTING_STRATEGY.md
 git commit -m "test(b2c): make the pgTAP suite actually run and pass"
 ```
+
+**Status: Done** (commits `81782fa`, `206f23f`)
+
+pgTAP ran for the first time ever and is now green: 88/88 assertions passing, `plan(88)` matches the actual count. Docker's local Supabase image cache had to be warmed manually outside the isolated implementer sandbox before the stack would start (a sandbox network-egress restriction, not a project defect).
+
+Before pgTAP could even run, migrations wouldn't apply at all — two real, previously-undiscovered defects blocked `supabase db reset` outright:
+- **D11** (new): two migration files shared the identical timestamp `20260805120000`, causing a `schema_migrations` primary-key collision. Fixed by renaming `tap_b2c_mapping.sql` to `20260805130000_tap_b2c_mapping.sql` (no ordering dependency between the two files).
+- **D12** (new): `supabase/seed.sql` inserted a `financial_targets` row with a `metric_code` value not in the approved list added by a later migration. Fixed by using the correct approved value.
+
+Once migrations applied, the first pgTAP run failed as expected (assertions had never executed). 14 failing assertions were fixed — each with an inline comment recording whether the assertion or the migration was wrong. One of those fixes uncovered a real, previously-silent production defect:
+- **D13** (new): `reserve_b2c_finance_manual_bank_transfer_lineage()` called an unqualified `digest()` under a `search_path` that didn't include `extensions` (where `pgcrypto` lives) — the same bug class already fixed once elsewhere for Finance posting. This meant `record_b2c_manual_bank_transfer()`, the only live RPC for manual bank transfers, **always failed** in practice. Fixed with the same `search_path` pattern used for the earlier occurrence.
+
+While diagnosing D13, two more live instances of the exact same bug class were found and logged (not fixed — out of scope for this task, a general defect sweep would be a separate task):
+- **D14** (new, Open): `apply_stripe_product_mapping()` has the same unqualified-`digest()`/`search_path` bug.
+- **D15** (new, Open): `apply_b2c_product_mapping()` has the same bug.
+
+Full detail (fixture failures, reasoning for each of the 14 fixes, and the D11–D15 investigation) is in `.superpowers/sdd/2026-08-20-b2c-audit-remediation/task-1-report.md`. Reviewed by an independent task reviewer (spec ✅, task quality: Approved) which re-verified every message string, ordering decision, and constraint name against the actual migration source.
 
 ---
 
