@@ -32,7 +32,9 @@ cleanup_fixture() {
         'c1200000-0000-4000-8000-000000000002'::uuid,
         'c1200000-0000-4000-8000-000000000003'::uuid,
         'c1300000-0000-4000-8000-000000000001'::uuid,
-        'c1300000-0000-4000-8000-000000000002'::uuid
+        'c1300000-0000-4000-8000-000000000002'::uuid,
+        'c1400000-0000-4000-8000-000000000001'::uuid,
+        'c1400000-0000-4000-8000-000000000002'::uuid
       )
     );
     delete from public.review_flags
@@ -43,7 +45,9 @@ cleanup_fixture() {
       'c1200000-0000-4000-8000-000000000002'::uuid,
       'c1200000-0000-4000-8000-000000000003'::uuid,
       'c1300000-0000-4000-8000-000000000001'::uuid,
-      'c1300000-0000-4000-8000-000000000002'::uuid
+      'c1300000-0000-4000-8000-000000000002'::uuid,
+      'c1400000-0000-4000-8000-000000000001'::uuid,
+      'c1400000-0000-4000-8000-000000000002'::uuid
     );
     create temporary table concurrency_groups on commit drop as
       select distinct group_id
@@ -55,7 +59,9 @@ cleanup_fixture() {
         'c1200000-0000-4000-8000-000000000002'::uuid,
         'c1200000-0000-4000-8000-000000000003'::uuid,
         'c1300000-0000-4000-8000-000000000001'::uuid,
-        'c1300000-0000-4000-8000-000000000002'::uuid
+        'c1300000-0000-4000-8000-000000000002'::uuid,
+        'c1400000-0000-4000-8000-000000000001'::uuid,
+        'c1400000-0000-4000-8000-000000000002'::uuid
       );
     delete from public.b2c_payment_duplicate_group_members
     where group_id in (select group_id from concurrency_groups);
@@ -69,7 +75,9 @@ cleanup_fixture() {
       'c1200000-0000-4000-8000-000000000002'::uuid,
       'c1200000-0000-4000-8000-000000000003'::uuid,
       'c1300000-0000-4000-8000-000000000001'::uuid,
-      'c1300000-0000-4000-8000-000000000002'::uuid
+      'c1300000-0000-4000-8000-000000000002'::uuid,
+      'c1400000-0000-4000-8000-000000000001'::uuid,
+      'c1400000-0000-4000-8000-000000000002'::uuid
     );
     delete from public.b2c_payments
     where id in (
@@ -79,7 +87,9 @@ cleanup_fixture() {
       'c1200000-0000-4000-8000-000000000002'::uuid,
       'c1200000-0000-4000-8000-000000000003'::uuid,
       'c1300000-0000-4000-8000-000000000001'::uuid,
-        'c1300000-0000-4000-8000-000000000002'::uuid
+      'c1300000-0000-4000-8000-000000000002'::uuid,
+      'c1400000-0000-4000-8000-000000000001'::uuid,
+      'c1400000-0000-4000-8000-000000000002'::uuid
       );
     commit;
   " >/dev/null 2>&1 || true
@@ -377,15 +387,85 @@ run_stale_dismissal_race() {
   echo "PASS: trigger construction and stale dismissal serialized and retained current evidence."
 }
 
+run_correction_keep_one_race() {
+  local scenario="correction"
+  local first_id="c1400000-0000-4000-8000-000000000001"
+  local second_id="c1400000-0000-4000-8000-000000000002"
+  local first_value second_value group_id
+  first_value="$(payment_values_sql "$first_id" 'ch_lock_correction_1' 'lock.correction@playbook.test' 88 '2026-09-05 08:00:00+00' '2026-09-05')"
+  second_value="$(payment_values_sql "$second_id" 'ch_lock_correction_2' 'lock.correction@playbook.test' 88 '2026-09-05 09:00:00+00' '2026-09-05')"
+  run_psql -qAtc "
+    insert into public.b2c_payments (
+      id, source_system, provider_transaction_id, customer_email, category_code,
+      payment_status, original_amount, original_currency, exchange_rate_to_usd,
+      amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint
+    ) values $first_value, $second_value;
+  " >/dev/null
+  group_id="$(run_psql -qAtc "
+    select group_id from public.b2c_payment_duplicate_group_members where payment_id = '$first_id';
+  ")"
+  start_coordinator "$scenario"
+
+  run_psql -qAtc "
+    set application_name = 'b2c_correction_resolver';
+    set deadlock_timeout = '100ms';
+    set lock_timeout = '5s';
+    select set_config('request.jwt.claim.sub', '$admin_id', false);
+    select public.resolve_b2c_payment_duplicate_group(
+      '$group_id', 'keep_one', '$first_id', 'Concurrent keep-one FK lock regression.'
+    );
+  " >"$test_tmp_dir/correction-resolver.out" 2>&1 &
+  local resolver_pid=$!
+  background_pids+=("$resolver_pid")
+  wait_for_advisory_sessions "'b2c_correction_resolver'" 1
+
+  run_psql -qAtc "
+    set application_name = 'b2c_correction_action';
+    set deadlock_timeout = '100ms';
+    set lock_timeout = '5s';
+    select set_config('request.jwt.claim.sub', '$admin_id', false);
+    select public.apply_b2c_payment_local_correction(
+      '$first_id', null, 'corrected.lock@playbook.test', null,
+      null, null, null, null, 'Verified correction during duplicate resolution.'
+    );
+  " >"$test_tmp_dir/correction-action.out" 2>&1 &
+  local correction_pid=$!
+  background_pids+=("$correction_pid")
+  wait_for_advisory_sessions "'b2c_correction_resolver','b2c_correction_action'" 2
+  release_coordinator "$scenario"
+  wait_for_session "$resolver_pid" "$test_tmp_dir/correction-resolver.out" "Keep-one resolver"
+  wait_for_session "$correction_pid" "$test_tmp_dir/correction-action.out" "Local correction"
+
+  local state
+  state="$(run_psql -qAtc "
+    select duplicate_group.status || ':' || duplicate_group.canonical_payment_id || ':' ||
+      count(*) filter (where member.decision = 'include') || ':' ||
+      count(*) filter (where member.decision = 'exclude') || ':' ||
+      coalesce((select customer_email::text from public.b2c_payment_local_overrides
+                where payment_id = '$first_id'), '')
+    from public.b2c_payment_duplicate_groups duplicate_group
+    join public.b2c_payment_duplicate_group_members member on member.group_id = duplicate_group.id
+    where duplicate_group.id = '$group_id'
+    group by duplicate_group.status, duplicate_group.canonical_payment_id;
+  ")"
+  [[ "$state" == "resolved:$first_id:1:1:corrected.lock@playbook.test" ]] || {
+    echo "Correction/keep-one race left an invalid result: $state" >&2
+    return 1
+  }
+  echo "PASS: local correction and keep-one FK resolution serialized without deadlock."
+}
+
 cleanup_fixture
 case "${1:-all}" in
   trigger) run_trigger_update_race ;;
   resolver) run_resolver_race ;;
   stale) run_stale_dismissal_race ;;
+  correction) run_correction_keep_one_race ;;
   all)
     run_trigger_update_race
     run_resolver_race
     run_stale_dismissal_race
+    run_correction_keep_one_race
     ;;
-  *) echo "Usage: $0 [trigger|resolver|stale|all]" >&2; exit 2 ;;
+  *) echo "Usage: $0 [trigger|resolver|stale|correction|all]" >&2; exit 2 ;;
 esac

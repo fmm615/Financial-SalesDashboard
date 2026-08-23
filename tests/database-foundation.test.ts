@@ -470,6 +470,16 @@ describe("Phase 2 database migration contracts", () => {
     expect(firstRowLock).toBeGreaterThan(-1);
     expect(advisoryLock).toBeLessThan(firstRowLock);
 
+    for (const [writer, nextWriter] of [
+      ["create or replace function public.apply_stripe_product_mapping", "create or replace function public.apply_b2c_product_mapping"],
+      ["create or replace function public.apply_b2c_product_mapping", "create or replace function public.record_b2c_manual_bank_transfer"],
+      ["create or replace function public.apply_b2c_payment_local_correction", "-- Fail closed: historical flags"],
+    ]) {
+      const writerBody = sql.slice(sql.indexOf(writer), sql.indexOf(nextWriter));
+      expect(writerBody.indexOf("pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'))")).toBeGreaterThan(-1);
+      expect(writerBody.indexOf("pg_advisory_xact_lock")).toBeLessThan(writerBody.indexOf("for update"));
+    }
+
     const paymentTrigger = sql.indexOf("create trigger open_b2c_payment_duplicate_group_after_payment_write");
     expect(sql.lastIndexOf("create or replace function public.record_b2c_manual_bank_transfer")).toBeGreaterThan(paymentTrigger);
     expect(sql.lastIndexOf("create or replace function public.apply_b2c_payment_local_correction")).toBeGreaterThan(paymentTrigger);
