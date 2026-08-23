@@ -234,6 +234,30 @@ export function B2cWorkspace({
     void reload();
   }
 
+  function handlePaymentDuplicateResolved(resolvedPaymentIds: string[]) {
+    const resolvedIds = new Set(resolvedPaymentIds);
+    setWorkItems((current) => {
+      if (!current) return current;
+      const items = current.items.filter((item) => !resolvedIds.has(item.recordId));
+      return { ...current, items, counts: summarizeB2cWorkItemCounts(items) };
+    });
+    void reload();
+  }
+
+  function handleFinanceDuplicateResolved(groupId: string) {
+    setWorkItems((current) => {
+      if (!current) return current;
+      const items = current.items.filter((item) => item.recordId !== groupId);
+      return {
+        ...current,
+        items,
+        counts: summarizeB2cWorkItemCounts(items),
+        financeDuplicateGroups: current.financeDuplicateGroups?.filter((group) => group.groupId !== groupId),
+      };
+    });
+    void reload();
+  }
+
   const financialTotalsAvailable = snapshot?.sourceCoverage.reportingTotalsReady ?? false;
   const financialValue = (value: string) => (financialTotalsAvailable ? value : "Not fully loaded");
   const sourceAsOf = snapshot ? formatCoverageTimestamp(snapshot.sourceCoverage.dataAsOf) : null;
@@ -294,6 +318,12 @@ export function B2cWorkspace({
       {activeTab === "sources" && <B2cSourceManagement />}
     </div>
 
-    <B2cPaymentReviewDrawer target={drawerTarget} onClose={closeDrawer} onCandidateResolved={handleCandidateResolved} />
+    <B2cPaymentReviewDrawer
+      target={drawerTarget}
+      onClose={closeDrawer}
+      onCandidateResolved={handleCandidateResolved}
+      onPaymentDuplicateResolved={handlePaymentDuplicateResolved}
+      onFinanceDuplicateResolved={handleFinanceDuplicateResolved}
+    />
   </AppShell>;
 }

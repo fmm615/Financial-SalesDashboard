@@ -15,6 +15,7 @@ import { B2cRefundFxReviewActions } from "@/features/b2c/b2c-refund-fx-review-ac
 import { B2cSourceEvidencePanel } from "@/features/b2c/b2c-source-evidence-panel";
 import { B2cAuditTimeline } from "@/features/b2c/b2c-audit-timeline";
 import { B2cExactDuplicateReview } from "@/features/b2c/b2c-exact-duplicate-review";
+import { B2cPaymentDuplicateReview } from "@/features/b2c/b2c-payment-duplicate-review";
 import { B2cImportVersionDecision } from "@/features/b2c/b2c-import-version-decision";
 import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
@@ -156,17 +157,14 @@ function B2cPostedFinanceAdjustmentFragment({ paymentId, onSaved }: { paymentId:
 }
 
 /** Picks and renders the one Finance-decision action a Payment or Refund row currently needs. */
-function ActionSlot({ row, primary, onSaved }: { row: B2cReviewRow; primary: DrawerPrimaryAction; onSaved: () => void }) {
+function ActionSlot({ row, primary, onSaved, onPaymentDuplicateSaved }: { row: B2cReviewRow; primary: DrawerPrimaryAction; onSaved: () => void; onPaymentDuplicateSaved: (resolvedPaymentIds: string[]) => void }) {
   if (row.recordType === "Refund") {
     if (!row.isForeignCurrency) return <p className="text-sm text-text-muted">This refund needs no further Finance decision.</p>;
     return <B2cRefundFxReviewActions row={row} onSaved={onSaved} />;
   }
   if (row.recordType !== "Payment") return <p className="text-sm text-text-muted">This is retained statement evidence only; it has no local action.</p>;
   if (primary === "posted_adjustment") return <B2cPostedFinanceAdjustmentFragment paymentId={row.id} onSaved={onSaved} />;
-  // The pending Finance Tracker duplicate-decision review already renders
-  // dialog-free and writes only through the existing per-group decision
-  // route; the drawer reuses it directly rather than duplicating it.
-  if (primary === "choose_payment_duplicate") return <p className="text-sm leading-6 text-text-muted">This payment has an unresolved duplicate group. Review the linked payment records before recording its duplicate decision.</p>;
+  if (primary === "choose_payment_duplicate") return <B2cPaymentDuplicateReview paymentId={row.id} onSaved={onPaymentDuplicateSaved} />;
   if (primary === "compare") return <p className="text-sm leading-6 text-text-muted">Retained provider evidence does not match this record. Provider sync, backfill, and import history are reviewed from Sources.</p>;
   if (primary === "review_import_version") return <p className="text-sm leading-6 text-text-muted">This Payment Tracker row needs an explicit new/revision/existing-payment decision. Payment Tracker import history is reviewed from Sources.</p>;
   if (primary === "retry_source") return <p className="text-sm leading-6 text-text-muted">Retry the failed provider sync from Sources.</p>;
@@ -193,7 +191,13 @@ function ViewerReadOnlyNote() {
  * to dialog-free fragments this drawer owns directly -- there is no separate
  * evidence dialog, edit modal, or refund-FX modal at the row level.
  */
-export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved }: { target: B2cPaymentReviewDrawerTarget | null; onClose: () => void; onCandidateResolved?: (candidateId: string) => void }) {
+export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved, onPaymentDuplicateResolved, onFinanceDuplicateResolved }: {
+  target: B2cPaymentReviewDrawerTarget | null;
+  onClose: () => void;
+  onCandidateResolved?: (candidateId: string) => void;
+  onPaymentDuplicateResolved?: (resolvedPaymentIds: string[]) => void;
+  onFinanceDuplicateResolved?: (groupId: string) => void;
+}) {
   const canManage = useCanManage();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -221,10 +225,11 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved }:
       : target.kind === "financeDuplicate"
         ? "Choose the canonical Payment Tracker row"
         : target.item.title;
-  // A save keeps the Admin in the same queue: it never removes the item
-  // optimistically. Closing only happens after the server confirms the
-  // write, at which point the Ledger/Work queue refetch on their own.
   function handleSaved() { onClose(); }
+  function handlePaymentDuplicateSaved(resolvedPaymentIds: string[]) {
+    onPaymentDuplicateResolved?.(resolvedPaymentIds);
+    onClose();
+  }
 
   return <div className="fixed inset-0 z-50 overflow-hidden bg-brand-primary/30 p-4 sm:p-6" role="presentation" onMouseDown={onClose}>
     <section
@@ -258,7 +263,7 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved }:
         </Section>}
 
         <Section title="Finance decision">
-          {!canManage ? <ViewerReadOnlyNote /> : <ActionSlot row={target.row} primary={primaryActionForRow(target.row)} onSaved={handleSaved} />}
+          {!canManage ? <ViewerReadOnlyNote /> : <ActionSlot row={target.row} primary={primaryActionForRow(target.row)} onSaved={handleSaved} onPaymentDuplicateSaved={handlePaymentDuplicateSaved} />}
         </Section>
 
         <Section title="Audit history"><B2cAuditTimeline recordId={target.row.id} /></Section>
@@ -273,7 +278,7 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved }:
       </Section>}
 
       {target.kind === "financeDuplicate" && <Section title="Finance decision">
-        {!canManage ? <ViewerReadOnlyNote /> : <B2cExactDuplicateReview key={target.group.groupId} initialGroups={[target.group]} onGroupsChanged={async () => { handleSaved(); }} />}
+        {!canManage ? <ViewerReadOnlyNote /> : <B2cExactDuplicateReview key={target.group.groupId} group={target.group} onGroupsChanged={(groupId) => { onFinanceDuplicateResolved?.(groupId); handleSaved(); }} />}
       </Section>}
     </section>
   </div>;

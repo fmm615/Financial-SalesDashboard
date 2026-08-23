@@ -157,6 +157,31 @@ describe("Work queue", () => {
     expect(within(dialog).queryByText("Choose the duplicate for Noor")).not.toBeInTheDocument();
   });
 
+  it("removes a resolved Finance group immediately and requests a background workspace reload", async () => {
+    currentSearch = new URLSearchParams("tab=work&financeDuplicate=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    let workspaceRequests = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/b2c/workspace")) {
+        workspaceRequests += 1;
+        const overview = workspaceRequests === 1 ? financeDuplicateWorkItems : emptyWorkItems;
+        return { ok: true, json: async () => ({ role: "admin", ledger: { rows: [ledgerRow], nextCursor: null, hasMore: false, totalCount: 1 }, workItems: overview }) };
+      }
+      if (url.includes("/api/admin/b2c/reconciliation/") && url.endsWith("/decision") && init?.method === "POST") return { ok: true, json: async () => ({ decisionId: "decision-1" }) };
+      return { ok: false, json: async () => ({ error: "unexpected" }) };
+    }));
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Use B2C row 12 as canonical" }));
+    fireEvent.change(within(dialog).getByLabelText("Decision reason"), { target: { value: "Finance verified the retained workbook pair." } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm canonical Finance row" }));
+
+    await waitFor(() => expect(screen.queryByText("Choose the canonical Payment Tracker row")).not.toBeInTheDocument());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(workspaceRequests).toBeGreaterThanOrEqual(2);
+  });
+
   it("does not treat a Finance group ID in record as a payment drawer target", async () => {
     currentSearch = new URLSearchParams("tab=work&record=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     stubFetch({ role: "admin", overview: financeDuplicateWorkItems });
@@ -190,6 +215,51 @@ describe("Work queue", () => {
     expect(within(dialog).getByText("Choose the duplicate for Noor")).toBeInTheDocument();
     expect(within(dialog).queryByText("Exact Finance duplicate review")).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/reconciliation/exact-duplicates"), expect.anything());
+  });
+
+  it("removes every resolved payment-duplicate work item immediately and requests a background workspace reload", async () => {
+    currentSearch = new URLSearchParams("tab=work&record=payment-3");
+    const duplicateLedgerRow: B2cSafeLedgerRow = {
+      ...ledgerRow,
+      id: "payment-3",
+      hasOpenPaymentDuplicate: true,
+      issue: "Possible duplicate",
+      openReviewFlags: [{ id: "flag-3", type: "Possible duplicate", reason: "Matching payment facts require an audited decision." }],
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "duplicate_pending", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["possible_duplicate"], explanation: "Blocked by an unresolved possible duplicate." },
+    };
+    let workspaceRequests = 0;
+    let duplicateDecisionRequests = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/b2c/workspace")) {
+        workspaceRequests += 1;
+        const overview = workspaceRequests === 1 ? workItems : emptyWorkItems;
+        const rows = workspaceRequests === 1 ? [duplicateLedgerRow] : [];
+        return { ok: true, json: async () => ({ role: "admin", ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: overview }) };
+      }
+      if (url.endsWith("/payments/payment-3/duplicate-group")) return { ok: true, json: async () => ({ kind: "group", group: {
+        groupId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", detectionReason: "Matching payment facts within the approved window.", members: [
+          { paymentId: "payment-3", sourceSystem: "stripe", providerReference: "ch_3", customerName: "Noor", sourceCustomerEmail: "noor@example.com", effectiveCustomerEmail: "noor@example.com", sourceAmount: "40", sourceCurrency: "USD", effectiveAmountUsd: "40", sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2026-08-09", effectiveOccurredOn: "2026-08-09" },
+          { paymentId: "payment-4", sourceSystem: "tap", providerReference: "tap_4", customerName: "Noor", sourceCustomerEmail: "noor@example.com", effectiveCustomerEmail: "noor@example.com", sourceAmount: "40", sourceCurrency: "USD", effectiveAmountUsd: "40", sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2026-08-09", effectiveOccurredOn: "2026-08-09" },
+        ],
+      } }) };
+      if (url.includes("/payment-duplicate-groups/") && url.endsWith("/decision") && init?.method === "POST") {
+        duplicateDecisionRequests += 1;
+        return { ok: true, json: async () => ({ groupId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", resolvedPaymentIds: ["payment-3", "payment-4"] }) };
+      }
+      if (url.includes("/audit-history")) return { ok: true, json: async () => ({ entries: [] }) };
+      return { ok: false, json: async () => ({ error: "unexpected" }) };
+    }));
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(await within(dialog).findByLabelText("Payment duplicate decision reason"), { target: { value: "Finance verified the provider records are separate payments." } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep all payments" }));
+
+    await waitFor(() => expect(duplicateDecisionRequests).toBe(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.queryByText("Choose the duplicate for Noor")).not.toBeInTheDocument();
+    expect(workspaceRequests).toBeGreaterThanOrEqual(2);
   });
 
   it("opens an unresolved import-version candidate in the decision drawer", async () => {
