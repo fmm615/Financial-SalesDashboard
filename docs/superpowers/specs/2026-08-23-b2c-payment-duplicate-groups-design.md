@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-23
 
-**Status:** Proposed
+**Status:** Approved
 
 **Scope:** Replace independent B2C `possible_duplicate` flags with an auditable group decision workflow while keeping Finance-workbook exact duplicates separate.
 
@@ -21,7 +21,7 @@ Introduce a dedicated B2C payment-duplicate group model. A group retains the pay
 
 All source payments remain immutable. A decision changes reporting eligibility only through append-only, audited duplicate-decision records and review-flag resolutions.
 
-Finance Payment Tracker exact pairs remain in the existing Finance reconciliation model. They receive the distinct `finance_exact_duplicate` blocking reason and continue through the existing exact-Finance-group decision route. Payment duplicate groups never contain staging rows, and Finance reconciliation groups never contain provider/manual payment duplicate decisions.
+Finance Payment Tracker exact pairs remain in the existing Finance reconciliation model. They receive a distinct `finance_exact_duplicate` Work item and continue through the existing exact-Finance-group decision route. Payment duplicate groups never contain staging rows, and Finance reconciliation groups never contain provider/manual payment duplicate decisions.
 
 ## Alternatives considered
 
@@ -121,7 +121,7 @@ The B2C repository loads two independent duplicate facts for each payment:
 
 An open group produces `possible_duplicate`, `duplicate_pending`, and a blocked reporting decision. A resolved exclusion produces an explicit duplicate exclusion and remains outside every financial total even though its source status is succeeded. A resolved inclusion removes only the duplicate block; every other reporting requirement still applies.
 
-The decision model adds `finance_exact_duplicate` only for an unresolved Finance reconciliation group. `possible_duplicate` remains exclusively a payment-group reason. Work-item routing maps both to the visible Duplicates queue but gives them distinct targets and actions.
+`possible_duplicate` remains exclusively a payment-group reason. Because an unresolved Finance reconciliation group exists before a `b2c_payments` row is created, represent it directly as a `finance_exact_duplicate` Work item rather than injecting that state into a payment decision. Work-item routing maps both workflows to the visible Duplicates queue but gives them distinct targets and actions.
 
 ## API and repository boundaries
 
