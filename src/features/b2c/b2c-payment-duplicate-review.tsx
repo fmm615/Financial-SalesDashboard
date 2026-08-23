@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type {
   B2cPaymentDuplicateGroupReview,
+  B2cPaymentDuplicateMemberReview,
   B2cPaymentDuplicateReviewResult,
 } from "@/server/services/b2c-payment-duplicate-review";
 
@@ -18,6 +19,32 @@ function hasMeaningfulReason(value: string): boolean {
   return trimmed.length >= 3 && trimmed.length <= 1000 && !/^(?:-+|—+|n\/?a)$/i.test(trimmed);
 }
 
+function isNullableString(value: unknown): value is string | null {
+  return typeof value === "string" || value === null;
+}
+
+function isDuplicateSourceSystem(value: unknown): value is B2cPaymentDuplicateMemberReview["sourceSystem"] {
+  return value === "stripe" || value === "tap" || value === "manual_bank_transfer" || value === "finance_tracker";
+}
+
+function isDuplicateMember(value: unknown): value is B2cPaymentDuplicateMemberReview {
+  if (!value || typeof value !== "object") return false;
+  const member = value as Record<string, unknown>;
+  return typeof member.paymentId === "string"
+    && isDuplicateSourceSystem(member.sourceSystem)
+    && isNullableString(member.providerReference)
+    && isNullableString(member.customerName)
+    && isNullableString(member.sourceCustomerEmail)
+    && typeof member.effectiveCustomerEmail === "string"
+    && typeof member.sourceAmount === "string"
+    && typeof member.sourceCurrency === "string"
+    && typeof member.effectiveAmountUsd === "string"
+    && isNullableString(member.sourceCategoryCode)
+    && typeof member.effectiveCategoryCode === "string"
+    && isNullableString(member.sourceOccurredOn)
+    && typeof member.effectiveOccurredOn === "string";
+}
+
 function isReviewResult(value: unknown): value is B2cPaymentDuplicateReviewResult {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
@@ -25,7 +52,11 @@ function isReviewResult(value: unknown): value is B2cPaymentDuplicateReviewResul
   if (record.kind === "ungrouped_flag") return typeof record.flagId === "string";
   if (record.kind !== "group" || !record.group || typeof record.group !== "object") return false;
   const group = record.group as Record<string, unknown>;
-  return typeof group.groupId === "string" && Array.isArray(group.members);
+  return typeof group.groupId === "string"
+    && typeof group.detectionReason === "string"
+    && group.detectionReason.trim().length > 0
+    && Array.isArray(group.members)
+    && group.members.every(isDuplicateMember);
 }
 
 function isResolvedDecision(value: unknown, groupId: string): value is { groupId: string; resolvedPaymentIds: string[] } {

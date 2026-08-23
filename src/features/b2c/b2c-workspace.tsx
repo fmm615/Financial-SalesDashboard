@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, MetricCard, SectionCard } from "@/components/ui";
@@ -123,6 +123,7 @@ export function B2cWorkspace({
 
   const [filters, setFilters] = useState<B2cLedgerFiltersState>(() => ({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: initialTapStatementUnmatchedOnly }));
   const [drawerTarget, setDrawerTarget] = useState<B2cPaymentReviewDrawerTarget | null>(null);
+  const justResolvedPaymentIds = useRef(new Set<string>());
 
   const period = snapshot?.period.month;
 
@@ -186,6 +187,7 @@ export function B2cWorkspace({
 
   // A record deep-linked from the Work queue or Review Queue opens the same shared drawer.
   useEffect(() => {
+    if (!recordParam) justResolvedPaymentIds.current.clear();
     if (financeDuplicateParam) {
       const group = workItems?.financeDuplicateGroups?.find((item) => item.groupId === financeDuplicateParam);
       setDrawerTarget(group ? { kind: "financeDuplicate", group } : null);
@@ -196,7 +198,14 @@ export function B2cWorkspace({
       setDrawerTarget(candidate ? { kind: "candidate", candidate } : null);
       return;
     }
-    if (!recordParam) { setDrawerTarget(null); return; }
+    if (!recordParam) {
+      setDrawerTarget(null);
+      return;
+    }
+    if (justResolvedPaymentIds.current.has(recordParam)) {
+      setDrawerTarget(null);
+      return;
+    }
     const row = ledgerRows.find((candidate) => candidate.id === recordParam);
     if (row) { setDrawerTarget({ kind: "row", row }); return; }
     const item = workItems?.items.find((candidate) => candidate.nextAction !== "choose_finance_duplicate" && candidate.recordId === recordParam);
@@ -236,11 +245,14 @@ export function B2cWorkspace({
 
   function handlePaymentDuplicateResolved(resolvedPaymentIds: string[]) {
     const resolvedIds = new Set(resolvedPaymentIds);
+    for (const paymentId of resolvedIds) justResolvedPaymentIds.current.add(paymentId);
     setWorkItems((current) => {
       if (!current) return current;
       const items = current.items.filter((item) => !resolvedIds.has(item.recordId));
       return { ...current, items, counts: summarizeB2cWorkItemCounts(items) };
     });
+    setDrawerTarget(null);
+    setQuery({ record: null });
     void reload();
   }
 

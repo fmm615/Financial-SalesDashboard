@@ -217,7 +217,7 @@ describe("Work queue", () => {
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/reconciliation/exact-duplicates"), expect.anything());
   });
 
-  it("removes every resolved payment-duplicate work item immediately and requests a background workspace reload", async () => {
+  it("does not reopen a resolved payment drawer while its background reload is delayed", async () => {
     currentSearch = new URLSearchParams("tab=work&record=payment-3");
     const duplicateLedgerRow: B2cSafeLedgerRow = {
       ...ledgerRow,
@@ -229,13 +229,16 @@ describe("Work queue", () => {
     };
     let workspaceRequests = 0;
     let duplicateDecisionRequests = 0;
+    const reloadControl: { finish: (() => void) | null } = { finish: null };
     vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/api/b2c/workspace")) {
         workspaceRequests += 1;
         const overview = workspaceRequests === 1 ? workItems : emptyWorkItems;
         const rows = workspaceRequests === 1 ? [duplicateLedgerRow] : [];
-        return { ok: true, json: async () => ({ role: "admin", ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: overview }) };
+        const response = { ok: true, json: async () => ({ role: "admin", ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: overview }) };
+        if (workspaceRequests > 1) return new Promise<typeof response>((resolve) => { reloadControl.finish = () => resolve(response); });
+        return response;
       }
       if (url.endsWith("/payments/payment-3/duplicate-group")) return { ok: true, json: async () => ({ kind: "group", group: {
         groupId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", detectionReason: "Matching payment facts within the approved window.", members: [
@@ -250,16 +253,21 @@ describe("Work queue", () => {
       if (url.includes("/audit-history")) return { ok: true, json: async () => ({ entries: [] }) };
       return { ok: false, json: async () => ({ error: "unexpected" }) };
     }));
-    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+    const view = render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
     const dialog = await screen.findByRole("dialog");
     fireEvent.change(await within(dialog).findByLabelText("Payment duplicate decision reason"), { target: { value: "Finance verified the provider records are separate payments." } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Keep all payments" }));
 
     await waitFor(() => expect(duplicateDecisionRequests).toBe(1));
+    // The old deep link can be observed once more before navigation commits.
+    currentSearch = new URLSearchParams("tab=work&record=payment-3");
+    view.rerender(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.queryByText("Choose the duplicate for Noor")).not.toBeInTheDocument();
     expect(workspaceRequests).toBeGreaterThanOrEqual(2);
+    expect(pushMock).toHaveBeenCalledWith("/operations/b2c?tab=work");
+    reloadControl.finish?.();
   });
 
   it("opens an unresolved import-version candidate in the decision drawer", async () => {

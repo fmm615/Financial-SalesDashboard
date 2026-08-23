@@ -83,6 +83,23 @@ describe("B2C payment duplicate routing", () => {
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/duplicate-group"), expect.anything());
   });
 
+  it("shows a safe load error when a protected group response has malformed member data", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url.includes("/duplicate-group")) {
+        return Promise.resolve({ ok: true, json: async () => ({
+          kind: "group",
+          group: { groupId: "11111111-1111-4111-8111-111111111111", detectionReason: "Candidate detected.", members: [{ paymentId } ] },
+        }) });
+      }
+      if (url.includes("/audit-history")) return Promise.resolve({ ok: true, json: async () => ({ entries: [] }) });
+      return Promise.resolve({ ok: false, json: async () => ({ error: "Unexpected request" }) });
+    }));
+    renderDrawer({ kind: "row", row: duplicatePayment() });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("This payment duplicate review could not be loaded.");
+    expect(screen.queryByText("Payment duplicate review")).not.toBeInTheDocument();
+  });
+
   it("keeps both duplicate decision workflows unavailable to a Viewer", async () => {
     const fetchMock = stubFetch();
     renderDrawer({ kind: "row", row: duplicatePayment() }, "viewer");
