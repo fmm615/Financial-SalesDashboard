@@ -62,6 +62,18 @@ describe("B2C exact duplicate reconciliation APIs", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
+  it("rejects an empty direct group ID before it lists unrelated Finance groups", async () => {
+    const from = vi.fn();
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: adminUser } }) }, from } as never);
+    getApprovedRoleMock.mockResolvedValue("admin");
+
+    const response = await listGroups(new NextRequest("http://localhost/api/admin/b2c/reconciliation/exact-duplicates?groupId="));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: "Invalid B2C reconciliation group." });
+    expect(from).not.toHaveBeenCalled();
+  });
+
   it("uses a direct group query for a Finance duplicate deep link", async () => {
     const groupId = "22222222-2222-4222-8222-222222222222";
     const group = {

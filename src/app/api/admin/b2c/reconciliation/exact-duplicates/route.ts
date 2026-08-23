@@ -13,14 +13,15 @@ export async function GET(request: NextRequest) {
   if (!user || await getApprovedRole(client, user.id) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }
+  const hasGroupId = request.nextUrl.searchParams.has("groupId");
   const groupId = request.nextUrl.searchParams.get("groupId");
-  if (groupId && !z.string().uuid().safeParse(groupId).success) {
+  if (hasGroupId && !z.string().uuid().safeParse(groupId).success) {
     return NextResponse.json({ error: "Invalid B2C reconciliation group." }, { status: 422 });
   }
   try {
     const repository = new B2cExactDuplicateReconciliationRepository(client);
-    const rows = groupId
-      ? await repository.getPendingExactDuplicateGroup(groupId).then((group) => group ? [group] : [])
+    const rows = hasGroupId
+      ? await repository.getPendingExactDuplicateGroup(groupId as string).then((group) => group ? [group] : [])
       : await repository.listPendingExactDuplicateGroups();
     return NextResponse.json({ groups: toAdminExactDuplicateGroups(rows) });
   } catch {

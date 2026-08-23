@@ -157,6 +157,15 @@ describe("Work queue", () => {
     expect(within(dialog).queryByText("Choose the duplicate for Noor")).not.toBeInTheDocument();
   });
 
+  it("does not treat a Finance group ID in record as a payment drawer target", async () => {
+    currentSearch = new URLSearchParams("tab=work&record=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    stubFetch({ role: "admin", overview: financeDuplicateWorkItems });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByText("Choose the canonical Payment Tracker row");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("keeps a payment duplicate on its payment record target and never loads the Finance exact-pair component", async () => {
     currentSearch = new URLSearchParams("tab=work&record=payment-3");
     stubFetch({ role: "admin" });
