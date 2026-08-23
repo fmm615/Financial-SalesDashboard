@@ -454,6 +454,15 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("public.is_admin()");
   });
 
+  it("permits immutable provider-evidence mismatches only with named comparison fields", () => {
+    const sql = migration("20260820110000_b2c_provider_evidence_mismatches.sql");
+
+    expect(sql).toContain("check (match_state in ('exact_match', 'mismatch'))");
+    expect(sql).toContain("add column if not exists mismatch_fields text[] not null default '{}'");
+    expect(sql).toContain("cardinality(mismatch_fields) > 0");
+    expect(sql).toContain("array['amount', 'currency', 'date', 'status']::text[]");
+  });
+
   it("records a manual bank transfer only through one locked, re-validating RPC", () => {
     const sql = migration("20260818113000_b2c_manual_bank_transfer_entry.sql");
 

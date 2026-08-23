@@ -76,14 +76,24 @@ export function reconcileProviderEvidence(input: {
 
 type EvidenceRow = { id: string; provider_payment_id: string | null; credit_amount: string | null; original_currency: string; occurred_at: string | null };
 type LocalPaymentRow = { id: string; provider_transaction_id: string | null; original_amount: string; original_currency: string; occurred_on: string; payment_status: "succeeded" | "failed" | "pending" };
+const PROVIDER_EVIDENCE_TRANSACTION_ID_BATCH_SIZE = 100;
+const PROVIDER_EVIDENCE_TRANSACTION_ID_QUERY_CONCURRENCY = 4;
+
+function chunkProviderEvidenceTransactionIds(transactionIds: string[]): string[][] {
+  const batches: string[][] = [];
+  for (let start = 0; start < transactionIds.length; start += PROVIDER_EVIDENCE_TRANSACTION_ID_BATCH_SIZE) {
+    batches.push(transactionIds.slice(start, start + PROVIDER_EVIDENCE_TRANSACTION_ID_BATCH_SIZE));
+  }
+  return batches;
+}
 
 /**
  * Loads one import's sale-kind evidence and the matching local provider
- * payments, reconciles them, and persists only the exact matches (immutable,
- * idempotent via the unique evidence-id constraint). Never called for
+ * payments, reconciles them, and persists every provider-ID-linked outcome
+ * (immutable, idempotent via the unique evidence-id constraint). Never called for
  * Payment Tracker imports -- those have no provider transaction ID.
  */
-export async function linkB2cProviderEvidenceExactMatches(
+export async function linkB2cProviderEvidence(
   client: DatabaseClient,
   input: { importId: string; provider: "stripe" | "tap" },
 ): Promise<ProviderEvidenceReconciliationResult> {
@@ -109,14 +119,22 @@ export async function linkB2cProviderEvidenceExactMatches(
   if (evidence.length === 0) return { exactMatches: [], mismatches: [], unmatchedEvidence: [] };
 
   const transactionIds = [...new Set(evidence.map((row) => row.providerTransactionId))];
-  const { data: paymentRows, error: paymentError } = await client
-    .from("b2c_payments")
-    .select("id,provider_transaction_id,original_amount,original_currency,occurred_on,payment_status")
-    .eq("source_system", input.provider)
-    .in("provider_transaction_id", transactionIds);
-  if (paymentError) throw new Error(`Could not load local ${input.provider} payments: ${paymentError.message}`);
+  const paymentRows: LocalPaymentRow[] = [];
+  const transactionIdBatches = chunkProviderEvidenceTransactionIds(transactionIds);
+  for (let start = 0; start < transactionIdBatches.length; start += PROVIDER_EVIDENCE_TRANSACTION_ID_QUERY_CONCURRENCY) {
+    const results = await Promise.all(transactionIdBatches
+      .slice(start, start + PROVIDER_EVIDENCE_TRANSACTION_ID_QUERY_CONCURRENCY)
+      .map((transactionIdBatch) => client
+        .from("b2c_payments")
+        .select("id,provider_transaction_id,original_amount,original_currency,occurred_on,payment_status")
+        .eq("source_system", input.provider)
+        .in("provider_transaction_id", transactionIdBatch)));
+    const failedResult = results.find((result) => result.error);
+    if (failedResult?.error) throw new Error(`Could not load local ${input.provider} payments: ${failedResult.error.message}`);
+    for (const result of results) paymentRows.push(...((result.data ?? []) as LocalPaymentRow[]));
+  }
 
-  const payments: LocalProviderPaymentRecord[] = ((paymentRows ?? []) as LocalPaymentRow[])
+  const payments: LocalProviderPaymentRecord[] = paymentRows
     .filter((row): row is LocalPaymentRow & { provider_transaction_id: string } => Boolean(row.provider_transaction_id))
     .map((row) => ({
       paymentId: row.id,
@@ -129,18 +147,27 @@ export async function linkB2cProviderEvidenceExactMatches(
 
   const result = reconcileProviderEvidence({ evidence, payments });
 
-  if (result.exactMatches.length > 0) {
+  const links = [
+    ...result.exactMatches.map((match) => ({
+      provider_evidence_id: match.evidenceId,
+      payment_id: match.paymentId,
+      match_state: "exact_match" as const,
+      mismatch_fields: [],
+      matched_during_import_id: input.importId,
+    })),
+    ...result.mismatches.map((match) => ({
+      provider_evidence_id: match.evidenceId,
+      payment_id: match.paymentId,
+      match_state: "mismatch" as const,
+      mismatch_fields: match.fields,
+      matched_during_import_id: input.importId,
+    })),
+  ];
+
+  if (links.length > 0) {
     const { error: linkError } = await client
       .from("b2c_provider_evidence_payment_links")
-      .upsert(
-        result.exactMatches.map((match) => ({
-          provider_evidence_id: match.evidenceId,
-          payment_id: match.paymentId,
-          match_state: "exact_match" as const,
-          matched_during_import_id: input.importId,
-        })),
-        { onConflict: "provider_evidence_id", ignoreDuplicates: true },
-      );
+      .upsert(links, { onConflict: "provider_evidence_id", ignoreDuplicates: true });
     if (linkError) throw new Error(`Could not record ${input.provider} evidence links: ${linkError.message}`);
   }
 

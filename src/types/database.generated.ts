@@ -248,7 +248,7 @@ export interface Database {
         raw_payload: Json; created_at: Timestamp;
       }>;
       b2c_provider_evidence_payment_links: Table<{
-        id: Uuid; provider_evidence_id: Uuid; payment_id: Uuid; match_state: "exact_match";
+        id: Uuid; provider_evidence_id: Uuid; payment_id: Uuid; match_state: "exact_match" | "mismatch"; mismatch_fields: string[];
         matched_during_import_id: Uuid | null; linked_by: Uuid | null; created_at: Timestamp;
       }>;
       b2c_reconciliation_groups: Table<{

@@ -53,6 +53,38 @@ export type B2cPendingCandidateRecord = {
   occurredOn: string | null;
 };
 
+/** A provider-ID-linked payment whose retained evidence disagrees on one or more comparison facts. */
+export type B2cProviderEvidenceMismatchRecord = {
+  evidenceId: string;
+  paymentId: string;
+  customerLabel: string;
+  amountUsd: string | null;
+  mismatchFields: Array<"amount" | "currency" | "date" | "status">;
+};
+
+function formatProviderEvidenceMismatchFields(fields: B2cProviderEvidenceMismatchRecord["mismatchFields"]): string {
+  if (fields.length === 1) return fields[0];
+  if (fields.length === 2) return `${fields[0]} and ${fields[1]}`;
+  return `${fields.slice(0, -1).join(", ")}, and ${fields.at(-1)}`;
+}
+
+/** A retained mismatch stays visible until an Admin compares the original payment and provider evidence. */
+export function buildB2cProviderEvidenceMismatchWorkItems(records: B2cProviderEvidenceMismatchRecord[]): B2cWorkItem[] {
+  return records.map((record) => ({
+    id: `provider-evidence-mismatch:${record.evidenceId}`,
+    recordId: record.paymentId,
+    recordKind: "provider_payment",
+    queue: "reconciliation",
+    visibleGroup: "reconciliation",
+    financeMethod: null,
+    title: `Compare provider evidence for ${record.customerLabel}`,
+    explanation: `The provider transaction ID matches, but the ${formatProviderEvidenceMismatchFields(record.mismatchFields)} differ${record.mismatchFields.length === 1 ? "s" : ""}.`,
+    financialImpactUsd: record.amountUsd,
+    nextAction: "compare",
+    href: `/operations/b2c?tab=work&record=${record.paymentId}`,
+  }));
+}
+
 const CANDIDATE_EXPLANATION: Record<B2cPendingCandidateRecord["candidateKind"], string> = {
   new: "This replacement-workbook row has no prior Payment Tracker row or existing payment with the same identity. Confirm it as a genuinely new payment, or link it to the record it revises.",
   ambiguous: "Several rows share this payment identity, so PLAYBOOK cannot resolve them automatically. Decide each one explicitly.",

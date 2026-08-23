@@ -5,8 +5,10 @@ import { getB2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-rep
 import { summarizeFinancePostingReadiness } from "@/server/services/b2c-finance-action-center";
 import {
   buildB2cPendingCandidateWorkItems,
+  buildB2cProviderEvidenceMismatchWorkItems,
   buildB2cWorkItems,
   type B2cPendingCandidateRecord,
+  type B2cProviderEvidenceMismatchRecord,
   type B2cSourceFailureRecord,
   type B2cWorkItem,
   type B2cWorkItemRecord,
@@ -65,9 +67,11 @@ export function buildB2cWorkspaceOverview(input: {
   sourceFailures?: B2cSourceFailureRecord[];
   postingReadinessRows?: Parameters<typeof summarizeFinancePostingReadiness>[0];
   pendingCandidates?: B2cPendingCandidateRecord[];
+  providerEvidenceMismatches?: B2cProviderEvidenceMismatchRecord[];
 }): B2cWorkspaceOverview {
   const items = [
     ...buildB2cPendingCandidateWorkItems(input.pendingCandidates ?? []),
+    ...buildB2cProviderEvidenceMismatchWorkItems(input.providerEvidenceMismatches ?? []),
     ...buildB2cWorkItems({
     records: input.ledgerRows.filter((row) => row.recordType === "Payment").map(toB2cWorkItemRecord),
     sourceFailures: input.sourceFailures ?? [],
@@ -95,6 +99,16 @@ type CandidateStagingRow = {
   customer_email_raw: string | null;
   amount_usd: string | null;
   occurred_on: string | null;
+};
+type ProviderEvidenceMismatchLinkRow = {
+  provider_evidence_id: string;
+  payment_id: string;
+  mismatch_fields: Array<"amount" | "currency" | "date" | "status">;
+  b2c_payments: {
+    customer_name: string | null;
+    customer_email: string | null;
+    amount_usd: string | null;
+  } | null;
 };
 
 /** Loads the Admin Work queue overview. Reuses the dashboard snapshot and Task 2's Finance posting readiness RPC. */
@@ -172,18 +186,37 @@ export class SupabaseB2cWorkspaceRepository {
     });
   }
 
+  /** Loads immutable provider-ID matches whose comparison facts disagree, without changing any payment. */
+  private async listProviderEvidenceMismatches(): Promise<B2cProviderEvidenceMismatchRecord[]> {
+    const { data, error } = await this.client
+      .from("b2c_provider_evidence_payment_links")
+      .select("provider_evidence_id,payment_id,mismatch_fields,b2c_payments!inner(customer_name,customer_email,amount_usd)")
+      .eq("match_state", "mismatch");
+    if (error) throw new Error("Could not load B2C provider-evidence mismatches.");
+
+    return ((data ?? []) as unknown as ProviderEvidenceMismatchLinkRow[]).map((link) => ({
+      evidenceId: link.provider_evidence_id,
+      paymentId: link.payment_id,
+      customerLabel: link.b2c_payments?.customer_name ?? link.b2c_payments?.customer_email ?? "this payment",
+      amountUsd: link.b2c_payments?.amount_usd ?? null,
+      mismatchFields: link.mismatch_fields,
+    }));
+  }
+
   async overview(today = new Date()): Promise<B2cWorkspaceOverview> {
-    const [snapshot, sourceFailures, postingReadinessRows, pendingCandidates] = await Promise.all([
+    const [snapshot, sourceFailures, postingReadinessRows, pendingCandidates, providerEvidenceMismatches] = await Promise.all([
       getB2cDashboardSnapshot(this.client, today),
       this.listFailedSourceRuns(),
       new B2cFinanceActionRepository(this.client).getFinancePostingReadinessRows(),
       this.listPendingImportVersionCandidates(),
+      this.listProviderEvidenceMismatches(),
     ]);
     return buildB2cWorkspaceOverview({
       ledgerRows: snapshot.rows.map((row) => decorateB2cLedgerRow(row, today)),
       sourceFailures,
       postingReadinessRows,
       pendingCandidates,
+      providerEvidenceMismatches,
     });
   }
 }

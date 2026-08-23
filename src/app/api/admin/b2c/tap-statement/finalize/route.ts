@@ -3,7 +3,7 @@ import { getApprovedRole } from "@/lib/auth/access";
 import { getSingleTapStatementFile, tapStatementFinalizeSchema } from "@/lib/validation/tap-statement-upload-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { finalizeTapStatementUpload } from "@/server/services/tap-statement-upload";
-import { linkB2cProviderEvidenceExactMatches } from "@/server/services/b2c-provider-evidence-reconciliation";
+import { linkB2cProviderEvidence } from "@/server/services/b2c-provider-evidence-reconciliation";
 
 export const runtime = "nodejs";
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // payments never blocks a successful evidence import, and it never
     // creates a payment or changes a total -- it only records the immutable
     // exact links a later work-queue mismatch/unmatched view can compare against.
-    await linkB2cProviderEvidenceExactMatches(client, { importId, provider: "tap" }).catch(() => undefined);
+    await linkB2cProviderEvidence(client, { importId, provider: "tap" }).catch(() => undefined);
     return NextResponse.json({ importId }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "The Tap statement could not be staged." }, { status: 422 });

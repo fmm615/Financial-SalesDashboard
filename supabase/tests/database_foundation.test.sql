@@ -1,6 +1,6 @@
 begin;
 
-select plan(93);
+select plan(96);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -1035,6 +1035,58 @@ select is(
   (select linked_by::text from public.b2c_provider_evidence_payment_links where provider_evidence_id = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1'),
   '11111111-1111-4111-8111-111111111111',
   'a provider evidence link records the linking administrator automatically'
+);
+
+insert into public.b2c_provider_evidence (
+  id, import_id, provider, source_row_number, provider_payment_id, transaction_kind,
+  occurred_at, original_currency, credit_amount, raw_payload
+) values (
+  'e3e3e3e3-e3e3-4e3e-8e3e-e3e3e3e3e3e3', '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e9e9e', 'stripe', 901, 'ch_evidence_mismatch_test', 'sale',
+  '2026-08-05 10:00:00+00', 'USD', 130.000000, '{}'::jsonb
+);
+
+insert into public.b2c_provider_evidence_payment_links (
+  provider_evidence_id, payment_id, match_state, mismatch_fields, matched_during_import_id
+) values (
+  'e3e3e3e3-e3e3-4e3e-8e3e-e3e3e3e3e3e3', 'e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2', 'mismatch', array['amount'], '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e9e9e'
+);
+
+select is(
+  (select mismatch_fields from public.b2c_provider_evidence_payment_links where provider_evidence_id = 'e3e3e3e3-e3e3-4e3e-8e3e-e3e3e3e3e3e3'),
+  array['amount']::text[],
+  'a provider-ID-linked evidence mismatch retains the differing comparison fields'
+);
+
+insert into public.b2c_provider_evidence (
+  id, import_id, provider, source_row_number, provider_payment_id, transaction_kind,
+  occurred_at, original_currency, credit_amount, raw_payload
+) values (
+  'e4e4e4e4-e4e4-4e4e-8e4e-e4e4e4e4e4e4', '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e9e9e', 'stripe', 902, 'ch_evidence_invalid_mismatch_test', 'sale',
+  '2026-08-05 10:00:00+00', 'USD', 120.000000, '{}'::jsonb
+);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values (
+  'e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5', 'tap', 'tap_wrong_provider_link_test', 'evidence.wrong-provider@playbook.test', 'membership', 'succeeded',
+  120.000000, 'USD', 1.0000000000, 120.000000, 120.000000,
+  '2026-08-05 10:00:00+00', '2026-08-05', repeat('8', 64)
+);
+
+select throws_ok(
+  $$ insert into public.b2c_provider_evidence_payment_links (provider_evidence_id, payment_id, match_state, mismatch_fields) values ('e4e4e4e4-e4e4-4e4e-8e4e-e4e4e4e4e4e4', 'e2e2e2e2-e2e2-4e2e-8e2e-e2e2e2e2e2e2', 'mismatch', array[]::text[]) $$,
+  '23514',
+  null,
+  'a provider-evidence mismatch must identify at least one differing comparison field'
+);
+
+select throws_ok(
+  $$ insert into public.b2c_provider_evidence_payment_links (provider_evidence_id, payment_id, match_state, mismatch_fields) values ('e4e4e4e4-e4e4-4e4e-8e4e-e4e4e4e4e4e4', 'e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5', 'exact_match', array[]::text[]) $$,
+  '23514',
+  'Provider evidence and local payment must use the same provider',
+  'a Stripe evidence row cannot be immutably linked to a Tap payment'
 );
 
 -- Assertion was wrong: throws_ok(sql, errcode, X) treats a 3rd string

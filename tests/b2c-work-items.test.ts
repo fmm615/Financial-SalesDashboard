@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveB2cPaymentDecision } from "@/lib/b2c/payment-decision";
 import {
   buildB2cReadyToPostWorkItem,
+  buildB2cProviderEvidenceMismatchWorkItems,
   buildB2cRecordWorkItems,
   buildB2cPendingCandidateWorkItems,
   buildB2cSourceFailureWorkItems,
@@ -187,6 +188,31 @@ describe("buildB2cPendingCandidateWorkItems", () => {
 
     expect(overview.counts).toMatchObject({ all: 1, reconciliation: 1 });
     expect(overview.items[0]).toMatchObject({ recordId: "candidate-1", nextAction: "review_import_version" });
+  });
+});
+
+describe("buildB2cProviderEvidenceMismatchWorkItems", () => {
+  it("turns every recorded provider-evidence mismatch into one actionable reconciliation item", () => {
+    const items = buildB2cProviderEvidenceMismatchWorkItems([{
+      evidenceId: "evidence-1",
+      paymentId: "payment-1",
+      customerLabel: "Maya Al Khalifa",
+      amountUsd: "120.000000",
+      mismatchFields: ["amount", "currency"],
+    }]);
+
+    expect(items).toEqual([expect.objectContaining({
+      id: "provider-evidence-mismatch:evidence-1",
+      recordId: "payment-1",
+      recordKind: "provider_payment",
+      queue: "reconciliation",
+      visibleGroup: "reconciliation",
+      nextAction: "compare",
+      title: "Compare provider evidence for Maya Al Khalifa",
+      explanation: "The provider transaction ID matches, but the amount and currency differ.",
+      financialImpactUsd: "120.000000",
+      href: "/operations/b2c?tab=work&record=payment-1",
+    })]);
   });
 });
 
