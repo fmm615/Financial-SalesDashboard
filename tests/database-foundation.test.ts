@@ -443,6 +443,24 @@ describe("Phase 2 database migration contracts", () => {
     expect(reviewQueueSafety).toContain("create or replace function public.resolve_b2c_review_flag");
   });
 
+  it("creates an Admin-only, atomic B2C payment duplicate-group workflow", () => {
+    const sql = migration("20260820111000_b2c_payment_duplicate_groups.sql");
+    expect(sql).toContain("create table public.b2c_payment_duplicate_groups");
+    expect(sql).toContain("create table public.b2c_payment_duplicate_group_members");
+    expect(sql).toContain("create or replace function public.open_b2c_payment_duplicate_group");
+    expect(sql).toContain("create or replace function public.resolve_b2c_payment_duplicate_group");
+    expect(sql).toContain("create or replace function public.dismiss_stale_b2c_possible_duplicate_flag");
+    expect(sql).toContain("create or replace function public.get_b2c_payment_duplicate_reporting_states");
+    expect(sql).toContain("extensions.digest(");
+    expect(sql).toContain("p_decision not in ('keep_all', 'keep_one')");
+    expect(sql).toContain("public.is_admin()");
+    expect(sql).toContain("public.write_audit_event()");
+
+    const paymentTrigger = sql.indexOf("create trigger open_b2c_payment_duplicate_group_after_payment_write");
+    expect(sql.lastIndexOf("create or replace function public.record_b2c_manual_bank_transfer")).toBeGreaterThan(paymentTrigger);
+    expect(sql.lastIndexOf("create or replace function public.apply_b2c_payment_local_correction")).toBeGreaterThan(paymentTrigger);
+  });
+
   it("persists only exact provider-evidence links, immutably and Admin-only", () => {
     const sql = migration("20260818110000_b2c_provider_evidence_links.sql");
 

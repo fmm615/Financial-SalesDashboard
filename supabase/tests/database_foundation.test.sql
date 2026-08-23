@@ -1,6 +1,6 @@
 begin;
 
-select plan(96);
+select plan(129);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -1202,6 +1202,513 @@ select is(
    where payments.provider_transaction_id = 'MANUAL-CANONICAL-Ł-1'),
   encode(extensions.digest('łukasz nowak 2026-08-16 125.000000 bank transfer', 'sha256'), 'hex'),
   'manual-transfer lineage reservation uses the shared Unicode canonicalization rule'
+);
+
+-- Database-owned B2C payment duplicate groups. These fixtures deliberately
+-- keep source rows immutable and vary source values independently from local
+-- effective values.
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('a1000000-0000-4000-8000-000000000001', 'stripe', 'ch_duplicate_group_a1', 'group.a@playbook.test', 'membership', 'succeeded', 80, 'USD', 1, 80, 80, '2026-08-20 08:00:00+00', '2026-08-20', repeat('1', 64)),
+  ('a1000000-0000-4000-8000-000000000002', 'tap', 'tap_duplicate_group_a2', 'GROUP.A@playbook.test', 'MEMBERSHIP', 'succeeded', 80, 'USD', 1, 80, 80, '2026-08-20 09:00:00+00', '2026-08-20', repeat('2', 64));
+
+select set_config(
+  'test.b2c_insert_trigger_group_id',
+  coalesce((
+    select member.group_id::text
+    from public.b2c_payment_duplicate_group_members member
+    where member.payment_id = 'a1000000-0000-4000-8000-000000000001'
+  ), ''),
+  true
+);
+
+select set_config(
+  'test.b2c_duplicate_group_id',
+  public.open_b2c_payment_duplicate_group('a1000000-0000-4000-8000-000000000001')::text,
+  true
+);
+
+select is(
+  public.open_b2c_payment_duplicate_group('a1000000-0000-4000-8000-000000000001')::text,
+  public.open_b2c_payment_duplicate_group('a1000000-0000-4000-8000-000000000002')::text,
+  'repeated detection returns the same open payment duplicate group'
+);
+
+select throws_ok(
+  $$ select public.resolve_b2c_payment_duplicate_group(
+    current_setting('test.b2c_duplicate_group_id')::uuid,
+    'keep_one',
+    'a1000000-0000-4000-8000-000000000099',
+    'Finance selected a payment outside the group.'
+  ) $$,
+  'P0001',
+  'The selected canonical payment must belong to this duplicate group',
+  'keep-one rejects a payment outside the group'
+);
+
+select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
+
+select throws_ok(
+  $$ select public.open_b2c_payment_duplicate_group('a1000000-0000-4000-8000-000000000001') $$,
+  'P0001',
+  'Only an authenticated administrator or trusted database session can create B2C payment duplicate groups',
+  'a Viewer cannot construct a B2C payment duplicate group'
+);
+
+select throws_ok(
+  $$ select public.resolve_b2c_payment_duplicate_group(
+    current_setting('test.b2c_duplicate_group_id')::uuid,
+    'keep_all', null, 'Viewer must not decide a Finance duplicate case.'
+  ) $$,
+  'P0001',
+  'Only an authenticated administrator can resolve B2C payment duplicate groups',
+  'a Viewer cannot resolve a B2C payment duplicate group'
+);
+
+set local role authenticated;
+
+select ok(
+  (select states.has_open_duplicate and not states.has_duplicate_exclusion
+   from public.get_b2c_payment_duplicate_reporting_states() states
+   where states.payment_id = 'a1000000-0000-4000-8000-000000000001'),
+  'an approved Viewer receives safe per-payment duplicate reporting booleans'
+);
+
+select ok(
+  not exists (select 1 from public.b2c_payment_duplicate_groups)
+  and not exists (select 1 from public.b2c_payment_duplicate_group_members)
+  and not exists (
+    select 1
+    from public.get_b2c_payment_duplicate_reporting_states() states,
+      lateral jsonb_object_keys(to_jsonb(states)) exposed_key
+    where exposed_key in ('group_id', 'member_id', 'fingerprint', 'decision', 'canonical_payment_id')
+  ),
+  'a Viewer cannot select duplicate group/member rows or receive their identifiers'
+);
+
+reset role;
+select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+select ok(
+  (select count(distinct member.payment_id) >= 2
+   from public.b2c_payment_duplicate_group_members member
+   join public.b2c_payments payment on payment.id = member.payment_id
+   where member.group_id = current_setting('test.b2c_duplicate_group_id')::uuid
+     and payment.payment_status = 'succeeded'),
+  'a duplicate group contains at least two distinct succeeded payments'
+);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values (
+  'a1000000-0000-4000-8000-000000000003', 'stripe', 'ch_duplicate_group_a3', 'group.a@playbook.test', 'membership', 'succeeded',
+  80, 'USD', 1, 80, 80, '2026-08-20 10:00:00+00', '2026-08-20', repeat('3', 64)
+);
+
+select is(
+  (select count(*)::int from public.b2c_payment_duplicate_group_members
+   where group_id = current_setting('test.b2c_duplicate_group_id')::uuid),
+  3,
+  'a third proven payment extends the same open duplicate group'
+);
+
+select throws_ok(
+  $$ select public.resolve_b2c_payment_duplicate_group(
+    current_setting('test.b2c_duplicate_group_id')::uuid,
+    'keep_all', null, 'n/a'
+  ) $$,
+  'P0001',
+  'A meaningful duplicate decision reason between 3 and 1000 characters is required',
+  'placeholder-only duplicate resolution reasons are rejected'
+);
+
+select throws_ok(
+  $$ select public.resolve_b2c_payment_duplicate_group(
+    current_setting('test.b2c_duplicate_group_id')::uuid,
+    'keep_all', 'a1000000-0000-4000-8000-000000000001', 'Finance confirmed all transfers are distinct.'
+  ) $$,
+  'P0001',
+  'A keep-all decision cannot select a canonical payment',
+  'keep-all rejects a non-null canonical payment'
+);
+
+select throws_ok(
+  $$ select public.resolve_b2c_payment_duplicate_group(
+    current_setting('test.b2c_duplicate_group_id')::uuid,
+    'keep_one', null, 'Finance selected one retained transfer.'
+  ) $$,
+  'P0001',
+  'A keep-one decision requires a canonical payment from this duplicate group',
+  'keep-one rejects a null canonical payment'
+);
+
+select public.resolve_b2c_payment_duplicate_group(
+  current_setting('test.b2c_duplicate_group_id')::uuid,
+  'keep_all', null, 'Finance verified three separate customer payments.'
+);
+
+select is(
+  (select count(*)::int from public.b2c_payment_duplicate_group_members
+   where group_id = current_setting('test.b2c_duplicate_group_id')::uuid and decision = 'include'),
+  3,
+  'keep-all marks every duplicate-group member for inclusion'
+);
+
+select throws_ok(
+  $$ select public.resolve_b2c_payment_duplicate_group(
+    current_setting('test.b2c_duplicate_group_id')::uuid,
+    'keep_all', null, 'Attempted second decision.'
+  ) $$,
+  'P0001',
+  'This duplicate group is unavailable or already resolved',
+  'a resolved duplicate group rejects a second decision'
+);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('a2000000-0000-4000-8000-000000000001', 'stripe', 'ch_duplicate_group_b1', 'group.b@playbook.test', 'coaching', 'succeeded', 90, 'USD', 1, 90, 90, '2026-08-21 08:00:00+00', '2026-08-21', repeat('4', 64)),
+  ('a2000000-0000-4000-8000-000000000002', 'tap', 'tap_duplicate_group_b2', 'group.b@playbook.test', 'coaching', 'succeeded', 90, 'USD', 1, 90, 90, '2026-08-21 09:00:00+00', '2026-08-21', repeat('5', 64));
+
+select set_config(
+  'test.b2c_keep_one_group_id',
+  (select group_id::text from public.b2c_payment_duplicate_group_members where payment_id = 'a2000000-0000-4000-8000-000000000001'),
+  true
+);
+
+-- Reproduce a historical overlapping open case that predates the defensive
+-- one-open-group trigger. This proves resolution checks current database state
+-- instead of assuming newer construction invariants have always held.
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values (
+  'a2000000-0000-4000-8000-000000000003', 'stripe', 'ch_historical_overlap_b3', 'historical.overlap@playbook.test', 'membership', 'succeeded',
+  91, 'USD', 1, 91, 91, '2026-08-21 10:00:00+00', '2026-08-21', repeat('6', 64)
+);
+
+alter table public.b2c_payment_duplicate_group_members
+  disable trigger enforce_one_open_b2c_duplicate_group_per_payment;
+insert into public.b2c_payment_duplicate_groups (id, fingerprint, detection_reason)
+values (
+  'b2000000-0000-4000-8000-000000000001', repeat('6', 64),
+  'Historical overlapping open case retained for forward-compatible resolution testing.'
+);
+insert into public.b2c_payment_duplicate_group_members (group_id, payment_id)
+values
+  ('b2000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000001'),
+  ('b2000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000003');
+alter table public.b2c_payment_duplicate_group_members
+  enable trigger enforce_one_open_b2c_duplicate_group_per_payment;
+
+select public.resolve_b2c_payment_duplicate_group(
+  current_setting('test.b2c_keep_one_group_id')::uuid,
+  'keep_one', 'a2000000-0000-4000-8000-000000000001', 'Finance retained the Stripe payment as canonical.'
+);
+
+select ok(
+  (select count(*) = 1 from public.b2c_payment_duplicate_group_members
+   where group_id = current_setting('test.b2c_keep_one_group_id')::uuid and decision = 'include')
+  and
+  (select count(*) = 1 from public.b2c_payment_duplicate_group_members
+   where group_id = current_setting('test.b2c_keep_one_group_id')::uuid and decision = 'exclude'),
+  'keep-one includes exactly one member and excludes every other member'
+);
+
+select ok(
+  exists (
+    select 1 from public.review_flags flag
+    where flag.source_area = 'b2c_payment' and flag.flag_type = 'possible_duplicate' and flag.status = 'open'
+      and flag.source_record_id = 'a2000000-0000-4000-8000-000000000001'
+  )
+  and not exists (
+    select 1 from public.review_flags flag
+    where flag.source_area = 'b2c_payment' and flag.flag_type = 'possible_duplicate' and flag.status = 'open'
+      and flag.source_record_id = 'a2000000-0000-4000-8000-000000000002'
+  )
+  and exists (
+    select 1
+    from public.b2c_payment_duplicate_group_members member
+    join public.b2c_payment_duplicate_groups duplicate_group on duplicate_group.id = member.group_id
+    where duplicate_group.status = 'open'
+      and member.payment_id = 'a2000000-0000-4000-8000-000000000001'
+  ),
+  'member review flags resolve only after no other open duplicate group remains'
+);
+
+select public.resolve_b2c_payment_duplicate_group(
+  'b2000000-0000-4000-8000-000000000001',
+  'keep_all', null, 'Finance completed the retained historical overlap review.'
+);
+
+set local role authenticated;
+
+select throws_ok(
+  $$ insert into public.b2c_payment_duplicate_groups (fingerprint, detection_reason) values (repeat('f', 64), 'Direct insert attempt') $$,
+  '42501', null,
+  'an authenticated Admin cannot directly insert a payment duplicate group'
+);
+
+select throws_ok(
+  $$ update public.b2c_payment_duplicate_groups set detection_reason = 'Direct update attempt' where id = current_setting('test.b2c_duplicate_group_id')::uuid $$,
+  '42501', null,
+  'an authenticated Admin cannot directly update a payment duplicate group'
+);
+
+select throws_ok(
+  $$ delete from public.b2c_payment_duplicate_groups where id = current_setting('test.b2c_duplicate_group_id')::uuid $$,
+  '42501', null,
+  'an authenticated Admin cannot directly delete a payment duplicate group'
+);
+
+select throws_ok(
+  $$ insert into public.b2c_payment_duplicate_group_members (group_id, payment_id) values (current_setting('test.b2c_duplicate_group_id')::uuid, 'a2000000-0000-4000-8000-000000000001') $$,
+  '42501', null,
+  'an authenticated Admin cannot directly insert a payment duplicate-group member'
+);
+
+select throws_ok(
+  $$ update public.b2c_payment_duplicate_group_members set decision = 'pending' where group_id = current_setting('test.b2c_duplicate_group_id')::uuid $$,
+  '42501', null,
+  'an authenticated Admin cannot directly update a payment duplicate-group member'
+);
+
+select throws_ok(
+  $$ delete from public.b2c_payment_duplicate_group_members where group_id = current_setting('test.b2c_duplicate_group_id')::uuid $$,
+  '42501', null,
+  'an authenticated Admin cannot directly delete a payment duplicate-group member'
+);
+
+reset role;
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('a3000000-0000-4000-8000-000000000001', 'stripe', 'ch_overlap_group_1', 'overlap.old@playbook.test', 'membership', 'succeeded', 30, 'USD', 1, 30, 30, '2026-08-22 08:00:00+00', '2026-08-22', repeat('6', 64)),
+  ('a3000000-0000-4000-8000-000000000002', 'tap', 'tap_overlap_group_2', 'overlap.old@playbook.test', 'membership', 'succeeded', 30, 'USD', 1, 30, 30, '2026-08-22 09:00:00+00', '2026-08-22', repeat('7', 64));
+
+select set_config(
+  'test.b2c_overlap_group_id',
+  (select group_id::text from public.b2c_payment_duplicate_group_members where payment_id = 'a3000000-0000-4000-8000-000000000001'),
+  true
+);
+
+select public.apply_b2c_payment_local_correction(
+  'a3000000-0000-4000-8000-000000000001', null, 'overlap.new@playbook.test', null,
+  null, null, 31, null, 'Verified values changed while the original duplicate case remained open.'
+);
+
+select throws_ok(
+  $$ insert into public.b2c_payments (
+    id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+    original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+    occurred_at, occurred_on, duplicate_fingerprint
+  ) values (
+    'a3000000-0000-4000-8000-000000000003', 'stripe', 'ch_overlap_group_3', 'overlap.new@playbook.test', 'membership', 'succeeded',
+    31, 'USD', 1, 31, 31, '2026-08-22 10:00:00+00', '2026-08-22', repeat('8', 64)
+  ) $$,
+  'P0001',
+  'A payment cannot belong to more than one open B2C payment duplicate group',
+  'a payment is rejected from a second simultaneous open duplicate group'
+);
+
+select throws_ok(
+  $$ select public.dismiss_stale_b2c_possible_duplicate_flag(
+    (select id from public.review_flags
+     where source_area = 'b2c_payment' and source_record_id = 'a3000000-0000-4000-8000-000000000002'
+       and flag_type = 'possible_duplicate' and status = 'open'),
+    'Attempted dismissal despite current matching evidence.'
+  ) $$,
+  'P0001',
+  'This possible duplicate still has a current duplicate group',
+  'a possible-duplicate flag refuses stale dismissal while a current candidate exists'
+);
+
+select public.resolve_b2c_payment_duplicate_group(
+  current_setting('test.b2c_overlap_group_id')::uuid,
+  'keep_one', 'a3000000-0000-4000-8000-000000000002', 'Finance retained only the unchanged source payment.'
+);
+
+insert into public.b2c_payment_duplicate_groups (
+  id, fingerprint, status, decision, detection_reason, resolution_reason, resolved_by, resolved_at
+) values (
+  'b3000000-0000-4000-8000-000000000001', repeat('b', 64), 'resolved', 'keep_all',
+  'Historical duplicate evidence imported from an approved prior workflow.',
+  'Later review included this source without erasing the prior exclusion.',
+  '11111111-1111-4111-8111-111111111111', timezone('utc', now())
+);
+insert into public.b2c_payment_duplicate_group_members (group_id, payment_id, decision)
+values ('b3000000-0000-4000-8000-000000000001', 'a3000000-0000-4000-8000-000000000001', 'include');
+
+select ok(
+  (select states.has_duplicate_exclusion
+   from public.get_b2c_payment_duplicate_reporting_states() states
+   where states.payment_id = 'a3000000-0000-4000-8000-000000000001'),
+  'an excluded member remains excluded when a later resolved group includes it'
+);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('a4000000-0000-4000-8000-000000000001', 'stripe', 'ch_stale_flag_1', 'stale.one@playbook.test', 'membership', 'succeeded', 41, 'USD', 1, 41, 41, '2026-08-24 08:00:00+00', '2026-08-24', repeat('9', 64)),
+  ('a4000000-0000-4000-8000-000000000002', 'stripe', 'ch_historical_flag_2', 'historical.only@playbook.test', 'membership', 'succeeded', 42, 'USD', 1, 42, 42, '2026-08-24 09:00:00+00', '2026-08-24', repeat('a', 64));
+
+insert into public.review_flags (id, source_area, source_record_id, flag_type, status, priority, reason)
+values
+  ('b4000000-0000-4000-8000-000000000001', 'b2c_payment', 'a4000000-0000-4000-8000-000000000001', 'possible_duplicate', 'open', 2, 'Legacy flag whose former candidate is no longer provable.'),
+  ('b4000000-0000-4000-8000-000000000002', 'b2c_payment', 'a4000000-0000-4000-8000-000000000002', 'possible_duplicate', 'open', 2, 'Historical unprovable duplicate flag retained for review.');
+
+select lives_ok(
+  $$ select public.dismiss_stale_b2c_possible_duplicate_flag(
+    'b4000000-0000-4000-8000-000000000001',
+    'Finance confirmed the former candidate no longer exists.'
+  ) $$,
+  'an orphan possible-duplicate flag is dismissible when no current candidate exists'
+);
+
+select public.open_b2c_payment_duplicate_group('a4000000-0000-4000-8000-000000000002');
+
+select is(
+  (select status::text from public.review_flags where id = 'b4000000-0000-4000-8000-000000000002'),
+  'open',
+  'historical backfill leaves an unprovable possible-duplicate flag open'
+);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('a5000000-0000-4000-8000-000000000001', 'finance_tracker', null, 'effective.usd@playbook.test', 'membership', 'succeeded', 188, 'BHD', 2.6595744681, 500, 500, '2026-08-25 08:00:00+00', '2026-08-25', repeat('c', 64)),
+  ('a5000000-0000-4000-8000-000000000002', 'stripe', 'ch_effective_usd_2', 'effective.usd@playbook.test', 'membership', 'succeeded', 500, 'USD', 1, 500, 500, '2026-08-25 09:00:00+00', '2026-08-25', repeat('d', 64));
+
+select ok(
+  exists (
+    select 1
+    from public.b2c_payment_duplicate_group_members first_member
+    join public.b2c_payment_duplicate_group_members second_member on second_member.group_id = first_member.group_id
+    where first_member.payment_id = 'a5000000-0000-4000-8000-000000000001'
+      and second_member.payment_id = 'a5000000-0000-4000-8000-000000000002'
+  ),
+  'equal effective USD amounts group even when source currencies and amounts differ'
+);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values (
+  'a6000000-0000-4000-8000-000000000001', 'stripe', 'ch_missing_effective_usd', 'no.usd@playbook.test', 'membership', 'succeeded',
+  60, 'BHD', null, null, null, '2026-08-26 08:00:00+00', '2026-08-26', repeat('e', 64)
+);
+
+select ok(
+  not exists (select 1 from public.b2c_payment_duplicate_group_members where payment_id = 'a6000000-0000-4000-8000-000000000001'),
+  'a payment without an effective USD amount remains ungrouped'
+);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('a7000000-0000-4000-8000-000000000001', 'stripe', 'ch_business_date_1', 'business.date@playbook.test', 'membership', 'succeeded', 25, 'USD', 1, 25, 25, '2026-08-27 23:30:00+00', '2026-08-27', repeat('f', 64)),
+  ('a7000000-0000-4000-8000-000000000002', 'tap', 'tap_business_date_2', 'before.correction@playbook.test', 'other', 'succeeded', 26, 'USD', 1, 26, 26, '2026-08-28 00:30:00+00', '2026-08-28', repeat('0', 64));
+
+select public.apply_b2c_payment_local_correction(
+  'a7000000-0000-4000-8000-000000000002', null, 'business.date@playbook.test', null,
+  'membership', null, 25, null, 'Verified correction retains the distinct business date.'
+);
+
+select ok(
+  not exists (
+    select 1 from public.b2c_payment_duplicate_group_members
+    where payment_id in ('a7000000-0000-4000-8000-000000000001'::uuid, 'a7000000-0000-4000-8000-000000000002'::uuid)
+  )
+  and not exists (
+    select 1 from public.review_flags
+    where source_area = 'b2c_payment' and flag_type = 'possible_duplicate' and status = 'open'
+      and source_record_id in ('a7000000-0000-4000-8000-000000000001'::uuid, 'a7000000-0000-4000-8000-000000000002'::uuid)
+  ),
+  'equal content on a different business date remains ungrouped even inside 48 hours'
+);
+
+select ok(
+  current_setting('test.b2c_insert_trigger_group_id') <> '',
+  'a succeeded payment insert trigger constructs a duplicate group'
+);
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('a8000000-0000-4000-8000-000000000001', 'stripe', 'ch_override_group_1', 'override.target@playbook.test', 'membership', 'succeeded', 55, 'USD', 1, 55, 55, '2026-08-29 08:00:00+00', '2026-08-29', repeat('1', 64)),
+  ('a8000000-0000-4000-8000-000000000002', 'tap', 'tap_override_group_2', 'override.before@playbook.test', 'other', 'succeeded', 56, 'USD', 1, 56, 56, '2026-08-29 09:00:00+00', '2026-08-29', repeat('2', 64));
+
+select public.apply_b2c_payment_local_correction(
+  'a8000000-0000-4000-8000-000000000002', null, 'override.target@playbook.test', null,
+  'membership', null, 55, null, 'Verified effective values match another succeeded payment.'
+);
+
+select ok(
+  exists (
+    select 1
+    from public.b2c_payment_duplicate_group_members first_member
+    join public.b2c_payment_duplicate_group_members second_member on second_member.group_id = first_member.group_id
+    join public.b2c_payment_duplicate_groups duplicate_group on duplicate_group.id = first_member.group_id
+    where first_member.payment_id = 'a8000000-0000-4000-8000-000000000001'
+      and second_member.payment_id = 'a8000000-0000-4000-8000-000000000002'
+      and duplicate_group.status = 'open'
+  ),
+  'a verified local override write constructs a group from effective values'
+);
+
+select set_config(
+  'test.b2c_override_group_id',
+  (select group_id::text from public.b2c_payment_duplicate_group_members where payment_id = 'a8000000-0000-4000-8000-000000000001'),
+  true
+);
+
+select public.resolve_b2c_payment_duplicate_group(
+  current_setting('test.b2c_override_group_id')::uuid,
+  'keep_all', null, 'Finance verified both corrected payments are distinct.'
+);
+
+select ok(
+  public.open_b2c_payment_duplicate_group('a8000000-0000-4000-8000-000000000001') is null
+  and not exists (
+    select 1 from public.b2c_payment_duplicate_groups
+    where fingerprint = (select fingerprint from public.b2c_payment_duplicate_groups where id = current_setting('test.b2c_override_group_id')::uuid)
+      and status = 'open'
+  ),
+  'a completed same-fingerprint group with the same member set never reopens'
+);
+
+select ok(
+  exists (
+    select 1 from public.audit_events
+    where area = 'b2c_payment_duplicate_group_members' and action = 'insert' and record_id is not null
+  )
+  and not exists (
+    select 1 from public.audit_events
+    where area = 'b2c_payment_duplicate_group_members' and record_id is null
+  ),
+  'duplicate-group member audit events carry a non-null member record ID'
 );
 
 select * from finish();

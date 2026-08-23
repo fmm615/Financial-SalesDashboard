@@ -190,6 +190,25 @@ export interface Database {
         membership_tier: string | null; created_by: Uuid; updated_by: Uuid; created_at: Timestamp; updated_at: Timestamp;
       }>;
       b2c_payments: Table<B2cPaymentRow>;
+      b2c_payment_duplicate_groups: Table<{
+        id: Uuid;
+        fingerprint: string;
+        status: "open" | "resolved";
+        decision: "keep_all" | "keep_one" | null;
+        canonical_payment_id: Uuid | null;
+        detection_reason: string;
+        resolution_reason: string | null;
+        resolved_by: Uuid | null;
+        resolved_at: Timestamp | null;
+        created_at: Timestamp;
+      }>;
+      b2c_payment_duplicate_group_members: Table<{
+        id: Uuid;
+        group_id: Uuid;
+        payment_id: Uuid;
+        decision: "pending" | "include" | "exclude";
+        created_at: Timestamp;
+      }>;
       b2c_stripe_payment_details: Table<B2cStripePaymentDetailsRow>;
       b2c_stripe_refund_details: Table<B2cStripeRefundDetailsRow>;
       b2c_finance_imports: Table<{
@@ -389,6 +408,26 @@ export interface Database {
         Returns: Uuid;
       };
       resolve_b2c_review_flag: { Args: { p_flag_id: Uuid; p_resolution_status: "resolved" | "dismissed"; p_resolution_note: string }; Returns: undefined };
+      open_b2c_payment_duplicate_group: {
+        Args: { p_payment_id: Uuid };
+        Returns: Uuid | null;
+      };
+      resolve_b2c_payment_duplicate_group: {
+        Args: { p_group_id: Uuid; p_decision: "keep_all" | "keep_one"; p_canonical_payment_id: Uuid | null; p_reason: string };
+        Returns: undefined;
+      };
+      dismiss_stale_b2c_possible_duplicate_flag: {
+        Args: { p_flag_id: Uuid; p_reason: string };
+        Returns: undefined;
+      };
+      get_b2c_payment_duplicate_reporting_states: {
+        Args: Record<string, never>;
+        Returns: Array<{
+          payment_id: Uuid;
+          has_open_duplicate: boolean;
+          has_duplicate_exclusion: boolean;
+        }>;
+      };
       apply_b2c_payment_local_correction: {
         Args: { p_payment_id: Uuid; p_customer_name: string | null; p_customer_email: string | null; p_customer_phone: string | null; p_category_code: string | null; p_membership_tier: string | null; p_local_amount_usd: Decimal | null; p_local_occurred_on: string | null; p_reason: string };
         Returns: undefined;
