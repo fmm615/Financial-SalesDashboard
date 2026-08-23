@@ -68,4 +68,14 @@ describe("B2C payment reportability", () => {
     expect(b2cPaymentExclusionReasons(convertedForeignCurrencyPayment)).not.toContain("needs_fx_review");
     expect(isReportableB2cPayment(convertedForeignCurrencyPayment)).toBe(true);
   });
+
+  it("keeps a payment with a resolved duplicate exclusion out of totals even with no open raw flag", () => {
+    const reasons = b2cPaymentExclusionReasons({
+      ...completePayment,
+      hasDuplicateExclusion: true,
+    });
+
+    expect(reasons).toEqual(["duplicate_exclusion"]);
+    expect(isReportableB2cPayment({ ...completePayment, hasDuplicateExclusion: true })).toBe(false);
+  });
 });

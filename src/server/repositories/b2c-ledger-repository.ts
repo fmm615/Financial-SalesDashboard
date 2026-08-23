@@ -31,7 +31,7 @@ export type B2cLedgerPage = {
   totalCount: number;
 };
 
-/** The single open-flag label that maps back into a raw gate flag type. Refund/Tap-only labels are never gate inputs. */
+/** Raw labels preserve ungrouped historical flags. Grouped duplicate state comes only from the safe per-payment boolean. */
 const OPEN_FLAG_LABEL_TO_TYPE: Partial<Record<NonNullable<B2cOpenReviewFlag["type"]>, string>> = {
   "Possible duplicate": "possible_duplicate",
   "Unmapped product": "unmapped_product",
@@ -52,6 +52,7 @@ function paymentStatusForDecision(row: B2cLedgerRow): "succeeded" | "failed" | "
  */
 export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2cDecoratedLedgerRow {
   const openFlagTypes = new Set(row.openReviewFlags.flatMap((flag) => {
+    if (flag.type === "Possible duplicate" && row.hasOpenPaymentDuplicate) return [];
     const rawType = OPEN_FLAG_LABEL_TO_TYPE[flag.type];
     return rawType ? [rawType] : [];
   }));
@@ -66,6 +67,8 @@ export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2c
     amountUsd: row.amountValueUsd,
     hasFinanceException: row.hasFinanceException,
     isApprovedFinancePayment: row.sourceSystem === "finance_tracker",
+    hasOpenPaymentDuplicate: row.hasOpenPaymentDuplicate,
+    hasDuplicateExclusion: row.hasDuplicateExclusion,
     evidenceMatchState: row.tapStatementUnmatched ? "unmatched" : "not_required",
     financeLineageStatus: row.sourceSystem === "finance_tracker" ? "posted" : "not_applicable",
   }, today);

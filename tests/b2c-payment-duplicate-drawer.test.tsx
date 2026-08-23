@@ -15,6 +15,7 @@ function duplicateFlaggedRow(): B2cReviewRow {
     date: "Oct 5, 2025", dateValue: "2025-10-05", amountUsd: "$475.00", amountValueUsd: "475", sourceAmountUsd: "$475.00", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2025-10-05",
     category: "membership", membershipTier: "Annual", billingInterval: "Annual", source: "Stripe", paymentStatus: "Completed",
     providerReference: "ch_dup_1", sourceSystem: "stripe", productReference: "price_annual", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
+    hasOpenPaymentDuplicate: true, hasDuplicateExclusion: false,
     openReviewFlags: [{ id: "flag-dup-1", type: "Possible duplicate", reason: "A verified local correction matches another completed B2C payment by customer, amount, category, and date within 48 hours." }],
     issue: "Possible duplicate",
     decision: {
