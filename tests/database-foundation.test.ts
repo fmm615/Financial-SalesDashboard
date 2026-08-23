@@ -462,6 +462,10 @@ describe("Phase 2 database migration contracts", () => {
     );
     const advisoryLock = constructor.indexOf("pg_advisory_xact_lock");
     const firstRowLock = constructor.indexOf("for update");
+    expect(constructor).toContain("pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'))");
+    expect(constructor).not.toContain("'b2c_payment_duplicate:' || target.fingerprint");
+    expect(constructor).not.toContain("where payment.id = any(candidate_ids)");
+    expect(constructor).not.toContain("local_override.payment_id = any(candidate_ids)");
     expect(advisoryLock).toBeGreaterThan(-1);
     expect(firstRowLock).toBeGreaterThan(-1);
     expect(advisoryLock).toBeLessThan(firstRowLock);

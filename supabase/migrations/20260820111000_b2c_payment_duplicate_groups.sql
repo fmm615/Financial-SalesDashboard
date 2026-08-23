@@ -152,6 +152,11 @@ begin
     raise exception 'Only an authenticated administrator or trusted database session can create B2C payment duplicate groups';
   end if;
 
+  -- One workflow mutex serializes all group/member/flag decisions. Payment and
+  -- override AFTER triggers may already own their source row, so code holding
+  -- this mutex must never request a source payment or override row lock.
+  perform pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'));
+
   -- Preserve the evidence set captured when this case opened even if a local
   -- correction changes the payment while Finance is reviewing it.
   select duplicate_group.id into existing_group_id
@@ -167,19 +172,6 @@ begin
 
   select * into target
   from public.get_effective_b2c_duplicate_facts(p_payment_id);
-  if not found then
-    return null;
-  end if;
-
-  perform pg_advisory_xact_lock(hashtext('b2c_payment_duplicate:' || target.fingerprint));
-
-  -- Every constructor for this fingerprint takes the shared advisory lock
-  -- before any member-specific row lock. This common order prevents two
-  -- callers targeting different members from deadlocking each other.
-  perform 1
-  from public.b2c_payments payment
-  where payment.id = p_payment_id
-  for update;
   if not found then
     return null;
   end if;
@@ -211,20 +203,6 @@ begin
   if coalesce(cardinality(candidate_ids), 0) < 2 then
     return null;
   end if;
-
-  -- Sorted source-row locks serialize overlapping candidate sets even when a
-  -- local correction changes the fingerprint between two concurrent calls.
-  perform 1
-  from public.b2c_payments payment
-  where payment.id = any(candidate_ids)
-  order by payment.id
-  for update;
-
-  perform 1
-  from public.b2c_payment_local_overrides local_override
-  where local_override.payment_id = any(candidate_ids)
-  order by local_override.payment_id
-  for update;
 
   if exists (
     select 1
@@ -348,7 +326,6 @@ set search_path = public
 as $$
 declare
   target_group public.b2c_payment_duplicate_groups%rowtype;
-  member_payment_ids uuid[];
   member_record record;
 begin
   if auth.uid() is null or not public.is_admin() then
@@ -365,15 +342,17 @@ begin
     raise exception 'A meaningful duplicate decision reason between 3 and 1000 characters is required';
   end if;
 
-  select array_agg(member.payment_id order by member.payment_id) into member_payment_ids
-  from public.b2c_payment_duplicate_group_members member
-  where member.group_id = p_group_id;
+  if p_decision = 'keep_all' and p_canonical_payment_id is not null then
+    raise exception 'A keep-all decision cannot select a canonical payment';
+  end if;
 
-  perform 1
-  from public.b2c_payments payment
-  where payment.id = any(coalesce(member_payment_ids, array[]::uuid[]))
-  order by payment.id
-  for update;
+  if p_decision = 'keep_one' and p_canonical_payment_id is null then
+    raise exception 'A keep-one decision requires a canonical payment from this duplicate group';
+  end if;
+
+  -- The shared workflow mutex precedes every group/member/flag lock. Nested
+  -- constructor calls are transaction-lock reentrant and request no source rows.
+  perform pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'));
 
   select * into target_group
   from public.b2c_payment_duplicate_groups duplicate_group
@@ -389,14 +368,6 @@ begin
   where member.group_id = p_group_id
   order by member.payment_id
   for update;
-
-  if p_decision = 'keep_all' and p_canonical_payment_id is not null then
-    raise exception 'A keep-all decision cannot select a canonical payment';
-  end if;
-
-  if p_decision = 'keep_one' and p_canonical_payment_id is null then
-    raise exception 'A keep-one decision requires a canonical payment from this duplicate group';
-  end if;
 
   if p_decision = 'keep_one' and not exists (
     select 1
@@ -484,6 +455,10 @@ begin
     or trim(p_reason) ~ '^[-—]+$' then
     raise exception 'A meaningful duplicate decision reason between 3 and 1000 characters is required';
   end if;
+
+  -- Serialize before locking the flag; constructors use the same mutex before
+  -- any group/member/flag write and never wait for trigger-owned source rows.
+  perform pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'));
 
   select * into target_flag
   from public.review_flags flag
