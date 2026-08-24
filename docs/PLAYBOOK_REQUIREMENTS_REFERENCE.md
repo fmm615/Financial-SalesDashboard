@@ -300,6 +300,14 @@ Map a Stripe or Tap product to:
 - Internal category
 - Membership tier
 
+> **2026-08-24 supersession (clean rebuild):** The approved
+> [optional provider product category design](superpowers/specs/2026-08-24-optional-provider-product-category-design.md)
+> supersedes this historical mapping requirement. Stripe and Tap descriptions
+> are source evidence and visible product labels; category/tier are optional
+> local metadata; and `unmapped` remains only the internal
+> duplicate-fingerprint value, not a reportability gate. Historical mappings
+> remain read-only audit history and no live mapping workflow remains.
+
 #### Targets
 
 Allow annual and quarterly targets to be changed without a code change.
@@ -346,6 +354,12 @@ Each flag must be clearable with a note.
 Cleared items must remain visible in history.
 
 They must not be deleted.
+
+> **2026-08-24 supersession (clean rebuild):** The approved
+> [optional provider product category design](superpowers/specs/2026-08-24-optional-provider-product-category-design.md)
+> supersedes the historical `Unmapped product` review requirement above.
+> Retained `unmapped_product` flags are read-only audit history, not live B2C
+> Work-queue, Ledger-issue, generic Review Queue, or shared-drawer work.
 
 ---
 
@@ -519,20 +533,3 @@ This document is the source of truth for the rebuild.
 When code, old implementation behavior, or assumptions conflict with this document, follow this document and flag the conflict for review.
 
 Do not modify, weaken, or reinterpret the business rules without explicit approval.
-
-## 2026-08-24 supersession note — provider product mapping and review
-
-The mapping and `Unmapped product` requirements above are retained verbatim as
-historical source material. The approved
-[`optional provider product category design`](superpowers/specs/2026-08-24-optional-provider-product-category-design.md)
-supersedes them for the clean rebuild: Stripe and Tap descriptions are source
-evidence and the visible product label; category/tier are optional local
-metadata; and `unmapped` remains only the internal duplicate-fingerprint
-value, not a reportability gate.
-
-Product-mapping tables, functions, classifications, corrections, and historical
-`unmapped_product` flags remain read-only audit history. Mapping is absent from
-the B2C Work queue, Ledger issues, generic Review Queue, and shared drawer.
-Manual bank-transfer and Finance Tracker category requirements are unchanged.
-The Finance exception no longer requires category, but retains every other
-approved safeguard.

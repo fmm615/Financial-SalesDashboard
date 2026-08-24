@@ -61,3 +61,31 @@ automatically.** After the merged code is deployed, the user must run
 `supabase/migrations/20260824150000_retire_b2c_product_mapping_requirement.sql`
 in Supabase SQL Editor, then confirm that migration succeeds before relying on
 the new optional-category behavior.
+
+## Round 1 documentation corrections
+
+- Corrected the schema description: direct nullable B2C source fields are
+  name/email/phone; provider descriptions are in `source_metadata` JSON and
+  selected Stripe evidence.
+- Corrected local-correction wording so only a verified local e-mail correction
+  is described as closing its matching missing-e-mail flag; category remains
+  optional metadata with no live mapping workflow.
+- Moved the historical-reference supersession notices directly after the
+  historical Product mapping and Review Queue sections, preserving their source
+  text verbatim.
+- Corrected the Stripe optional Checkout-plan-lookup comment: lookup absence
+  does not create an unmapped blocker or exclude the Charge by itself.
+
+Round 1 verification after these copy-only changes:
+
+```text
+$ npx tsc --noEmit
+# exit 0
+
+$ npm run lint
+> eslint src tests
+# exit 0
+
+$ git diff --check
+# exit 0
+```
