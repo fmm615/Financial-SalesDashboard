@@ -13,7 +13,7 @@ export const b2cWorkspaceLedgerQuerySchema = z.object({
   paymentStatus: z.enum(["Completed", "Failed", "Pending", "Refunded", "Not matched"]).optional(),
   reportingDecision: z.enum(["reportable", "blocked", "excluded", "exception_included"]).optional(),
   issue: z.enum([
-    "Possible duplicate", "Unmapped product", "Failed", "Missing customer email",
+    "Possible duplicate", "Failed", "Missing customer email",
     "Needs follow-up", "Needs FX review", "Refunded", "Tap statement unmatched", "none",
   ]).optional(),
   dateFrom: calendarDate.optional(),

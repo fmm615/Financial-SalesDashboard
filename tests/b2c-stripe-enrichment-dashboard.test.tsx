@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import { B2cOperations } from "@/features/b2c/b2c-operations";
-import { resolveB2cContactDisplay, resolveB2cLedgerSourceLabel, type B2cDashboardSnapshot, type B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
+import { getB2cDashboardSnapshot, resolveB2cContactDisplay, resolveB2cLedgerSourceLabel, type B2cDashboardSnapshot, type B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/operations/b2c",
@@ -35,7 +35,54 @@ function stubWorkspaceFetch(rows: B2cLedgerRow[], evidenceByPaymentId: Record<st
   return fetchMock;
 }
 
+function dashboardClientForUnmappedProviderPayment(sourceSystem: "stripe" | "tap", description: string | null) {
+  const payment = {
+    id: `${sourceSystem}-unmapped-payment`, source_system: sourceSystem, provider_transaction_id: `${sourceSystem}_provider_1`,
+    customer_name: "Provider customer", customer_email: "customer@example.com", customer_phone: null,
+    category_code: "unmapped", membership_tier: null, payment_status: "succeeded",
+    original_amount: "120.000000", original_currency: "USD", amount_usd: "120.000000", occurred_on: "2026-08-09",
+    source_metadata: description ? { description } : {},
+  };
+  const rowsByTable: Record<string, unknown[]> = {
+    b2c_payments: [payment],
+    b2c_refunds: [],
+    review_flags: [{ id: "legacy-unmapped-flag", source_area: "b2c_payment", source_record_id: payment.id, flag_type: "unmapped_product", reason: "Historical mapping review." }],
+    b2c_payment_local_overrides: [], b2c_payment_fx_conversions: [], b2c_refund_fx_conversions: [],
+    b2c_payment_finance_exception_decisions: [], b2c_finance_ledger_posts: [], integration_sync_runs: [],
+  };
+  const queryFor = (table: string) => {
+    const result = { data: rowsByTable[table] ?? [], error: null };
+    const query = {
+      select: () => query, eq: () => query, order: () => query, limit: () => query,
+      maybeSingle: async () => ({ data: null, error: null }),
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
+    };
+    return query;
+  };
+  return {
+    from: (table: string) => queryFor(table),
+    rpc: async (name: string) => ({ data: name === "get_b2c_tap_statement_unmatched_ledger_rows" ? [] : [], error: null }),
+  };
+}
+
 describe("B2C Stripe enrichment presentation", () => {
+  it.each(["stripe", "tap"] as const)("keeps a succeeded unmapped %s payment reportable without a live mapping issue", async (sourceSystem) => {
+    const snapshot = await getB2cDashboardSnapshot(
+      dashboardClientForUnmappedProviderPayment(sourceSystem, "Provider renewal") as never,
+      new Date("2026-08-12T00:00:00.000Z"),
+      "2026-08",
+    );
+
+    expect(snapshot.eligiblePaymentsUsd).toBe("$120.00");
+    expect(snapshot.calculation.reportablePaymentCount).toBe(1);
+    expect(snapshot.reviewItems).toBe(0);
+    expect(snapshot.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        category: "Unmapped", sourceDescription: "Provider renewal", issue: null, openReviewFlags: [],
+      }),
+    ]));
+  });
+
   it("labels approved Finance rows by their retained payment method", () => {
     expect(resolveB2cLedgerSourceLabel("finance_tracker", { finance_payment_method: "bank_transfer" })).toBe("Finance — Bank transfer");
     expect(resolveB2cLedgerSourceLabel("finance_tracker", { finance_payment_method: "ios" })).toBe("Finance — iOS");
@@ -69,7 +116,7 @@ describe("B2C Stripe enrichment presentation", () => {
       period: { month: "2026-08", monthLabel: "August 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31" },
       sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-12T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
       hasSourceRecords: true, eligiblePaymentsUsd: "$0.00", refundsUsd: "$0.00", netPaymentsUsd: "$0.00", completedSourcePaymentsUsd: "$50.42", sourceRefundsUsd: "$0.00",
-      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 0, excludedCompletedPaymentCount: 1, excludedCompletedPaymentsUsd: "$50.42", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 1, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 0, excludedCompletedPaymentCount: 1, excludedCompletedPaymentsUsd: "$50.42", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 1, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
       reviewItems: 1, rows: [row],
     };
 
@@ -122,7 +169,7 @@ describe("B2C Stripe enrichment presentation", () => {
       period: { month: "2026-08", monthLabel: "August 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31" },
       sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-12T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
       hasSourceRecords: true, eligiblePaymentsUsd: "$50.42", refundsUsd: "$10.00", netPaymentsUsd: "$40.42", completedSourcePaymentsUsd: "$50.42", sourceRefundsUsd: "$10.00",
-      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 1, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 1, eligibleRefundCount: 1, missingCustomerEmailCount: 0, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 1, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 1, eligibleRefundCount: 1, missingCustomerEmailCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
       reviewItems: 0, rows: [row],
     };
 
