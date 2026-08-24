@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { B2cStagingDateAuthority } from "@/features/b2c/b2c-staging-date-authority";
 import { RoleProvider } from "@/lib/auth/role-context";
-import { buildB2cWorkspaceOverview } from "@/server/repositories/b2c-workspace-repository";
+import { buildB2cWorkspaceOverview, selectActionableB2cStagingDateAuthorityRows } from "@/server/repositories/b2c-workspace-repository";
+import type { B2cFinanceNeedsReviewRow } from "@/server/services/b2c-finance-action-center";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -77,5 +78,47 @@ describe("staging date-authority workspace item", () => {
       nextAction: "correct",
       href: "/operations/b2c?tab=work&dateAuthority=11111111-1111-4111-8111-111111111111",
     })]);
+  });
+
+  it("excludes corrected, confirmed, posted, and mixed-issue rows while retaining exactly actionable date conflicts", () => {
+    const needsReviewRow = (financeRowId: string, qualityIssues: string[]): B2cFinanceNeedsReviewRow => ({
+      financeRowId,
+      sourceTab: "B2C",
+      sourceRowNumber: 42,
+      reportedDateRaw: "11/08/2026",
+      declaredMonth: "September",
+      declaredYear: "2025",
+      occurredOn: "2026-08-11",
+      amountUsd: "100.000000",
+      customerName: "Maya Al Khalifa",
+      customerEmail: null,
+      customerPhone: null,
+      category: "membership",
+      membershipType: null,
+      paymentMethod: "ios",
+      paymentStatus: "received",
+      note: null,
+      qualityIssues,
+    });
+    const correctedId = "11111111-1111-4111-8111-111111111111";
+    const confirmedId = "22222222-2222-4222-8222-222222222222";
+    const postedId = "33333333-3333-4333-8333-333333333333";
+    const mixedIssueId = "44444444-4444-4444-8444-444444444444";
+    const actionableId = "55555555-5555-4555-8555-555555555555";
+
+    expect(selectActionableB2cStagingDateAuthorityRows(
+      [
+        needsReviewRow(correctedId, ["declared_month_conflicts_with_date"]),
+        needsReviewRow(confirmedId, ["declared_year_conflicts_with_date"]),
+        needsReviewRow(postedId, ["declared_month_conflicts_with_date"]),
+        needsReviewRow(mixedIssueId, ["declared_month_conflicts_with_date", "missing_customer_name"]),
+        needsReviewRow(actionableId, ["declared_month_conflicts_with_date", "declared_year_conflicts_with_date"]),
+      ],
+      new Map([
+        [correctedId, { occurredOn: "2026-08-10", dateAuthorityConfirmedAt: null }],
+        [confirmedId, { occurredOn: null, dateAuthorityConfirmedAt: "2026-08-20T00:00:00.000Z" }],
+      ]),
+      new Set([postedId]),
+    )).toEqual([expect.objectContaining({ financeRowId: actionableId, occurredOn: "2026-08-11" })]);
   });
 });

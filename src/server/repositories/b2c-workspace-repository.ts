@@ -152,8 +152,13 @@ type ProviderEvidenceMismatchLinkRow = {
     amount_usd: string | null;
   } | null;
 };
-type DateAuthorityOverrideRow = { finance_row_id: string; date_authority_confirmed_at: string | null };
+type DateAuthorityOverrideRow = { finance_row_id: string; occurred_on: string | null; date_authority_confirmed_at: string | null };
 type FinanceLedgerPostRow = { finance_row_id: string };
+
+export type B2cStagingDateAuthorityOverride = {
+  occurredOn: string | null;
+  dateAuthorityConfirmedAt: string | null;
+};
 
 const DATE_AUTHORITY_ISSUES = new Set(["declared_month_conflicts_with_date", "declared_year_conflicts_with_date"]);
 
@@ -161,6 +166,34 @@ function isUnresolvedDateAuthorityCandidate(row: Awaited<ReturnType<B2cFinanceAc
   return Boolean(row.occurredOn)
     && row.qualityIssues.length > 0
     && row.qualityIssues.every((issue) => DATE_AUTHORITY_ISSUES.has(issue));
+}
+
+/**
+ * A Date-authority work item is valid only while its exact date conflict is
+ * unresolved. An audited date correction resolves the same quality issue as
+ * an explicit Date-authority confirmation, so neither can be offered twice.
+ */
+export function selectActionableB2cStagingDateAuthorityRows(
+  rows: Awaited<ReturnType<B2cFinanceActionRepository["listNeedsReviewRows"]>>,
+  overridesByRowId: ReadonlyMap<string, B2cStagingDateAuthorityOverride>,
+  postedIds: ReadonlySet<string>,
+): B2cStagingDateAuthorityRecord[] {
+  return rows.flatMap((row): B2cStagingDateAuthorityRecord[] => {
+    const override = overridesByRowId.get(row.financeRowId);
+    if (!isUnresolvedDateAuthorityCandidate(row)
+      || override?.dateAuthorityConfirmedAt
+      || override?.occurredOn
+      || postedIds.has(row.financeRowId)
+      || !row.occurredOn) return [];
+    return [{
+      financeRowId: row.financeRowId,
+      sourceTab: row.sourceTab,
+      sourceRowNumber: row.sourceRowNumber,
+      declaredMonth: row.declaredMonth,
+      declaredYear: row.declaredYear,
+      occurredOn: row.occurredOn,
+    }];
+  });
 }
 
 /** Loads the Admin Work queue overview. Reuses the dashboard snapshot and Task 2's Finance posting readiness RPC. */
@@ -266,14 +299,14 @@ export class SupabaseB2cWorkspaceRepository {
     if (candidates.length === 0) return [];
 
     const candidateIds = candidates.map((row) => row.financeRowId);
-    const confirmedIds = new Set<string>();
+    const overridesByRowId = new Map<string, B2cStagingDateAuthorityOverride>();
     const postedIds = new Set<string>();
     const batches = chunkB2cWorkspaceQueryValues(candidateIds);
     for (let start = 0; start < batches.length; start += WORKSPACE_QUERY_CONCURRENCY) {
       const currentBatches = batches.slice(start, start + WORKSPACE_QUERY_CONCURRENCY);
       const [overrideResults, postResults] = await Promise.all([
         Promise.all(currentBatches.map((ids) => this.client.from("b2c_finance_row_overrides")
-          .select("finance_row_id,date_authority_confirmed_at").in("finance_row_id", ids))),
+          .select("finance_row_id,occurred_on,date_authority_confirmed_at").in("finance_row_id", ids))),
         Promise.all(currentBatches.map((ids) => this.client.from("b2c_finance_ledger_posts")
           .select("finance_row_id").in("finance_row_id", ids))),
       ]);
@@ -282,7 +315,10 @@ export class SupabaseB2cWorkspaceRepository {
       }
       for (const result of overrideResults) {
         for (const row of (result.data ?? []) as DateAuthorityOverrideRow[]) {
-          if (row.date_authority_confirmed_at) confirmedIds.add(row.finance_row_id);
+          overridesByRowId.set(row.finance_row_id, {
+            occurredOn: row.occurred_on,
+            dateAuthorityConfirmedAt: row.date_authority_confirmed_at,
+          });
         }
       }
       for (const result of postResults) {
@@ -290,17 +326,7 @@ export class SupabaseB2cWorkspaceRepository {
       }
     }
 
-    return candidates.flatMap((row): B2cStagingDateAuthorityRecord[] => {
-      if (!row.occurredOn || confirmedIds.has(row.financeRowId) || postedIds.has(row.financeRowId)) return [];
-      return [{
-        financeRowId: row.financeRowId,
-        sourceTab: row.sourceTab,
-        sourceRowNumber: row.sourceRowNumber,
-        declaredMonth: row.declaredMonth,
-        declaredYear: row.declaredYear,
-        occurredOn: row.occurredOn,
-      }];
-    });
+    return selectActionableB2cStagingDateAuthorityRows(candidates, overridesByRowId, postedIds);
   }
 
   async overview(today = new Date()): Promise<B2cWorkspaceOverview> {
