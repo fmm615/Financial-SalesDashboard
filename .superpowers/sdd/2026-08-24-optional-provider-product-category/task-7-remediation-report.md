@@ -59,7 +59,7 @@ exit 0
 
 ## Commit
 
-Pending commit.
+`3215e81` — `fix(b2c): preserve retired unmapped flag history`
 
 ## Manual application
 
