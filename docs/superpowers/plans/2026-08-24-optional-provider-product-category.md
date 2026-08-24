@@ -43,7 +43,6 @@
 - Remove `"unmapped_product"` from `B2cPaymentExclusionReason`.
 - Remove `"unmapped_category"` from `B2cBlockingReason`.
 - Remove `"mapping"` from `B2cWorkItem["queue"]` and `"map"` from `B2cWorkItem["nextAction"]`.
-- Remove `"map"` from `DrawerPrimaryAction` and remove its `REASON_TO_ACTION` entry.
 
 - [ ] Add a RED reportability regression proving an otherwise-valid succeeded USD provider payment remains reportable with both `categoryCode: "unmapped"` and an open historical `unmapped_product` flag:
 
@@ -81,7 +80,7 @@ if (input.openFlagTypes.has("possible_duplicate")) reasons.push("possible_duplic
 
 - [ ] Remove the retired reason translation/copy and the mapping `REASON_PLAN`. Remove `categoryCode` from reportability/decision inputs and every call site in the dashboard/ledger projections and focused tests; keep it unchanged on provider persistence, effective-payment, local-correction, Finance-import, and duplicate-fingerprint inputs.
 - [ ] Confirm the existing manual-bank-transfer request schema and Finance-import/posting guards still require their explicit category fields; do not edit those boundaries.
-- [ ] Remove the drawer’s mapping primary-action type and reason mapping without changing any correction, FX, duplicate, exception, or posting action.
+- [ ] Remove the drawer's `unmapped_category` reason mapping. Keep the private `map` action union temporarily so Task 4 can remove the drawer contract and mapping UI atomically without a transient type error.
 - [ ] Run the focused suite and confirm GREEN.
 - [ ] Commit:
 
@@ -172,6 +171,7 @@ git commit -m "refactor(b2c): retain provider descriptions without mapping"
 - Remove `unmappedProductCount` from `B2cDashboardSnapshot.calculation`.
 - Preserve `B2cLedgerRow.category: string`; `"Unmapped"` remains optional internal metadata, not an issue.
 - Preserve `sourceDescription: string | null` and render unavailable descriptions as `—`.
+- Keep `B2cOpenReviewFlag`'s legacy `"Unmapped product"` type member through this task only, so the existing mapping fragment remains type-correct until Task 4 removes that fragment and narrows the type.
 
 - [ ] Add RED repository/presentation assertions that a valid succeeded unmapped Stripe/Tap row:
   - contributes to reportable totals;
@@ -216,23 +216,22 @@ git commit -m "refactor(b2c): retire unmapped ledger issues"
 - Delete: `src/app/api/admin/b2c/products/map/route.ts`
 - Modify: `src/lib/validation/financial-contracts.ts`
 - Modify: `src/features/b2c/b2c-payment-review-actions.tsx`
+- Modify: `src/features/b2c/b2c-payment-review-drawer.tsx`
+- Modify: `src/server/repositories/b2c-dashboard-repository.ts`
 - Modify: `src/features/admin/stripe-sync-control.tsx`
 - Modify: `tests/b2c-payment-review-drawer.test.tsx`
 - Create: `tests/b2c-product-mapping-retirement.test.ts`
 
 **Interfaces:**
 - Delete `productMappingSchema`, `stripeProductMappingSchema`, `b2cProductMappingSchema` and their inferred input types.
+- Remove `"map"` from both `DrawerPrimaryAction` and `B2cPaymentActionPrimary`, then remove the `ActionSlot` `primary === "map"` path in the same change.
+- Remove the temporary legacy `"Unmapped product"` member from `B2cOpenReviewFlag` after the mapping fragment no longer reads it.
 - `B2cPaymentLocalValuesFragment` keeps optional category/tier correction fields.
 - `B2cPaymentFinanceDecisionFragment` may be used for a missing-email exception without requiring `row.category !== "Unmapped"`.
 
 - [ ] Add RED drawer tests proving an Admin viewing an unmapped provider payment sees the provider description and local correction/eligible exception controls, but no `Create reusable product mapping`, mapping form, `Map this`, or `/api/admin/b2c/products/map` fetch.
 - [ ] Add RED Finance-exception UI tests proving `Unmapped` is not listed as a source gap and does not disable an otherwise-eligible missing-email exception; keep provider-ID and duplicate confirmations plus reason mandatory.
-- [ ] Add a structural RED test that scans active `src/` and requires no mapping route caller or retired action copy:
-
-```ts
-expect(existsSync(resolve(root, "src/app/api/admin/b2c/products/map/route.ts"))).toBe(false);
-expect(activeSource).not.toMatch(/\/api\/admin\/b2c\/products\/map|Create reusable product mapping|Map this/);
-```
+- [ ] Add a RED user-visible regression proving the shared drawer renders no mapping control or mapping fetch for an unmapped provider record; route deletion is verified by the exact route-file deletion in the reviewed diff and the final ownership scan.
 
 - [ ] Run the focused RED suite:
 
@@ -240,7 +239,7 @@ expect(activeSource).not.toMatch(/\/api\/admin\/b2c\/products\/map|Create reusab
 npx vitest run tests/b2c-payment-review-drawer.test.tsx tests/b2c-product-mapping-retirement.test.ts
 ```
 
-- [ ] Delete the route and request schemas/types. Remove mapping-only component state, `mapProduct()`, availability checks, mapping block, and mapping primary-action rendering.
+- [ ] Delete the route and request schemas/types. Remove mapping-only component state, `mapProduct()`, availability checks, mapping block, and mapping primary-action rendering, including the private `map` action types and `ActionSlot` branch.
 - [ ] Change Finance-exception eligibility to depend on a missing source email and every retained safety fact, not category:
 
 ```ts
@@ -260,7 +259,7 @@ const financeExceptionSourceGaps = row.openReviewFlags
 - [ ] Commit:
 
 ```bash
-git add -A src/app/api/admin/b2c/products/map/route.ts src/lib/validation/financial-contracts.ts src/features/b2c/b2c-payment-review-actions.tsx src/features/admin/stripe-sync-control.tsx tests/b2c-payment-review-drawer.test.tsx tests/b2c-product-mapping-retirement.test.ts
+git add -A src/app/api/admin/b2c/products/map/route.ts src/lib/validation/financial-contracts.ts src/features/b2c/b2c-payment-review-actions.tsx src/features/b2c/b2c-payment-review-drawer.tsx src/server/repositories/b2c-dashboard-repository.ts src/features/admin/stripe-sync-control.tsx tests/b2c-payment-review-drawer.test.tsx tests/b2c-product-mapping-retirement.test.ts
 git commit -m "refactor(b2c): remove provider mapping workflow"
 ```
 
@@ -404,7 +403,6 @@ git commit -m "fix(b2c): close retired product mapping writes"
 - Modify: `docs/PLAYBOOK_REQUIREMENTS_REFERENCE.md`
 - Modify: `docs/superpowers/plans/2026-08-18-b2c-single-control-flow.md`
 - Modify: `docs/superpowers/plans/2026-08-20-b2c-audit-remediation.md`
-- Modify: `tests/b2c-product-mapping-retirement.test.ts`
 
 - [ ] Update the current business/architecture/database/integration/setup docs to state:
   - provider description is source evidence and the visible product label;
@@ -416,13 +414,7 @@ git commit -m "fix(b2c): close retired product mapping writes"
   - manual bank-transfer and Finance Tracker category rules are unchanged.
 - [ ] Preserve `PLAYBOOK_REQUIREMENTS_REFERENCE.md` as a historical source by appending a dated supersession note to its mapping/review sections instead of silently rewriting the original requirement.
 - [ ] Append dated amendments to both completed B2C plans naming the approved spec and forward migration; do not alter their historical task checklists or evidence.
-- [ ] Strengthen the structural regression so active application code has no mapping API/RPC caller or retired copy, while migrations/docs may retain historical names:
-
-```ts
-expect(activeSource).not.toMatch(/apply_(?:stripe|b2c)_product_mapping/);
-expect(activeSource).not.toMatch(/\/api\/admin\/b2c\/products\/map/);
-expect(activeSource).not.toMatch(/Create reusable product mapping|Map this/);
-```
+- [ ] Review the Task 4 user-visible mapping-retirement regression and retain it as the behavioral boundary test. Verify route/RPC ownership with the final command-line scans rather than a brittle source-text assertion.
 
 - [ ] Run focused cross-boundary tests:
 
