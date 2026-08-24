@@ -34,7 +34,9 @@ cleanup_fixture() {
         'c1300000-0000-4000-8000-000000000001'::uuid,
         'c1300000-0000-4000-8000-000000000002'::uuid,
         'c1400000-0000-4000-8000-000000000001'::uuid,
-        'c1400000-0000-4000-8000-000000000002'::uuid
+        'c1400000-0000-4000-8000-000000000002'::uuid,
+        'c1500000-0000-4000-8000-000000000001'::uuid,
+        'c1500000-0000-4000-8000-000000000002'::uuid
       )
     );
     delete from public.review_flags
@@ -47,7 +49,9 @@ cleanup_fixture() {
       'c1300000-0000-4000-8000-000000000001'::uuid,
       'c1300000-0000-4000-8000-000000000002'::uuid,
       'c1400000-0000-4000-8000-000000000001'::uuid,
-      'c1400000-0000-4000-8000-000000000002'::uuid
+      'c1400000-0000-4000-8000-000000000002'::uuid,
+      'c1500000-0000-4000-8000-000000000001'::uuid,
+      'c1500000-0000-4000-8000-000000000002'::uuid
     );
     create temporary table concurrency_groups on commit drop as
       select distinct group_id
@@ -61,7 +65,9 @@ cleanup_fixture() {
         'c1300000-0000-4000-8000-000000000001'::uuid,
         'c1300000-0000-4000-8000-000000000002'::uuid,
         'c1400000-0000-4000-8000-000000000001'::uuid,
-        'c1400000-0000-4000-8000-000000000002'::uuid
+        'c1400000-0000-4000-8000-000000000002'::uuid,
+        'c1500000-0000-4000-8000-000000000001'::uuid,
+        'c1500000-0000-4000-8000-000000000002'::uuid
       );
     delete from public.b2c_payment_duplicate_group_members
     where group_id in (select group_id from concurrency_groups);
@@ -77,7 +83,9 @@ cleanup_fixture() {
       'c1300000-0000-4000-8000-000000000001'::uuid,
       'c1300000-0000-4000-8000-000000000002'::uuid,
       'c1400000-0000-4000-8000-000000000001'::uuid,
-      'c1400000-0000-4000-8000-000000000002'::uuid
+      'c1400000-0000-4000-8000-000000000002'::uuid,
+      'c1500000-0000-4000-8000-000000000001'::uuid,
+      'c1500000-0000-4000-8000-000000000002'::uuid
     );
     delete from public.b2c_payments
     where id in (
@@ -89,7 +97,9 @@ cleanup_fixture() {
       'c1300000-0000-4000-8000-000000000001'::uuid,
       'c1300000-0000-4000-8000-000000000002'::uuid,
       'c1400000-0000-4000-8000-000000000001'::uuid,
-      'c1400000-0000-4000-8000-000000000002'::uuid
+      'c1400000-0000-4000-8000-000000000002'::uuid,
+      'c1500000-0000-4000-8000-000000000001'::uuid,
+      'c1500000-0000-4000-8000-000000000002'::uuid
       );
     commit;
   " >/dev/null 2>&1 || true
@@ -455,17 +465,112 @@ run_correction_keep_one_race() {
   echo "PASS: local correction and keep-one FK resolution serialized without deadlock."
 }
 
+run_provider_redelivery_keep_one_race() {
+  local scenario="provider"
+  local first_id="c1500000-0000-4000-8000-000000000001"
+  local second_id="c1500000-0000-4000-8000-000000000002"
+  local first_value second_value group_id
+  first_value="$(payment_values_sql "$first_id" 'ch_lock_provider_1' 'lock.provider@playbook.test' 99 '2026-09-06 08:00:00+00' '2026-09-06')"
+  second_value="$(payment_values_sql "$second_id" 'ch_lock_provider_2' 'lock.provider@playbook.test' 99 '2026-09-06 09:00:00+00' '2026-09-06')"
+  run_psql -qAtc "
+    insert into public.b2c_payments (
+      id, source_system, provider_transaction_id, customer_email, category_code,
+      payment_status, original_amount, original_currency, exchange_rate_to_usd,
+      amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint
+    ) values $first_value, $second_value;
+  " >/dev/null
+  group_id="$(run_psql -qAtc "
+    select group_id from public.b2c_payment_duplicate_group_members where payment_id = '$first_id';
+  ")"
+  start_coordinator "$scenario"
+
+  run_psql -qAtc "
+    set application_name = 'b2c_provider_resolver';
+    set deadlock_timeout = '100ms';
+    set lock_timeout = '5s';
+    select set_config('request.jwt.claim.sub', '$admin_id', false);
+    select public.resolve_b2c_payment_duplicate_group(
+      '$group_id', 'keep_one', '$first_id', 'Concurrent provider re-delivery FK lock regression.'
+    );
+  " >"$test_tmp_dir/provider-resolver.out" 2>&1 &
+  local resolver_pid=$!
+  background_pids+=("$resolver_pid")
+  wait_for_advisory_sessions "'b2c_provider_resolver'" 1
+
+  # Mirror the shared Stripe/Tap repository's existing-payment PostgREST
+  # update. The identity values repeat the lookup key exactly. PostgreSQL
+  # therefore takes NO KEY UPDATE (the identity index is partial), which is
+  # compatible with the resolver FK's KEY SHARE request while this trigger is
+  # waiting for the duplicate-workflow mutex.
+  run_psql -qAtc "
+    set application_name = 'b2c_provider_redelivery';
+    set deadlock_timeout = '100ms';
+    set lock_timeout = '5s';
+    update public.b2c_payments
+    set source_system = 'stripe',
+        provider_transaction_id = 'ch_lock_provider_1',
+        provider_event_id = 'evt_lock_provider_redelivered',
+        customer_id = null,
+        customer_email = 'lock.provider@playbook.test',
+        customer_name = 'Provider Lock',
+        customer_phone = null,
+        product_mapping_id = null,
+        category_code = 'membership',
+        membership_tier = null,
+        payment_status = 'succeeded',
+        original_amount = 99,
+        original_currency = 'USD',
+        exchange_rate_to_usd = 1,
+        amount_usd = 99,
+        gross_amount_usd = 99,
+        tax_amount_usd = null,
+        net_amount_usd = null,
+        occurred_at = '2026-09-06 08:00:00+00',
+        occurred_on = '2026-09-06',
+        duplicate_fingerprint = repeat('1', 64),
+        reconciliation_source = 'provider_redelivery_lock_regression',
+        source_metadata = '{}'::jsonb
+    where id = '$first_id';
+  " >"$test_tmp_dir/provider-redelivery.out" 2>&1 &
+  local provider_pid=$!
+  background_pids+=("$provider_pid")
+  wait_for_advisory_sessions "'b2c_provider_resolver','b2c_provider_redelivery'" 2
+  release_coordinator "$scenario"
+  wait_for_session "$resolver_pid" "$test_tmp_dir/provider-resolver.out" "Keep-one resolver"
+  wait_for_session "$provider_pid" "$test_tmp_dir/provider-redelivery.out" "Provider re-delivery"
+
+  local state
+  state="$(run_psql -qAtc "
+    select duplicate_group.status || ':' || duplicate_group.canonical_payment_id || ':' ||
+      count(*) filter (where member.decision = 'include') || ':' ||
+      count(*) filter (where member.decision = 'exclude') || ':' ||
+      payment.provider_event_id
+    from public.b2c_payment_duplicate_groups duplicate_group
+    join public.b2c_payment_duplicate_group_members member on member.group_id = duplicate_group.id
+    join public.b2c_payments payment on payment.id = '$first_id'
+    where duplicate_group.id = '$group_id'
+    group by duplicate_group.status, duplicate_group.canonical_payment_id, payment.provider_event_id;
+  ")"
+  [[ "$state" == "resolved:$first_id:1:1:evt_lock_provider_redelivered" ]] || {
+    echo "Provider/keep-one race left an invalid result: $state" >&2
+    return 1
+  }
+  echo "PASS: provider re-delivery and keep-one FK resolution serialized without deadlock."
+}
+
 cleanup_fixture
 case "${1:-all}" in
   trigger) run_trigger_update_race ;;
   resolver) run_resolver_race ;;
   stale) run_stale_dismissal_race ;;
   correction) run_correction_keep_one_race ;;
+  provider) run_provider_redelivery_keep_one_race ;;
   all)
     run_trigger_update_race
     run_resolver_race
     run_stale_dismissal_race
     run_correction_keep_one_race
+    run_provider_redelivery_keep_one_race
     ;;
-  *) echo "Usage: $0 [trigger|resolver|stale|correction|all]" >&2; exit 2 ;;
+  *) echo "Usage: $0 [trigger|resolver|stale|correction|provider|all]" >&2; exit 2 ;;
 esac
