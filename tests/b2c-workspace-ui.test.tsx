@@ -78,13 +78,22 @@ const emptyWorkItems = {
   pendingCandidates: [],
 };
 
+function filterMetadataForRows(rows: B2cSafeLedgerRow[]) {
+  return {
+    sources: [...new Set(rows.map((row) => row.source))].sort(),
+    categories: [...new Set(rows.map((row) => row.category))].sort(),
+    issues: [...new Set(rows.flatMap((row) => row.issue ? [row.issue] : []))].sort(),
+    foreignCurrencyCount: rows.filter((row) => row.foreignCurrencyReview).length,
+  };
+}
+
 function stubFetch(overrides: { role?: "admin" | "viewer"; ledgerRows?: B2cSafeLedgerRow[]; overview?: typeof workItems | typeof candidateWorkItems | typeof financeDuplicateWorkItems } = {}) {
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
     const url = String(input);
     if (url.includes("/api/b2c/workspace")) {
       const role = overrides.role ?? "admin";
       const rows = overrides.ledgerRows ?? [ledgerRow];
-      return { ok: true, json: async () => ({ role, ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: role === "admin" ? (overrides.overview ?? workItems) : null }) };
+      return { ok: true, json: async () => ({ role, ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length, filterMetadata: filterMetadataForRows(rows) }, workItems: role === "admin" ? (overrides.overview ?? workItems) : null }) };
     }
     if (url.includes("/api/b2c/reconciliation")) {
       return { ok: true, json: async () => ({ summary: {
@@ -360,7 +369,7 @@ describe("Ledger", () => {
       workspaceUrls.push(url);
       const source = new URL(url, "https://playbook.test").searchParams.get("source");
       const rows = source === "stripe" ? [serverReturnedRow] : [ledgerRow];
-      return { ok: true, json: async () => ({ role: "admin", ledger: { rows, nextCursor: source ? null : "100", hasMore: !source, totalCount: source ? 211 : rows.length }, workItems }) };
+      return { ok: true, json: async () => ({ role: "admin", ledger: { rows, nextCursor: source ? null : "100", hasMore: !source, totalCount: source ? 211 : rows.length, filterMetadata: filterMetadataForRows(rows) }, workItems }) };
     }));
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
@@ -374,6 +383,54 @@ describe("Ledger", () => {
     expect((await screen.findAllByText("Server returned this row")).length).toBeGreaterThan(0);
     expect(screen.queryByText("Maya Al Khalifa")).not.toBeInTheDocument();
     expect(screen.getByText("Showing 1 of 211 records")).toBeInTheDocument();
+  });
+
+  it("ignores an old Load more response after a newer filter reload replaces the cursor", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    const filterMetadata = { sources: ["Stripe"], categories: ["membership"], issues: [], foreignCurrencyCount: 0 };
+    const stalePageRow: B2cSafeLedgerRow = { ...ledgerRow, id: "stale-page", customerName: "Stale page row" };
+    const filteredRow: B2cSafeLedgerRow = { ...ledgerRow, id: "filtered-page", customerName: "New filtered row" };
+    let resolveOldPage!: (response: { ok: boolean; json: () => Promise<unknown> }) => void;
+    vi.stubGlobal("fetch", vi.fn((input: string | URL) => {
+      const params = new URL(String(input), "https://playbook.test").searchParams;
+      const page = (rows: B2cSafeLedgerRow[], nextCursor: string | null, hasMore: boolean, totalCount: number) => ({ ok: true, json: async () => ({ role: "admin", ledger: { rows, nextCursor, hasMore, totalCount, filterMetadata }, workItems }) });
+      if (params.get("cursor") === "100") return new Promise<{ ok: boolean; json: () => Promise<unknown> }>((resolve) => { resolveOldPage = resolve; });
+      if (params.get("source") === "stripe") return Promise.resolve(page([filteredRow], null, false, 1));
+      return Promise.resolve(page([ledgerRow], "100", true, 201));
+    }));
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => expect(resolveOldPage).toBeTypeOf("function"));
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "Stripe" } });
+    expect((await screen.findAllByText("New filtered row")).length).toBeGreaterThan(0);
+
+    resolveOldPage({ ok: true, json: async () => ({ role: "admin", ledger: { rows: [stalePageRow], nextCursor: "200", hasMore: true, totalCount: 201, filterMetadata }, workItems }) });
+    await waitFor(() => {
+      expect(screen.queryByText("Stale page row")).not.toBeInTheDocument();
+      expect(screen.getByText("Showing 1 of 1 records")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps filter choices and the FX-review count from server metadata after a narrow page reload", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    const filterMetadata = { sources: ["Stripe", "Tap"], categories: ["course", "membership"], issues: ["Needs follow-up"], foreignCurrencyCount: 3 };
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ role: "admin", ledger: { rows: [ledgerRow], nextCursor: null, hasMore: false, totalCount: 1, filterMetadata }, workItems }),
+    })));
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "Stripe" } });
+    await waitFor(() => expect(vi.mocked(global.fetch).mock.calls.length).toBeGreaterThan(1));
+    expect(screen.getByRole("option", { name: "Tap" })).toBeInTheDocument();
+    fireEvent.click(screen.getByText("More filters"));
+    expect(screen.getByRole("option", { name: "course" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Needs follow-up" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Needs FX review (3)" })).toBeEnabled();
   });
 
   it("sends every remaining Ledger filter to the server", async () => {

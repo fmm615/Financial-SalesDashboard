@@ -34,6 +34,15 @@ export type B2cLedgerPage = {
   nextCursor: string | null;
   hasMore: boolean;
   totalCount: number;
+  filterMetadata: B2cLedgerFilterMetadata;
+};
+
+/** Safe values/counts for filters across the selected period, before the active page query is applied. */
+export type B2cLedgerFilterMetadata = {
+  sources: string[];
+  categories: string[];
+  issues: NonNullable<B2cLedgerRow["issue"]>[];
+  foreignCurrencyCount: number;
 };
 
 /** Raw labels preserve ungrouped historical flags. Grouped duplicate state comes only from the safe per-payment boolean. */
@@ -113,6 +122,15 @@ function sortRows(rows: B2cDecoratedLedgerRow[], sort: B2cLedgerSort): B2cDecora
   return sorted;
 }
 
+function buildFilterMetadata(rows: B2cDecoratedLedgerRow[]): B2cLedgerFilterMetadata {
+  return {
+    sources: [...new Set(rows.map((row) => row.source))].sort(),
+    categories: [...new Set(rows.map((row) => row.category))].sort(),
+    issues: [...new Set(rows.flatMap((row) => row.issue ? [row.issue] : []))].sort(),
+    foreignCurrencyCount: rows.filter((row) => row.foreignCurrencyReview).length,
+  };
+}
+
 /** A pure, in-memory page over an already-fetched, already-decorated row set. Cursor is an opaque row-index token. */
 export function pageB2cLedgerRows(rows: B2cDecoratedLedgerRow[], query: B2cLedgerQuery): B2cLedgerPage {
   const limit = Math.min(Math.max(query.limit ?? B2C_LEDGER_DEFAULT_LIMIT, 1), B2C_LEDGER_MAX_LIMIT);
@@ -121,7 +139,7 @@ export function pageB2cLedgerRows(rows: B2cDecoratedLedgerRow[], query: B2cLedge
   const page = filtered.slice(start, start + limit);
   const nextIndex = start + page.length;
   const hasMore = nextIndex < filtered.length;
-  return { rows: page, nextCursor: hasMore ? String(nextIndex) : null, hasMore, totalCount: filtered.length };
+  return { rows: page, nextCursor: hasMore ? String(nextIndex) : null, hasMore, totalCount: filtered.length, filterMetadata: buildFilterMetadata(rows) };
 }
 
 /** Loads and pages the B2C ledger. Reuses the existing dashboard snapshot for period scoping and every source read. */

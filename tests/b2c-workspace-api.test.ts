@@ -38,7 +38,7 @@ const stripeEvidenceRow = {
   decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "reportable", postingStatus: "not_applicable", blockingReasons: [], explanation: "Every approved reporting rule passed, so this record is reportable." },
 };
 
-const ledgerPage = { rows: [stripeEvidenceRow], nextCursor: null, hasMore: false, totalCount: 1 };
+const ledgerPage = { rows: [stripeEvidenceRow], nextCursor: null, hasMore: false, totalCount: 1, filterMetadata: { sources: ["Stripe", "Tap"], categories: ["membership"], issues: ["Needs follow-up"], foreignCurrencyCount: 2 } };
 const workspaceOverview = { items: [], counts: { all: 0, data: 0, duplicates: 0, reconciliation: 0, ready_to_post: 0 } };
 
 describe("GET /api/b2c/workspace", () => {
@@ -97,6 +97,7 @@ describe("GET /api/b2c/workspace", () => {
     expect(body.ledger.rows).toHaveLength(1);
     expect(body.ledger.rows[0].stripeEvidence).toBeUndefined();
     expect(body.ledger.rows[0].decision.reportingDecision).toBe("reportable");
+    expect(body.ledger.filterMetadata).toEqual(ledgerPage.filterMetadata);
     expect(mocks.overview).not.toHaveBeenCalled();
   });
 

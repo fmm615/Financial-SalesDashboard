@@ -75,4 +75,18 @@ describe("B2C ledger repository", () => {
     expect(pageB2cLedgerRows(rows, { search: "+973" }).rows.map((row) => row.id)).toEqual(["completed"]);
     expect(pageB2cLedgerRows(rows, { search: "membership" }).rows).toEqual([]);
   });
+
+  it("returns safe filter metadata from the full period before applying the current page query", () => {
+    const page = pageB2cLedgerRows([
+      decorateB2cLedgerRow({ ...baseRow, id: "stripe-row" }),
+      decorateB2cLedgerRow({ ...baseRow, id: "tap-row", source: "Tap", sourceSystem: "tap", category: "course", issue: "Needs follow-up", foreignCurrencyReview: true }),
+    ], { source: "stripe", limit: 1 });
+
+    expect((page as unknown as { filterMetadata?: unknown }).filterMetadata).toEqual({
+      sources: ["Stripe", "Tap"],
+      categories: ["course", "membership"],
+      issues: ["Needs follow-up"],
+      foreignCurrencyCount: 1,
+    });
+  });
 });

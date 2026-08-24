@@ -12,6 +12,7 @@ import { B2cWorkQueue, type B2cWorkQueueFilter } from "@/features/b2c/b2c-work-q
 import { B2cSourceManagement } from "@/features/b2c/b2c-source-management";
 import { B2cPaymentReviewDrawer, type B2cPaymentReviewDrawerTarget } from "@/features/b2c/b2c-payment-review-drawer";
 import type { B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
+import type { B2cLedgerFilterMetadata } from "@/server/repositories/b2c-ledger-repository";
 import { summarizeB2cWorkItemCounts, type B2cWorkspaceOverview } from "@/server/repositories/b2c-workspace-repository";
 import type { B2cWorkItem } from "@/server/services/b2c-work-items";
 
@@ -24,7 +25,7 @@ const TABS: Array<{ value: WorkspaceTab; label: string; adminOnly?: boolean }> =
 
 type WorkspaceLedgerResponse = {
   role: "admin" | "viewer";
-  ledger: { rows: B2cSafeLedgerRow[]; nextCursor: string | null; hasMore: boolean; totalCount: number };
+  ledger: { rows: B2cSafeLedgerRow[]; nextCursor: string | null; hasMore: boolean; totalCount: number; filterMetadata: B2cLedgerFilterMetadata };
   workItems: B2cWorkspaceOverview | null;
 };
 
@@ -105,6 +106,7 @@ export function B2cWorkspace({
 
   const [ledgerRows, setLedgerRows] = useState<B2cSafeLedgerRow[]>([]);
   const [ledgerTotalCount, setLedgerTotalCount] = useState(0);
+  const [ledgerFilterMetadata, setLedgerFilterMetadata] = useState<B2cLedgerFilterMetadata | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [workItems, setWorkItems] = useState<B2cWorkspaceOverview | null>(null);
@@ -114,10 +116,12 @@ export function B2cWorkspace({
   const [filters, setFilters] = useState<B2cLedgerFiltersState>(() => ({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: initialTapStatementUnmatchedOnly }));
   const [drawerTarget, setDrawerTarget] = useState<B2cPaymentReviewDrawerTarget | null>(null);
   const justResolvedPaymentIds = useRef(new Set<string>());
+  const ledgerRequestGeneration = useRef(0);
+  const activeLedgerRequest = useRef<AbortController | null>(null);
 
   const period = snapshot?.period.month;
 
-  const loadLedgerPage = useCallback(async (cursor: string | null) => {
+  const loadLedgerPage = useCallback(async (cursor: string | null, signal: AbortSignal) => {
     const params = new URLSearchParams({ limit: "100" });
     if (period) params.set("period", period);
     if (cursor) params.set("cursor", cursor);
@@ -138,55 +142,84 @@ export function B2cWorkspace({
     if (filters.foreignCurrencyOnly) params.set("foreignCurrencyOnly", "true");
     if (filters.minAmount) params.set("minAmountUsd", filters.minAmount);
     if (filters.maxAmount) params.set("maxAmountUsd", filters.maxAmount);
-    const response = await fetch(`/api/b2c/workspace?${params.toString()}`, { cache: "no-store" });
+    const response = await fetch(`/api/b2c/workspace?${params.toString()}`, { cache: "no-store", signal });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok || !payload || typeof payload !== "object" || !("ledger" in payload)) throw new Error("Workspace data unavailable");
     return payload as WorkspaceLedgerResponse;
   }, [filters, period]);
 
+  const invalidateLedgerRequests = useCallback(() => {
+    ledgerRequestGeneration.current += 1;
+    activeLedgerRequest.current?.abort();
+    activeLedgerRequest.current = null;
+    setLoadingMore(false);
+  }, []);
+
+  const beginLedgerRequest = useCallback(() => {
+    invalidateLedgerRequests();
+    const controller = new AbortController();
+    activeLedgerRequest.current = controller;
+    return { controller, generation: ledgerRequestGeneration.current };
+  }, [invalidateLedgerRequests]);
+
   const reload = useCallback(async () => {
+    const { controller, generation } = beginLedgerRequest();
     setLedgerLoadError(false);
     try {
-      const page = await loadLedgerPage(null);
+      const page = await loadLedgerPage(null, controller.signal);
+      if (generation !== ledgerRequestGeneration.current) return;
       setLedgerRows(page.ledger.rows);
       setLedgerTotalCount(page.ledger.totalCount);
+      setLedgerFilterMetadata(page.ledger.filterMetadata);
       setNextCursor(page.ledger.nextCursor);
       setHasMore(page.ledger.hasMore);
       setWorkItems(page.workItems);
     } catch {
-      setLedgerLoadError(true);
+      if (generation === ledgerRequestGeneration.current && !controller.signal.aborted) setLedgerLoadError(true);
+    } finally {
+      if (generation === ledgerRequestGeneration.current) activeLedgerRequest.current = null;
     }
-  }, [loadLedgerPage]);
+  }, [beginLedgerRequest, loadLedgerPage]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+    return invalidateLedgerRequests;
+  }, [invalidateLedgerRequests, reload]);
 
   async function loadMore() {
     if (!nextCursor) return;
+    const { controller, generation } = beginLedgerRequest();
     setLoadingMore(true);
     try {
-      const page = await loadLedgerPage(nextCursor);
+      const page = await loadLedgerPage(nextCursor, controller.signal);
+      if (generation !== ledgerRequestGeneration.current) return;
       setLedgerRows((current) => [...current, ...page.ledger.rows]);
       setLedgerTotalCount(page.ledger.totalCount);
+      setLedgerFilterMetadata(page.ledger.filterMetadata);
       setNextCursor(page.ledger.nextCursor);
       setHasMore(page.ledger.hasMore);
     } catch {
-      setLedgerLoadError(true);
+      if (generation === ledgerRequestGeneration.current && !controller.signal.aborted) setLedgerLoadError(true);
     } finally {
-      setLoadingMore(false);
+      if (generation === ledgerRequestGeneration.current) {
+        activeLedgerRequest.current = null;
+        setLoadingMore(false);
+      }
     }
   }
 
   function handleFiltersChange(nextFilters: B2cLedgerFiltersState) {
+    invalidateLedgerRequests();
     setNextCursor(null);
     setHasMore(false);
     setFilters(nextFilters);
   }
 
   const visibleRows = ledgerRows;
-  const sources = useMemo(() => [...new Set(ledgerRows.map((row) => row.source))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
-  const categories = useMemo(() => [...new Set(ledgerRows.map((row) => row.category))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
-  const issues = useMemo(() => [...new Set(ledgerRows.flatMap((row) => (row.issue ? [row.issue] : [])))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
-  const foreignCurrencyCount = useMemo(() => ledgerRows.filter((row) => row.foreignCurrencyReview).length, [ledgerRows]);
+  const sources = useMemo(() => (ledgerFilterMetadata?.sources ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
+  const categories = useMemo(() => (ledgerFilterMetadata?.categories ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
+  const issues = useMemo(() => (ledgerFilterMetadata?.issues ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
+  const foreignCurrencyCount = ledgerFilterMetadata?.foreignCurrencyCount ?? 0;
   // Undated Tap statement evidence falls outside every month-scoped period, so
   // the retained global count comes from the snapshot rather than the current page.
   const tapStatementUnmatchedCount = snapshot?.tapStatementUnmatchedCount ?? ledgerRows.filter((row) => row.tapStatementUnmatched).length;
