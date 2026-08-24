@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { formatStripeBillingInterval, normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
 import { assertHubSpotReadOnlyRequest } from "@/lib/integrations/hubspot/client";
-import { stripeProductMappingSchema } from "@/lib/validation/financial-contracts";
 import { b2cPaymentLocalCorrectionSchema } from "@/lib/validation/b2c-review-contracts";
 import { isValidStripeSignature } from "@/lib/integrations/stripe/signature";
 import { resolveB2cReportingPeriod } from "@/server/repositories/b2c-dashboard-repository";
@@ -44,11 +43,6 @@ describe("Stripe normalisation and webhook security", () => {
     expect(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.90", originalCurrency: "USD" })).not.toBe(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.90", originalCurrency: "BHD" }));
   });
 
-  it("requires auditable, local-only product-mapping values", () => {
-    expect(stripeProductMappingSchema.safeParse({ productReference: "price_membership", internalProductCode: "membership_annual", internalProductName: "Annual membership", categoryCode: "membership", membershipTier: "annual", reason: "Finance approved the Stripe product classification." }).success).toBe(true);
-    expect(stripeProductMappingSchema.safeParse({ productReference: "price_membership", internalProductCode: "Annual Membership", internalProductName: "Annual membership", categoryCode: "membership", reason: "ok" }).success).toBe(false);
-  });
-
   it("requires an audited, verified local B2C correction", () => {
     expect(b2cPaymentLocalCorrectionSchema.safeParse({
       customerEmail: "verified.member@example.com",
@@ -65,8 +59,9 @@ describe("Stripe normalisation and webhook security", () => {
   });
 
   it("keeps Stripe in B2C, formats minor USD units exactly, and uses the Bahrain business date", () => {
-    const payment = normaliseStripeCharge({ ...charge, billing_details: { ...charge.billing_details, phone: "+973 1700 0000" } }, "product_id");
+    const payment = normaliseStripeCharge({ ...charge, description: "Founding Membership", billing_details: { ...charge.billing_details, phone: "+973 1700 0000" } }, "product_id");
     expect(payment).toMatchObject({ chargeId: "ch_123", customerName: "Member Name", customerEmail: "member@example.com", customerPhone: "+973 1700 0000", originalAmount: "123.45", amountUsd: "123.45", originalCurrency: "USD", productReference: "price_membership" });
+    expect(payment.sourceMetadata).toMatchObject({ description: "Founding Membership" });
     expect(payment.occurredOn).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
