@@ -66,10 +66,10 @@ export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; o
           </div>
           <p className="shrink-0 font-medium tabular-nums text-text-primary">{row.amountUsd}</p>
         </div>
-        {(row.sourceDescription || row.sourceSellerMessage) && <div className="mt-2 text-sm text-text-secondary">
-          {row.sourceDescription && <p>{row.sourceDescription}</p>}
+        <div className="mt-2 text-sm text-text-secondary">
+          <p>{row.sourceDescription ?? "—"}</p>
           {row.sourceSellerMessage && <p className="mt-0.5 text-warning">{row.sourceSellerMessage}</p>}
-        </div>}
+        </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             {row.tapStatementUnmatched ? <span className="text-sm text-warning">Not matched</span> : <StatusBadge status={row.paymentStatus} />}

@@ -74,3 +74,19 @@ npx vitest run tests/b2c-workspace-ui.test.tsx
 
 Result: 1 file passed, 29 tests passed. Typecheck, lint, and `git diff --check`
 were rerun before the follow-up commit.
+
+## Review follow-up — round 2
+
+Added a compact/mobile-card regression for a provider row with
+`sourceDescription: null`. The RED run confirmed the card omitted the
+description block entirely. The card now always renders the description line
+as `sourceDescription ?? "—"`, while keeping the seller-message line
+conditional and unchanged.
+
+```text
+npx vitest run tests/b2c-workspace-ui.test.tsx
+```
+
+RED result: 1 test failed and 29 passed; the compact `sm:hidden` card lacked
+the `—` fallback. GREEN result: 1 file passed, 30 tests passed. Typecheck,
+lint, and `git diff --check` were rerun before the follow-up commit.

@@ -530,6 +530,18 @@ describe("Ledger", () => {
     expect(within(row).getAllByRole("cell")[6]).toHaveTextContent("—");
   });
 
+  it("renders an unavailable provider description in the compact mobile card", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin", ledgerRows: [{ ...ledgerRow, sourceDescription: null }] });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    const compactCards = document.querySelector('ul[class~="sm:hidden"]') as HTMLElement;
+
+    expect(compactCards).toBeInTheDocument();
+    expect(within(compactCards).getByText("—")).toBeInTheDocument();
+  });
+
   it("shows Search, Source, Status, and Issue as primary filters and hides the rest behind More filters", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
     stubFetch({ role: "admin" });
