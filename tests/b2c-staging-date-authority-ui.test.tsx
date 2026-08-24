@@ -11,13 +11,14 @@ const row = {
   financeRowId: "11111111-1111-4111-8111-111111111111",
   sourceTab: "B2C" as const,
   sourceRowNumber: 42,
+  reportedDateRaw: "11/08/2026",
   declaredMonth: "September",
   declaredYear: "2025",
   occurredOn: "2026-08-11",
 };
 
 describe("B2cStagingDateAuthority", () => {
-  it("shows the conflicting declared labels and parsed Date before submitting exactly one reviewed row", async () => {
+  it("makes the exact workbook Date cell the primary evidence and labels the parser interpretation separately", async () => {
     const onSaved = vi.fn();
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ resolvedRows: 1 }) });
     vi.stubGlobal("fetch", fetchMock);
@@ -27,10 +28,12 @@ describe("B2cStagingDateAuthority", () => {
     expect(screen.getByText("B2C row 42")).toBeInTheDocument();
     expect(screen.getByText("September")).toBeInTheDocument();
     expect(screen.getByText("2025")).toBeInTheDocument();
-    expect(screen.getByText("Stored value: 2026-08-11")).toBeInTheDocument();
+    expect(screen.getByText("Workbook Date (as written)")).toBeInTheDocument();
+    expect(screen.getByText("11/08/2026")).toBeInTheDocument();
+    expect(screen.getByText("Parsed financial date")).toBeInTheDocument();
     expect(screen.getByText("11 August 2026")).toBeInTheDocument();
-    expect(screen.getByText("DD/MM/YYYY: 11/08/2026")).toBeInTheDocument();
-    expect(screen.getByText(/The workbook.s Date value says 11 August 2026\. The Month label says September\./)).toBeInTheDocument();
+    expect(screen.getByText("Stored as: 2026-08-11")).toBeInTheDocument();
+    expect(screen.getByText(/The workbook.s Date cell reads 11\/08\/2026\. It was interpreted as 11 August 2026 using DD\/MM\/YYYY\./)).toBeInTheDocument();
 
     const save = screen.getByRole("button", { name: "Confirm parsed Date" });
     expect(save).toBeDisabled();

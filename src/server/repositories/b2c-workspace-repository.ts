@@ -32,6 +32,7 @@ export type B2cStagingDateAuthorityRecord = {
   financeRowId: string;
   sourceTab: "B2C" | "B2C Cons";
   sourceRowNumber: number;
+  reportedDateRaw: string | null;
   declaredMonth: string | null;
   declaredYear: string | null;
   occurredOn: string;
@@ -189,6 +190,7 @@ export function selectActionableB2cStagingDateAuthorityRows(
       financeRowId: row.financeRowId,
       sourceTab: row.sourceTab,
       sourceRowNumber: row.sourceRowNumber,
+      reportedDateRaw: row.reportedDateRaw,
       declaredMonth: row.declaredMonth,
       declaredYear: row.declaredYear,
       occurredOn: row.occurredOn,
