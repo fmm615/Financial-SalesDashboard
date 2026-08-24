@@ -453,3 +453,17 @@ git commit -m "docs(b2c): document optional provider categories"
 ```
 
 - [ ] Record the final commit range and verification results. Tell the user that the only manual database action is to run `supabase/migrations/20260824150000_retire_b2c_product_mapping_requirement.sql` in Supabase SQL Editor after the merged code is deployed, then confirm the migration succeeded before relying on the new behavior.
+
+---
+
+## 2026-08-24 remediation amendment — preserved retired unmapped-product flag history
+
+This amendment preserves the historical Task 7 checklist and evidence above.
+The final manual database action after integration and deployment is to run both
+forward migrations in Supabase SQL Editor, in this order:
+
+1. `supabase/migrations/20260824150000_retire_b2c_product_mapping_requirement.sql`
+2. `supabase/migrations/20260824151000_preserve_retired_unmapped_product_flag_history.sql`
+
+Confirm both migrations succeed before relying on the optional-category
+behavior. Never run `supabase db push` for this work.

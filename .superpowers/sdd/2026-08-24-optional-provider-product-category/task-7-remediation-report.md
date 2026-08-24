@@ -69,3 +69,12 @@ Editor, in this order, and confirm both succeed before relying on the behavior:
 
 1. `supabase/migrations/20260824150000_retire_b2c_product_mapping_requirement.sql`
 2. `supabase/migrations/20260824151000_preserve_retired_unmapped_product_flag_history.sql`
+
+## Review round 1 — documentation correction
+
+The historical Task 7 checklist is retained unchanged. A dated remediation
+amendment was appended after its original handoff in
+`docs/superpowers/plans/2026-08-24-optional-provider-product-category.md` so
+the final manual database action explicitly requires both migrations above, in
+order, in Supabase SQL Editor after integration and deployment. It explicitly
+prohibits `supabase db push`.
