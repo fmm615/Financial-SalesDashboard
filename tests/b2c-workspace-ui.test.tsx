@@ -519,6 +519,17 @@ describe("Ledger", () => {
     expect(within(table).getByText("Your card was declined: insufficient funds.")).toBeInTheDocument();
   });
 
+  it("renders an unavailable provider description as a dash", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin", ledgerRows: [{ ...ledgerRow, sourceDescription: null }] });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const table = await screen.findByRole("table", { name: "B2C ledger" });
+    const row = within(table).getByText("Maya Al Khalifa").closest("tr") as HTMLElement;
+
+    expect(within(row).getAllByRole("cell")[6]).toHaveTextContent("—");
+  });
+
   it("shows Search, Source, Status, and Issue as primary filters and hides the rest behind More filters", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
     stubFetch({ role: "admin" });

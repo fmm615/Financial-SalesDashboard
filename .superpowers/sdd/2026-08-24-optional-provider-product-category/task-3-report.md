@@ -61,3 +61,16 @@ No migration required or created. This task changes only live TypeScript project
 ## Commit
 
 `58491f6a4b7805f86a9b04e251ed86da8f1a6c73` — `refactor(b2c): retire unmapped ledger issues`
+
+## Review follow-up — round 1
+
+Added the missing visible-Ledger regression for a provider row with
+`sourceDescription: null`. It asserts that the Description cell renders `—`
+rather than category or product-reference fallback data.
+
+```text
+npx vitest run tests/b2c-workspace-ui.test.tsx
+```
+
+Result: 1 file passed, 29 tests passed. Typecheck, lint, and `git diff --check`
+were rerun before the follow-up commit.
