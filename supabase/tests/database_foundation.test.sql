@@ -1,6 +1,6 @@
 begin;
 
-select plan(130);
+select plan(134);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -1725,6 +1725,50 @@ select ok(
     where area = 'b2c_payment_duplicate_group_members' and record_id is null
   ),
   'duplicate-group member audit events carry a non-null member record ID'
+);
+
+-- Product mapping updates a local classification and recomputes the affected
+-- payment's duplicate fingerprint.  These calls must remain executable under
+-- the Admin's protected function search path, where pgcrypto's digest lives
+-- in extensions rather than public.
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint, source_metadata
+) values
+  ('b4000000-0000-4000-8000-000000000001', 'stripe', 'ch_product_mapping_d14', 'stripe.mapping@playbook.test', 'unmapped', 'failed', 83, 'USD', 1, 83, 83, '2026-08-30 08:00:00+00', '2026-08-30', repeat('4', 64), jsonb_build_object('product_reference', 'price_d14_test')),
+  ('b4000000-0000-4000-8000-000000000002', 'tap', 'tap_product_mapping_d15', 'tap.mapping@playbook.test', 'unmapped', 'failed', 97, 'USD', 1, 97, 97, '2026-08-30 09:00:00+00', '2026-08-30', repeat('5', 64), jsonb_build_object('product_reference', 'tap_d15_test'));
+
+select lives_ok(
+  $$ select public.apply_stripe_product_mapping('price_d14_test', 'd14_monthly', 'D14 Monthly', 'membership', 'monthly', 'Map the Stripe fixture locally.') $$,
+  'Stripe product mapping recomputes an affected payment fingerprint'
+);
+
+select ok(
+  (select product_mapping_id is not null
+      and category_code = 'membership'
+      and membership_tier = 'monthly'
+      and duplicate_fingerprint <> repeat('4', 64)
+      and duplicate_fingerprint ~ '^[0-9a-f]{64}$'
+   from public.b2c_payments
+   where id = 'b4000000-0000-4000-8000-000000000001'),
+  'Stripe mapping persists the local classification and a computed fingerprint'
+);
+
+select lives_ok(
+  $$ select public.apply_b2c_product_mapping('tap', 'tap_d15_test', 'd15_annual', 'D15 Annual', 'membership', 'annual', 'Map the Tap fixture locally.') $$,
+  'Tap product mapping recomputes an affected payment fingerprint'
+);
+
+select ok(
+  (select product_mapping_id is not null
+      and category_code = 'membership'
+      and membership_tier = 'annual'
+      and duplicate_fingerprint <> repeat('5', 64)
+      and duplicate_fingerprint ~ '^[0-9a-f]{64}$'
+   from public.b2c_payments
+   where id = 'b4000000-0000-4000-8000-000000000002'),
+  'Tap mapping persists the local classification and a computed fingerprint'
 );
 
 select * from finish();
