@@ -185,7 +185,7 @@ test.describe("B2C workspace -- positive flow", () => {
       await page.getByLabelText("Bank reference").fill("IBAN-2026-E2E-NEW");
       await page.getByLabelText("Customer name").fill("E2E New Transfer");
       await page.getByLabelText("Customer email").fill("e2e-new@example.com");
-      await page.getByLabelText("Bank transfer date/time").fill("2026-08-19T09:00");
+      await page.getByLabelText(/bank transfer date\/time/i).fill("2026-08-19T09:00");
       await page.getByLabelText("Amount (USD)").fill(knownValueDataset.manualBankTransfer);
       await page.getByLabelText("Category").fill("membership");
       await page.getByLabelText("Reason").fill("New bank transfer received after the latest workbook.");
@@ -201,7 +201,7 @@ test.describe("B2C workspace -- positive flow", () => {
       await page.getByLabelText("Bank reference").fill("IBAN-2026-0912"); // matches a sheet bank-transfer lineage
       await page.getByLabelText("Customer name").fill("Existing Tracker Customer");
       await page.getByLabelText("Customer email").fill("existing@example.com");
-      await page.getByLabelText("Bank transfer date/time").fill("2026-08-12T08:00");
+      await page.getByLabelText(/bank transfer date\/time/i).fill("2026-08-12T08:00");
       await page.getByLabelText("Amount (USD)").fill("266");
       await page.getByLabelText("Category").fill("membership");
       await page.getByLabelText("Reason").fill("Checking a possible re-entry.");

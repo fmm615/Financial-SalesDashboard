@@ -36,6 +36,20 @@ function toIsoWithOffset(localValue: string): string | null {
   return `${localValue.length === 16 ? `${localValue}:00` : localValue}${offset}`;
 }
 
+/** The database derives the reporting date in Bahrain from the offset-bearing instant the Admin reviews. */
+function bahrainBusinessDate(receivedAt: string | null | undefined): string | null {
+  if (!receivedAt) return null;
+  const instant = new Date(receivedAt);
+  if (Number.isNaN(instant.getTime())) return null;
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bahrain", year: "numeric", month: "2-digit", day: "2-digit" })
+      .formatToParts(instant)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 function draftToRequest(draft: Draft): ManualBankTransferRequest | null {
   const receivedAt = toIsoWithOffset(draft.receivedAtLocal);
   if (!receivedAt) return null;
@@ -141,6 +155,7 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded: () => void }
   if (stage === "reviewing" || stage === "recording") {
     if (!assessment) return null;
     const request = draftToRequest(draft);
+    const businessDate = bahrainBusinessDate(request?.receivedAt);
     return <div className="space-y-4" role="group" aria-label="Review bank transfer">
       <div className="rounded-md border border-border bg-canvas p-4 text-sm text-text-secondary">
         <dl className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
@@ -148,7 +163,8 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded: () => void }
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Customer</dt><dd className="font-medium text-text-primary">{draft.customerName} · {draft.customerEmail}</dd></div>
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Amount (USD)</dt><dd className="font-medium text-text-primary">{draft.amountUsd}</dd></div>
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Category</dt><dd className="font-medium text-text-primary">{draft.categoryCode}{draft.membershipTier ? ` · ${draft.membershipTier}` : ""}</dd></div>
-          <div><dt className="text-xs uppercase tracking-wide text-text-muted">Bank transfer date/time</dt><dd className="font-medium text-text-primary">{request?.receivedAt ?? "—"}</dd></div>
+          <div><dt className="text-xs uppercase tracking-wide text-text-muted">Bank transfer date/time (explicit UTC offset)</dt><dd className="font-medium text-text-primary">{request?.receivedAt ?? "—"}</dd></div>
+          <div><dt className="text-xs uppercase tracking-wide text-text-muted">Bahrain business date</dt><dd className="font-medium text-text-primary">{businessDate ?? "—"}</dd></div>
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Reason</dt><dd className="font-medium text-text-primary">{draft.reason}</dd></div>
         </dl>
       </div>
@@ -183,7 +199,7 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded: () => void }
       <label className={fieldClass}>Bank reference<input required value={draft.bankReference} onChange={(event) => setField("bankReference", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Customer name<input required value={draft.customerName} onChange={(event) => setField("customerName", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Customer email<input required type="email" value={draft.customerEmail} onChange={(event) => setField("customerEmail", event.target.value)} className={inputClass} /></label>
-      <label className={fieldClass}>Bank transfer date/time<input required type="datetime-local" value={draft.receivedAtLocal} onChange={(event) => setField("receivedAtLocal", event.target.value)} className={inputClass} /></label>
+      <label className={fieldClass}>Bank transfer date/time (your browser time zone: an explicit UTC offset will be recorded)<input required type="datetime-local" value={draft.receivedAtLocal} onChange={(event) => setField("receivedAtLocal", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Amount (USD)<input required inputMode="decimal" value={draft.amountUsd} onChange={(event) => setField("amountUsd", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Category<input required value={draft.categoryCode} onChange={(event) => setField("categoryCode", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Membership tier (optional)<input value={draft.membershipTier} onChange={(event) => setField("membershipTier", event.target.value)} className={inputClass} /></label>

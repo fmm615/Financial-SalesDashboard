@@ -1,6 +1,6 @@
 begin;
 
-select plan(129);
+select plan(130);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -840,6 +840,22 @@ select throws_ok(
 );
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
+
+select throws_ok(
+  $$
+    select public.record_b2c_manual_bank_transfer(
+      'MANUAL-OFFSET-LESS-REF', 'offsetless@playbook.test', 'Offsetless Transfer', 'membership', null, '125.000000',
+      '2026-08-15T08:00:00', 'This date/time intentionally has no offset.',
+      encode(extensions.digest(
+        'MANUAL-OFFSET-LESS-REF|offsetless@playbook.test|Offsetless Transfer|membership||125.000000|2026-08-15T08:00:00|This date/time intentionally has no offset.',
+        'sha256'
+      ), 'hex')
+    )
+  $$,
+  'P0001',
+  'The bank transfer date/time must include an explicit UTC offset',
+  'a manual bank transfer timestamp without an explicit UTC offset is rejected'
+);
 
 -- A clean, genuinely new transfer creates exactly one retained payment and
 -- (via Task 1's reserve_b2c_finance_manual_bank_transfer_lineage trigger)

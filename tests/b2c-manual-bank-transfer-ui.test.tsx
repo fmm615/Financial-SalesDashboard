@@ -8,7 +8,7 @@ function fillStepOne() {
   fireEvent.change(screen.getByLabelText("Bank reference"), { target: { value: "IBAN-2026-0912" } });
   fireEvent.change(screen.getByLabelText("Customer name"), { target: { value: "Ada Founder" } });
   fireEvent.change(screen.getByLabelText("Customer email"), { target: { value: "ada@example.com" } });
-  fireEvent.change(screen.getByLabelText("Bank transfer date/time"), { target: { value: "2026-08-12T08:00" } });
+  fireEvent.change(screen.getByLabelText(/Bank transfer date\/time/i), { target: { value: "2026-08-12T08:00" } });
   fireEvent.change(screen.getByLabelText("Amount (USD)"), { target: { value: "266" } });
   fireEvent.change(screen.getByLabelText("Category"), { target: { value: "membership" } });
   fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "New bank transfer received after the latest workbook." } });
@@ -25,7 +25,7 @@ describe("B2cManualBankTransfer", () => {
     render(<B2cManualBankTransfer onRecorded={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "Add bank transfer" }));
 
-    for (const label of ["Bank reference", "Customer name", "Customer email", "Bank transfer date/time", "Amount (USD)", "Category", "Reason"]) {
+    for (const label of ["Bank reference", "Customer name", "Customer email", /Bank transfer date\/time \(your browser time zone:/i, "Amount (USD)", "Category", "Reason"]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
     expect(screen.getByLabelText("Membership tier (optional)")).toBeInTheDocument();
@@ -53,6 +53,29 @@ describe("B2cManualBankTransfer", () => {
 
     await screen.findByText(/no existing match/i);
     expect(screen.getByRole("button", { name: "Record bank transfer" })).toBeInTheDocument();
+  });
+
+  it("shows the explicit browser-zone instant and derived Bahrain business date for review", async () => {
+    const calls: Array<{ url: string; body: { receivedAt?: string } }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), body: JSON.parse(String(init?.body ?? "{}")) as { receivedAt?: string } });
+      return {
+        ok: true,
+        json: async () => ({ assessment: { inputSha256: "a".repeat(64), matchState: "clear", exactMatchHref: null, possibleMatches: [] } }),
+      } as Response;
+    }));
+
+    render(<B2cManualBankTransfer onRecorded={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add bank transfer" }));
+    fillStepOne();
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+
+    await screen.findByText(/no existing match/i);
+    const receivedAt = calls[0]?.body.receivedAt;
+    expect(receivedAt).toMatch(/(?:Z|[+-]\d{2}:?\d{2})$/);
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bahrain", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(receivedAt!));
+    const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+    expect(screen.getByText("Bahrain business date").nextElementSibling).toHaveTextContent(`${values.year}-${values.month}-${values.day}`);
   });
 
   it("shows an existing-record link with no submit action for an exact match", async () => {
