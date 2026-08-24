@@ -64,6 +64,27 @@ describe("B2cStagingDateAuthority", () => {
     expect(screen.getByText("2025")).toBeInTheDocument();
     expect(screen.getByLabelText(/Reason \/ evidence/)).toHaveValue("Finance verified the signed workbook Date is authoritative.");
   });
+
+  it("lets an Admin record a verified replacement financial date through the audited correction route", async () => {
+    const onSaved = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<RoleProvider role="admin"><B2cStagingDateAuthority row={row} onSaved={onSaved} /></RoleProvider>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Correct financial date" }));
+    fireEvent.change(screen.getByLabelText("Correct financial date (DD/MM/YYYY)"), { target: { value: "2025-12-12" } });
+    fireEvent.change(screen.getByLabelText(/Reason \/ evidence/), { target: { value: "Verified December date against the signed Finance workbook." } });
+    fireEvent.click(screen.getByRole("button", { name: "Save corrected financial date" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      `/api/admin/b2c/finance-actions/${row.financeRowId}/correction`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ occurredOn: "2025-12-12", reason: "Verified December date against the signed Finance workbook." }),
+      }),
+    ));
+    expect(onSaved).toHaveBeenCalledWith(row.financeRowId);
+  });
 });
 
 describe("staging date-authority workspace item", () => {
