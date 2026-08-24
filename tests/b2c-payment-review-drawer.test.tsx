@@ -107,7 +107,7 @@ describe("B2C payment review drawer", () => {
     expect(within(dialog).queryByRole("button", { name: "View Stripe details" })).not.toBeInTheDocument();
   });
 
-  it("shows one primary Finance-decision action with everything else under More actions", () => {
+  it("uses the FX conversion action when that remains the unresolved financial blocker", () => {
     stubFetchByUrl([]);
     const row = baseRow({
       category: "Unmapped",
@@ -115,17 +115,12 @@ describe("B2C payment review drawer", () => {
       foreignCurrencyReview: false,
       hasFxConversion: true,
       openReviewFlags: [{ id: "flag-1", type: "Unmapped product", reason: "Stripe did not provide a mapped product." }],
-      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["unmapped_category"], explanation: "Blocked by an unmapped category." },
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_fx"], explanation: "Blocked by a foreign-currency amount awaiting an approved conversion." },
     });
     renderDrawer({ kind: "row", row });
     const dialog = screen.getByRole("dialog");
 
-    // "map" is primary: expanded outside "More actions".
-    expect(within(dialog).getByText("Create reusable product mapping")).toBeInTheDocument();
-    const moreActions = within(dialog).getByText("More actions").closest("details") as HTMLElement;
-    expect(within(moreActions).queryByText("Create reusable product mapping")).not.toBeInTheDocument();
-    // FX conversion is available but secondary, collapsed under "More actions".
-    expect(within(moreActions).getByText(/Finance USD conversion/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Finance USD conversion/)).toBeInTheDocument();
   });
 
   it("preserves the draft and shows an error when a save fails, without closing the drawer", async () => {

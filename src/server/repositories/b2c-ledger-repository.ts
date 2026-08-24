@@ -48,7 +48,6 @@ export type B2cLedgerFilterMetadata = {
 /** Raw labels preserve ungrouped historical flags. Grouped duplicate state comes only from the safe per-payment boolean. */
 const OPEN_FLAG_LABEL_TO_TYPE: Partial<Record<NonNullable<B2cOpenReviewFlag["type"]>, string>> = {
   "Possible duplicate": "possible_duplicate",
-  "Unmapped product": "unmapped_product",
   "Needs follow-up": "needs_follow_up",
   "Missing customer email": "needs_follow_up",
 };
@@ -74,7 +73,6 @@ export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2c
     sourceSystem: row.sourceSystem,
     paymentStatus: paymentStatusForDecision(row),
     customerEmail: row.customerEmail,
-    categoryCode: row.category === "Unmapped" ? "unmapped" : row.category,
     occurredOn: row.dateValue || null,
     openFlagTypes,
     originalCurrency: row.sourceOriginalCurrency ?? "USD",

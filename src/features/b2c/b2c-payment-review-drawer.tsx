@@ -50,7 +50,6 @@ const REASON_TO_ACTION: Partial<Record<B2cBlockingReason, DrawerPrimaryAction>> 
   implausible_future_date: "correct",
   missing_customer_email: "correct",
   other_open_review: "correct",
-  unmapped_category: "map",
   missing_fx: "convert_fx",
   possible_duplicate: "choose_payment_duplicate",
   unmatched_evidence: "compare",

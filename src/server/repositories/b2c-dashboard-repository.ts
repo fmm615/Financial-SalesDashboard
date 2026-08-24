@@ -500,8 +500,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       isReportable: isReportableB2cPayment({
         paymentStatus: payment.payment_status,
         customerEmail: effective.customerEmail,
-        categoryCode: effective.categoryCode,
-      openFlagTypes: flagTypes,
+        openFlagTypes: flagTypes,
         originalCurrency: payment.original_currency,
         amountUsd: effective.amountUsd,
         hasFinanceException,
@@ -513,7 +512,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       exclusions: b2cPaymentExclusionReasons({
         paymentStatus: payment.payment_status,
         customerEmail: effective.customerEmail,
-        categoryCode: effective.categoryCode,
         openFlagTypes: flagTypes,
         originalCurrency: payment.original_currency,
         amountUsd: effective.amountUsd,
@@ -565,7 +563,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     if (effective.amountUsd !== null) excludedCompletedPayments += toScaledUsd(effective.amountUsd);
     excludedCompletedPaymentCount += 1;
     if (reportability.exclusions.includes("missing_customer_email")) missingCustomerEmailCount += 1;
-    if (reportability.exclusions.includes("unmapped_product")) unmappedProductCount += 1;
     if (reportability.exclusions.includes("possible_duplicate")) possibleDuplicateCount += 1;
     if (reportability.exclusions.includes("needs_follow_up") && !reportability.exclusions.includes("missing_customer_email")) otherReviewCount += 1;
   }

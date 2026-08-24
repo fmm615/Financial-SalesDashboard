@@ -53,7 +53,7 @@ describe("B2C Stripe enrichment presentation", () => {
     });
 
     expect(display).toMatchObject({ customerName: "Current Stripe Name", customerEmail: "current-profile@example.com", customerPhone: "+973 1700 0000" });
-    expect(isReportableB2cPayment({ paymentStatus: "succeeded", customerEmail: null, categoryCode: "membership", openFlagTypes: new Set(["needs_follow_up"]) })).toBe(false);
+    expect(isReportableB2cPayment({ paymentStatus: "succeeded", customerEmail: null, openFlagTypes: new Set(["needs_follow_up"]) })).toBe(false);
 
     const row = {
       id: "payment-1", recordType: "Payment" as const,
