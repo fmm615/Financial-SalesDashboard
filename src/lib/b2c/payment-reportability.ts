@@ -5,7 +5,6 @@
 export type B2cPaymentReportabilityInput = {
   paymentStatus: "succeeded" | "failed" | "pending";
   customerEmail: string | null;
-  categoryCode: string | null;
   openFlagTypes: ReadonlySet<string>;
   /** A null value means no Finance-approved USD source or local conversion exists yet. */
   originalCurrency?: string | null;
@@ -25,7 +24,6 @@ export type B2cPaymentReportabilityInput = {
 export type B2cPaymentExclusionReason =
   | "not_succeeded"
   | "missing_customer_email"
-  | "unmapped_product"
   | "possible_duplicate"
   | "duplicate_exclusion"
   | "needs_follow_up"
@@ -38,7 +36,6 @@ export function b2cPaymentExclusionReasons(input: B2cPaymentReportabilityInput):
   if (input.amountUsd === null) reasons.push("needs_fx_review");
   if (input.paymentStatus !== "succeeded") reasons.push("not_succeeded");
   if (!input.customerEmail && !exceptionApproved && !approvedFinancePayment) reasons.push("missing_customer_email");
-  if ((!input.categoryCode || input.categoryCode === "unmapped" || input.openFlagTypes.has("unmapped_product")) && !exceptionApproved) reasons.push("unmapped_product");
   if (input.openFlagTypes.has("possible_duplicate")) reasons.push("possible_duplicate");
   if (input.hasOpenPaymentDuplicate && !reasons.includes("possible_duplicate")) reasons.push("possible_duplicate");
   if (input.hasDuplicateExclusion) reasons.push("duplicate_exclusion");

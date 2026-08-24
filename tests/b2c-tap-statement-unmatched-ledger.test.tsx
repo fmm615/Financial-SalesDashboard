@@ -57,7 +57,7 @@ describe("Tap statement unmatched ledger review", () => {
       sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-16T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
       hasSourceRecords: true,
       eligiblePaymentsUsd: "$50.42", refundsUsd: "$0.00", netPaymentsUsd: "$50.42", completedSourcePaymentsUsd: "$50.42", sourceRefundsUsd: "$0.00",
-      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 1, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 0, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 1, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
       reviewItems: 0,
       rows: [],
     } as unknown as B2cDashboardSnapshot;
@@ -74,7 +74,7 @@ describe("Tap statement unmatched ledger review", () => {
       sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-16T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
       hasSourceRecords: true,
       eligiblePaymentsUsd: "$0.00", refundsUsd: "$0.00", netPaymentsUsd: "$0.00", completedSourcePaymentsUsd: "$0.00", sourceRefundsUsd: "$0.00",
-      calculation: { completedSourcePaymentCount: 0, reportablePaymentCount: 0, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 0, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+      calculation: { completedSourcePaymentCount: 0, reportablePaymentCount: 0, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
       reviewItems: 0,
       tapStatementUnmatchedCount: 3,
       rows: [],
@@ -92,7 +92,7 @@ describe("Tap statement unmatched ledger review", () => {
       sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-16T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
       hasSourceRecords: true,
       eligiblePaymentsUsd: "$50.42", refundsUsd: "$0.00", netPaymentsUsd: "$50.42", completedSourcePaymentsUsd: "$50.42", sourceRefundsUsd: "$0.00",
-      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 1, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 0, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+      calculation: { completedSourcePaymentCount: 1, reportablePaymentCount: 1, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 0, eligibleRefundCount: 0, missingCustomerEmailCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
       reviewItems: 0,
       rows: [
         {

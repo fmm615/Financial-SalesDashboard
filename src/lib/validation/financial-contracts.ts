@@ -46,28 +46,6 @@ export const financialCorrectionSchema = z.object({
   path: ["afterValue"],
 });
 
-export const productMappingSchema = z.object({
-  sourceSystem: z.enum(["stripe", "tap"]),
-  externalProductId: nonEmpty.max(255),
-  productId: uuid,
-  categoryCode: nonEmpty.max(100),
-  membershipTier: z.string().trim().min(1).max(100).optional(),
-}).strict();
-
-export const stripeProductMappingSchema = z.object({
-  productReference: z.string().trim().min(1, "Stripe product reference is required.").max(255),
-  internalProductCode: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]*$/, "Use lowercase letters, numbers, hyphens, or underscores.").max(100),
-  internalProductName: nonEmpty.max(200),
-  categoryCode: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]*$/, "Use a reporting category code.").max(100),
-  membershipTier: z.string().trim().max(100).optional(),
-  reason: nonEmpty.max(1000),
-}).strict();
-
-/** A local classification may be reused only within the same B2C provider. */
-export const b2cProductMappingSchema = stripeProductMappingSchema.extend({
-  sourceSystem: z.enum(["stripe", "tap"]),
-}).strict();
-
 export const financialTargetSchema = z.object({
   metricCode: z.string().regex(/^[a-z0-9][a-z0-9_-]*$/),
   periodStart: isoDate,
@@ -169,9 +147,6 @@ export function firstValidationMessage(error: z.ZodError): string {
 export type ManualBankTransferInput = z.infer<typeof manualBankTransferSchema>;
 export type ManualBankTransferConfirmationInput = z.infer<typeof manualBankTransferConfirmationSchema>;
 export type FinancialCorrectionInput = z.infer<typeof financialCorrectionSchema>;
-export type ProductMappingInput = z.infer<typeof productMappingSchema>;
-export type StripeProductMappingInput = z.infer<typeof stripeProductMappingSchema>;
-export type B2cProductMappingInput = z.infer<typeof b2cProductMappingSchema>;
 export type FinancialTargetInput = z.infer<typeof financialTargetSchema>;
 export type SummitUpdateInput = z.infer<typeof summitUpdateSchema>;
 export type ReviewResolutionInput = z.infer<typeof reviewResolutionSchema>;

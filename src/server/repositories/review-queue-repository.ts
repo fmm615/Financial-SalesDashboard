@@ -47,6 +47,7 @@ export class SupabaseReviewQueueRepository implements ReviewQueueRepository {
   async listFlags(): Promise<ReviewQueueFlagRecord[]> {
     const { data, error } = await this.client.from("review_flags")
       .select("id,source_area,source_record_id,flag_type,status,priority,reason,assigned_to,created_at,resolved_at")
+      .neq("flag_type", "unmapped_product")
       .order("priority", { ascending: true })
       .order("created_at", { ascending: false });
     if (error) throw new Error("Could not load review flags.");

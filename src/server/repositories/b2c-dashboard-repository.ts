@@ -63,7 +63,7 @@ export type B2cLedgerRow = {
   /** Safe retained duplicate exclusion state; never exposes a group or another payment. */
   hasDuplicateExclusion: boolean;
   openReviewFlags: B2cOpenReviewFlag[];
-  issue: "Possible duplicate" | "Unmapped product" | "Failed" | "Missing customer email" | "Needs follow-up" | "Needs FX review" | "Refunded" | "Tap statement unmatched" | null;
+  issue: "Possible duplicate" | "Failed" | "Missing customer email" | "Needs follow-up" | "Needs FX review" | "Refunded" | "Tap statement unmatched" | null;
   /** Tap statement evidence that has no matching locally imported Tap API payment. Never reportable. */
   tapStatementUnmatched?: boolean;
   /** Safe, read-only Stripe evidence. It never participates in reportability. */
@@ -116,7 +116,6 @@ export type B2cDashboardSnapshot = {
     sourceRefundCount: number;
     eligibleRefundCount: number;
     missingCustomerEmailCount: number;
-    unmappedProductCount: number;
     possibleDuplicateCount: number;
     otherReviewCount: number;
     nonSucceededPaymentCount: number;
@@ -218,7 +217,7 @@ export function resolveB2cContactDisplay(source: Pick<ReturnType<typeof resolveE
 
 export type B2cOpenReviewFlag = {
   id: string;
-  type: B2cLedgerRow["issue"] extends infer Issue ? Exclude<Issue, null> : never;
+  type: Exclude<B2cLedgerRow["issue"], null>;
   reason: string;
 };
 
@@ -249,7 +248,6 @@ function flagLabel(flags: Flag[]): B2cLedgerRow["issue"] {
   const types = new Set(flags.map((flag) => flag.flag_type));
   if (types.has("needs_follow_up") && flags.some((flag) => /missing a valid customer email/i.test(flag.reason))) return "Missing customer email";
   if (types.has("possible_duplicate")) return "Possible duplicate";
-  if (types.has("unmapped_product")) return "Unmapped product";
   if (types.has("failed")) return "Failed";
   if (types.has("needs_follow_up")) return "Needs follow-up";
   if (types.has("refunded")) return "Refunded";
@@ -461,8 +459,10 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     if (!latestFinanceDecisionByPayment.has(decision.payment_id)) latestFinanceDecisionByPayment.set(decision.payment_id, decision);
   }
   const approvedFinanceLedgerPaymentIds = new Set((financeLedgerPostsResult.data ?? []).map((post) => post.payment_id));
+  const liveFlags = [...(paymentFlagsResult.data ?? []), ...(refundFlagsResult.data ?? [])]
+    .filter((flag) => flag.flag_type !== "unmapped_product");
   const flagsByRecord = new Map<string, Flag[]>();
-  for (const flag of [...(paymentFlagsResult.data ?? []), ...(refundFlagsResult.data ?? [])]) {
+  for (const flag of liveFlags) {
     flagsByRecord.set(flag.source_record_id, [...(flagsByRecord.get(flag.source_record_id) ?? []), flag]);
   }
   const paymentById = new Map(payments.map((payment) => [payment.id, payment]));
@@ -500,8 +500,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       isReportable: isReportableB2cPayment({
         paymentStatus: payment.payment_status,
         customerEmail: effective.customerEmail,
-        categoryCode: effective.categoryCode,
-      openFlagTypes: flagTypes,
+        openFlagTypes: flagTypes,
         originalCurrency: payment.original_currency,
         amountUsd: effective.amountUsd,
         hasFinanceException,
@@ -513,7 +512,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       exclusions: b2cPaymentExclusionReasons({
         paymentStatus: payment.payment_status,
         customerEmail: effective.customerEmail,
-        categoryCode: effective.categoryCode,
         openFlagTypes: flagTypes,
         originalCurrency: payment.original_currency,
         amountUsd: effective.amountUsd,
@@ -537,7 +535,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
   let sourceRefundCount = 0;
   let eligibleRefundCount = 0;
   let missingCustomerEmailCount = 0;
-  let unmappedProductCount = 0;
   let possibleDuplicateCount = 0;
   let otherReviewCount = 0;
   let nonSucceededPaymentCount = 0;
@@ -565,7 +562,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     if (effective.amountUsd !== null) excludedCompletedPayments += toScaledUsd(effective.amountUsd);
     excludedCompletedPaymentCount += 1;
     if (reportability.exclusions.includes("missing_customer_email")) missingCustomerEmailCount += 1;
-    if (reportability.exclusions.includes("unmapped_product")) unmappedProductCount += 1;
     if (reportability.exclusions.includes("possible_duplicate")) possibleDuplicateCount += 1;
     if (reportability.exclusions.includes("needs_follow_up") && !reportability.exclusions.includes("missing_customer_email")) otherReviewCount += 1;
   }
@@ -714,13 +710,12 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       sourceRefundCount,
       eligibleRefundCount,
       missingCustomerEmailCount,
-      unmappedProductCount,
       possibleDuplicateCount,
       otherReviewCount,
       nonSucceededPaymentCount,
       financeExceptionPaymentCount,
     },
-    reviewItems: [...flagsByRecord.values()].reduce((sum, flags) => sum + flags.length, 0),
+    reviewItems: liveFlags.length,
     tapStatementUnmatchedCount: tapStatementUnmatchedEvidence.length,
     rows,
   };

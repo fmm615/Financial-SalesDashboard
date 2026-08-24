@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import React from "react";
+import { describe, expect, it, vi } from "vitest";
 import {
   createReviewQueueService,
   createReviewQueueMetrics,
@@ -6,6 +8,15 @@ import {
   toReviewQueueItem,
 } from "@/server/services/review-queue";
 import { reviewQueueListQuerySchema, reviewQueueNoteSchema } from "@/lib/validation/review-queue-contracts";
+import { ReviewQueuePage } from "@/features/review-queue/review-queue-page";
+
+const reviewQueueResponse = {
+  ok: true,
+  json: async () => ({
+    items: [],
+    metrics: { openCount: 0, resolvedThisMonthCount: 0, highPriorityOpenCount: 0 },
+  }),
+};
 
 const b2cDuplicate = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -20,6 +31,14 @@ const b2cDuplicate = {
   resolvedAt: null,
 } as const;
 
+const historicalUnmappedProduct = {
+  ...b2cDuplicate,
+  id: "88888888-8888-4888-8888-888888888888",
+  sourceRecordId: "99999999-9999-4999-8999-999999999999",
+  flagType: "unmapped_product" as const,
+  reason: "Historical product mapping evidence retained for audit.",
+};
+
 describe("Review Queue domain", () => {
   it("accepts only bounded queue filters and meaningful append-only notes", () => {
     expect(reviewQueueListQuerySchema.safeParse({ status: "all", flagType: "failed", priority: "2", query: "  source  " })).toMatchObject({
@@ -27,12 +46,27 @@ describe("Review Queue domain", () => {
       data: { status: "all", flagType: "failed", priority: 2, query: "source" },
     });
     expect(reviewQueueListQuerySchema.safeParse({ priority: "6" }).success).toBe(false);
+    expect(reviewQueueListQuerySchema.safeParse({ flagType: "unmapped_product" }).success).toBe(false);
     expect(reviewQueueNoteSchema.safeParse({ note: "  -  " }).success).toBe(false);
     expect(reviewQueueNoteSchema.safeParse({ note: "Verified source reference with Finance" })).toMatchObject({
       success: true,
       data: { note: "Verified source reference with Finance" },
     });
     expect(reviewQueueNoteSchema.safeParse({ note: "Valid note", status: "resolved" }).success).toBe(false);
+  });
+
+  it("does not offer retired product mapping flags in the live filter", async () => {
+    const fetchMock = vi.fn(async () => reviewQueueResponse);
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      render(React.createElement(ReviewQueuePage));
+
+      expect(await screen.findByRole("option", { name: "Possible duplicate" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "Unmapped product" })).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("sends an open B2C possible duplicate to its corresponding B2C work item", () => {
@@ -102,6 +136,31 @@ describe("Review Queue domain", () => {
     await expect(service.list({ status: "open" })).resolves.toEqual({
       items: [toReviewQueueItem(b2cDuplicate)],
       metrics: { openCount: 1, resolvedThisMonthCount: 0, highPriorityOpenCount: 1 },
+    });
+  });
+
+  it("excludes retained unmapped-product flags from live items and metrics", async () => {
+    const service = createReviewQueueService({
+      listFlags: async () => [historicalUnmappedProduct, b2cDuplicate],
+      getFlagDetail: async () => null,
+    }, () => new Date("2026-08-15T00:00:00.000Z"));
+
+    await expect(service.list({ status: "all" })).resolves.toEqual({
+      items: [toReviewQueueItem(b2cDuplicate)],
+      metrics: { openCount: 1, resolvedThisMonthCount: 0, highPriorityOpenCount: 1 },
+    });
+  });
+
+  it("keeps an exact retained unmapped-product flag readable as review detail", async () => {
+    const service = createReviewQueueService({
+      listFlags: async () => [],
+      getFlagDetail: async () => ({ flag: historicalUnmappedProduct, resolutions: [], notes: [] }),
+    });
+
+    await expect(service.detail(historicalUnmappedProduct.id)).resolves.toEqual({
+      item: toReviewQueueItem(historicalUnmappedProduct),
+      resolutions: [],
+      notes: [],
     });
   });
 });

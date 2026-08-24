@@ -6,7 +6,7 @@ import { POST as addReviewQueueNote } from "@/app/api/review-queue/[flagId]/note
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getApprovedRole } from "@/lib/auth/access";
 
-const mocks = vi.hoisted(() => ({ listFlags: vi.fn() }));
+const mocks = vi.hoisted(() => ({ listFlags: vi.fn(), getFlagDetail: vi.fn() }));
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
 vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn() }));
@@ -16,6 +16,7 @@ vi.mock("@/server/repositories/review-queue-repository", async (importOriginal) 
     ...actual,
     SupabaseReviewQueueRepository: class extends actual.SupabaseReviewQueueRepository {
       listFlags = mocks.listFlags;
+      getFlagDetail = mocks.getFlagDetail;
     },
   };
 });
@@ -65,6 +66,86 @@ describe("Review Queue list API", () => {
       kind: "navigate",
       href: "/operations/b2c?tab=work&record=33333333-3333-4333-8333-333333333333",
       label: "Open B2C work item",
+    });
+  });
+
+  it("excludes retained unmapped-product flags from the live API list and metrics", async () => {
+    const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
+    createServerClientMock.mockResolvedValue(client as never);
+    getApprovedRoleMock.mockResolvedValue("admin");
+    mocks.listFlags.mockResolvedValue([
+      {
+        id: "44444444-4444-4444-8444-444444444444",
+        sourceArea: "b2c_payment",
+        sourceRecordId: "55555555-5555-4555-8555-555555555555",
+        flagType: "unmapped_product",
+        status: "open",
+        priority: 1,
+        reason: "Historical product mapping evidence retained for audit.",
+        assignedTo: null,
+        createdAt: "2026-08-10T09:00:00.000Z",
+        resolvedAt: null,
+      },
+      {
+        id: "66666666-6666-4666-8666-666666666666",
+        sourceArea: "b2c_payment",
+        sourceRecordId: "77777777-7777-4777-8777-777777777777",
+        flagType: "possible_duplicate",
+        status: "open",
+        priority: 2,
+        reason: "Matched source records require an explicit Finance decision.",
+        assignedTo: null,
+        createdAt: "2026-08-10T09:00:00.000Z",
+        resolvedAt: null,
+      },
+    ]);
+
+    const response = await getReviewQueue(new NextRequest("http://localhost/api/review-queue?status=all"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]).toMatchObject({ id: "66666666-6666-4666-8666-666666666666", flagType: "possible_duplicate" });
+    expect(body.metrics).toEqual({ openCount: 1, resolvedThisMonthCount: 0, highPriorityOpenCount: 1 });
+  });
+
+  it("keeps an exact retained unmapped-product flag readable through the detail API", async () => {
+    const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
+    createServerClientMock.mockResolvedValue(client as never);
+    getApprovedRoleMock.mockResolvedValue("admin");
+    mocks.getFlagDetail.mockResolvedValue({
+      flag: {
+        id: "44444444-4444-4444-8444-444444444444",
+        sourceArea: "b2c_payment",
+        sourceRecordId: "55555555-5555-4555-8555-555555555555",
+        flagType: "unmapped_product",
+        status: "resolved",
+        priority: 1,
+        reason: "Historical product mapping evidence retained for audit.",
+        assignedTo: null,
+        createdAt: "2026-08-10T09:00:00.000Z",
+        resolvedAt: "2026-08-11T09:00:00.000Z",
+      },
+      resolutions: [],
+      notes: [],
+    });
+
+    const response = await getReviewQueueDetail(
+      new NextRequest("http://localhost/api/review-queue/44444444-4444-4444-8444-444444444444"),
+      { params: Promise.resolve({ flagId: "44444444-4444-4444-8444-444444444444" }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      item: {
+        item: {
+          flagType: "unmapped_product",
+          flagLabel: "Unmapped product",
+          nextAction: { kind: "navigate", href: "/operations/b2c?tab=work&record=55555555-5555-4555-8555-555555555555" },
+        },
+        resolutions: [],
+        notes: [],
+      },
     });
   });
 

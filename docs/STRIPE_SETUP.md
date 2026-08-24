@@ -14,7 +14,7 @@ STRIPE_PRODUCT_REFERENCE_METADATA_KEY=product_id
 
 Do not add `NEXT_PUBLIC_` to any of these names and never commit `.env.local`.
 
-`STRIPE_PRODUCT_REFERENCE_METADATA_KEY` must be the name of the metadata field on your Stripe Charge that identifies a product. `product_id` is only the default; change it if your Stripe records use a different key. Without an approved product mapping, a payment is stored for traceability but excluded from financial totals.
+`STRIPE_PRODUCT_REFERENCE_METADATA_KEY` must be the name of the metadata field on your Stripe Charge that identifies a product. `product_id` is only the default; change it if your Stripe records use a different key. A provider product reference is retained as source evidence; a missing mapping does not exclude an otherwise-valid payment from financial totals.
 
 ## 2. Run the application locally
 
@@ -45,9 +45,9 @@ Session, and a finalized Invoice snapshot. It may display current Payment Method
 or Customer-profile contact as a clearly labelled fallback, but mutable fallback
 data never makes a payment reportable or changes duplicate matching. A charge
 without a valid transaction email remains flagged **Missing customer email**.
-If the charge has no configured product reference or mapping, it remains
-**Unmapped product**. These records stay excluded until the required review is
-completed.
+The saved Stripe description is the visible product label. Category and tier
+are optional local metadata, so a missing product reference or mapping does
+not create an **Unmapped product** condition or exclude the payment by itself.
 
 The integration also reads the referenced Balance Transaction for Admin-only
 fee and settlement reconciliation. Every Stripe request is HTTP GET. PLAYBOOK
@@ -74,9 +74,24 @@ Subscribe to:
 
 Copy that endpoint's signing secret into the production environment as `STRIPE_WEBHOOK_SECRET`. Do not point a Stripe Dashboard endpoint at `localhost`; Stripe cannot reach it.
 
-## 5. Product mapping and review
+## 5. Provider product metadata and review
 
-Before a payment can count in B2C totals, an Admin must map the provider product reference to an approved category and optional membership tier. Duplicates, failed payments, refunds, and unmapped products remain visible in the B2C ledger and Review Queue for traceability.
+The provider description is retained source evidence and the visible product
+label. Category and membership tier are optional local metadata for Stripe
+payments. `unmapped` remains the internal category used in duplicate
+fingerprints; it is not a reportability gate, Ledger issue, Work-queue item,
+Review Queue item, or drawer action. Duplicates, failed payments, refunds, and
+other active review conditions remain visible for traceability.
+
+Existing product mappings, mapping functions, classifications, and historical
+`unmapped_product` flags are read-only audit history. After merged code is
+deployed, manually run these migrations in order in Supabase SQL Editor:
+
+1. `supabase/migrations/20260824150000_retire_b2c_product_mapping_requirement.sql`
+2. `supabase/migrations/20260824151000_preserve_retired_unmapped_product_flag_history.sql`
+
+Confirm both succeed before relying on this behavior. Do not run `supabase db
+push` for this change.
 
 The daily job should call `/api/internal/reconcile/stripe` with the `Authorization: Bearer <INTEGRATION_CRON_SECRET>` header. It re-reads the last 48 hours, using provider IDs and content fingerprints to avoid double-counting.
 

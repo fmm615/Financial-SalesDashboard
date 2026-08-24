@@ -1,6 +1,6 @@
 begin;
 
-select plan(138);
+select plan(153);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -1809,6 +1809,247 @@ select ok(
    where id = 'b4000000-0000-4000-8000-000000000002'),
   'Tap mapping persists the local classification and a computed fingerprint'
 );
+
+-- Product mappings and their historical classifications remain readable, but
+-- the retired Admin mapping workflow must have no authenticated write path.
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.apply_stripe_product_mapping(text, text, text, text, text, text)',
+    'execute'
+  )
+  and not has_function_privilege(
+    'authenticated',
+    'public.apply_b2c_product_mapping(text, text, text, text, text, text, text)',
+    'execute'
+  ),
+  'authenticated cannot execute either retired product-mapping function'
+);
+
+select ok(
+  not has_table_privilege('authenticated', 'public.product_mappings', 'insert')
+  and not has_table_privilege('authenticated', 'public.product_mappings', 'update'),
+  'authenticated has no product-mapping insert or update privilege'
+);
+
+select ok(
+  not exists (
+    select 1 from pg_policies
+    where schemaname = 'public'
+      and tablename = 'product_mappings'
+      and policyname in ('admin_insert', 'admin_update')
+  ),
+  'retired product-mapping write policies are absent'
+);
+
+set local role authenticated;
+
+select ok(
+  exists (
+    select 1 from public.product_mappings
+    where source_system = 'stripe' and external_product_id = 'price_d14_test'
+  ),
+  'authenticated can still read retained product mappings'
+);
+
+select throws_ok(
+  $$ select public.apply_stripe_product_mapping('price_retired_write', 'retired_monthly', 'Retired Monthly', 'membership', 'monthly', 'Attempted retired mapping write.') $$,
+  '42501', null,
+  'an authenticated Admin cannot call the retired Stripe mapping function'
+);
+
+select throws_ok(
+  $$ select public.apply_b2c_product_mapping('tap', 'tap_retired_write', 'retired_annual', 'Retired Annual', 'membership', 'annual', 'Attempted retired mapping write.') $$,
+  '42501', null,
+  'an authenticated Admin cannot call the retired Tap mapping function'
+);
+
+select throws_ok(
+  $$
+    insert into public.product_mappings (
+      source_system, external_product_id, product_id, category_code, membership_tier, created_by, updated_by
+    ) values (
+      'stripe', 'price_retired_direct_insert',
+      (select id from public.products where internal_code = 'd14_monthly'),
+      'membership', 'monthly', auth.uid(), auth.uid()
+    )
+  $$,
+  '42501', null,
+  'an authenticated Admin cannot directly insert a retained product mapping'
+);
+
+select throws_ok(
+  $$
+    update public.product_mappings
+    set membership_tier = 'retired-update-attempt'
+    where source_system = 'stripe' and external_product_id = 'price_d14_test'
+  $$,
+  '42501', null,
+  'an authenticated Admin cannot directly update a retained product mapping'
+);
+
+reset role;
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('c4000000-0000-4000-8000-000000000001', 'stripe', 'ch_exception_unmapped_missing_email', null, 'unmapped', 'succeeded', 145, 'USD', 1, 145, 145, '2026-09-03 08:00:00+00', '2026-09-03', repeat('6', 64)),
+  ('c4000000-0000-4000-8000-000000000002', 'tap', 'tap_exception_failed_unmapped', null, 'unmapped', 'failed', 146, 'USD', 1, 146, 146, '2026-09-03 09:00:00+00', '2026-09-03', repeat('7', 64));
+
+set local role authenticated;
+
+select lives_ok(
+  $$ select public.include_b2c_payment_with_finance_exception(
+    'c4000000-0000-4000-8000-000000000001',
+    'Provider email is unavailable; Finance verified the retained USD source payment.',
+    true,
+    true
+  ) $$,
+  'an otherwise eligible unmapped USD provider payment can receive a Finance exception'
+);
+
+select ok(
+  exists (
+    select 1
+    from public.b2c_payment_finance_exception_decisions
+    where payment_id = 'c4000000-0000-4000-8000-000000000001'
+      and decision = 'include'
+      and confirmed_provider_transaction
+      and confirmed_no_known_duplicate
+      and created_by = auth.uid()
+  )
+  and exists (
+    select 1
+    from public.financial_corrections
+    where target_area = 'b2c_payment'
+      and target_record_id = 'c4000000-0000-4000-8000-000000000001'
+      and after_value ->> 'finance_exception_decision' = 'include'
+      and after_value ->> 'category_code' = 'unmapped'
+  ),
+  'the unmapped Finance exception retains its append-only decision and correction audit facts'
+);
+
+select lives_ok(
+  $outer$
+    do $block$
+    declare
+      provider_confirmation_rejected boolean := false;
+      duplicate_confirmation_rejected boolean := false;
+    begin
+      begin
+        perform public.include_b2c_payment_with_finance_exception(
+          'c4000000-0000-4000-8000-000000000001',
+          'Provider confirmation remains mandatory for an unmapped exception.',
+          false,
+          true
+        );
+      exception when others then
+        if sqlerrm = 'Confirm the provider transaction and duplicate review before including this payment' then
+          provider_confirmation_rejected := true;
+        else
+          raise;
+        end if;
+      end;
+
+      begin
+        perform public.include_b2c_payment_with_finance_exception(
+          'c4000000-0000-4000-8000-000000000001',
+          'Duplicate confirmation remains mandatory for an unmapped exception.',
+          true,
+          false
+        );
+      exception when others then
+        if sqlerrm = 'Confirm the provider transaction and duplicate review before including this payment' then
+          duplicate_confirmation_rejected := true;
+        else
+          raise;
+        end if;
+      end;
+
+      if not provider_confirmation_rejected or not duplicate_confirmation_rejected then
+        raise exception 'A required Finance exception confirmation was accepted';
+      end if;
+    end;
+    $block$;
+  $outer$,
+  'missing provider or duplicate confirmation still fails closed'
+);
+
+select throws_ok(
+  $$ select public.include_b2c_payment_with_finance_exception(
+    'c4000000-0000-4000-8000-000000000002',
+    'A failed provider payment must remain ineligible for the Finance exception.',
+    true,
+    true
+  ) $$,
+  'P0001',
+  'Only a succeeded provider payment can be included by Finance exception',
+  'a failed provider payment still cannot receive a Finance exception'
+);
+
+reset role;
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values (
+  'c5000000-0000-4000-8000-000000000001', 'stripe', 'ch_retired_unmapped_flag_category_correction',
+  'retired.flag@playbook.test', 'unmapped', 'succeeded', 147, 'USD', 1, 147, 147,
+  '2026-09-04 08:00:00+00', '2026-09-04', repeat('8', 64)
+);
+
+insert into public.review_flags (
+  id, source_area, source_record_id, flag_type, status, priority, reason
+) values (
+  'd5000000-0000-4000-8000-000000000001', 'b2c_payment',
+  'c5000000-0000-4000-8000-000000000001', 'unmapped_product', 'open', 2,
+  'Historical mapping evidence retained after provider category retirement.'
+);
+
+set local role authenticated;
+
+select public.apply_b2c_payment_local_correction(
+  'c5000000-0000-4000-8000-000000000001', null, null, null,
+  'membership', null, null, null,
+  'Admin verified optional local category metadata without changing retired audit history.'
+);
+
+select is(
+  (select status::text from public.review_flags where id = 'd5000000-0000-4000-8000-000000000001'),
+  'open',
+  'an Admin local category correction preserves an open historical unmapped-product flag'
+);
+
+select is(
+  (select count(*)::integer from public.review_flag_resolutions
+   where flag_id = 'd5000000-0000-4000-8000-000000000001'),
+  0,
+  'an Admin local category correction adds no resolution for retired unmapped-product history'
+);
+
+select ok(
+  exists (
+    select 1
+    from public.b2c_payment_local_overrides
+    where payment_id = 'c5000000-0000-4000-8000-000000000001'
+      and category_code = 'membership'
+      and created_by = auth.uid()
+  )
+  and exists (
+    select 1
+    from public.financial_corrections
+    where target_area = 'b2c_payment'
+      and target_record_id = 'c5000000-0000-4000-8000-000000000001'
+      and after_value ->> 'category_code' = 'membership'
+      and reason = 'Admin verified optional local category metadata without changing retired audit history.'
+  ),
+  'the local category override and financial correction audit remain persisted'
+);
+
+reset role;
 
 select * from finish();
 

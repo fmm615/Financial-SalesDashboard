@@ -21,7 +21,6 @@ export type B2cBlockingReason =
   | "missing_business_date"
   | "missing_customer_email"
   | "missing_fx"
-  | "unmapped_category"
   | "possible_duplicate"
   | "duplicate_exclusion"
   | "failed_payment"
@@ -39,7 +38,7 @@ export type B2cBlockingReason =
  * audited exclusion. Statement evidence intentionally never reaches
  * `b2cPaymentExclusionReasons` -- it is compared here, after the gate runs.
  */
-export type B2cPaymentDecisionInput = Pick<B2cPaymentReportabilityInput, "customerEmail" | "categoryCode" | "openFlagTypes" | "originalCurrency" | "amountUsd" | "hasFinanceException" | "isApprovedFinancePayment" | "hasOpenPaymentDuplicate" | "hasDuplicateExclusion" | "hasBlockingNeedsFollowUp"> & {
+export type B2cPaymentDecisionInput = Pick<B2cPaymentReportabilityInput, "customerEmail" | "openFlagTypes" | "originalCurrency" | "amountUsd" | "hasFinanceException" | "isApprovedFinancePayment" | "hasOpenPaymentDuplicate" | "hasDuplicateExclusion" | "hasBlockingNeedsFollowUp"> & {
   sourceSystem: "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker";
   paymentStatus: "succeeded" | "failed" | "pending";
   /** A missing business date is unavailable, never guessed from another field. */
@@ -56,7 +55,6 @@ function toGateInput(input: B2cPaymentDecisionInput): B2cPaymentReportabilityInp
   return {
     paymentStatus: input.paymentStatus,
     customerEmail: input.customerEmail,
-    categoryCode: input.categoryCode,
     openFlagTypes: input.openFlagTypes,
     originalCurrency: input.originalCurrency,
     amountUsd: input.amountUsd,
@@ -75,8 +73,6 @@ function translateGateReason(reason: B2cPaymentExclusionReason, input: B2cPaymen
       return input.paymentStatus === "failed" ? "failed_payment" : "pending_payment";
     case "missing_customer_email":
       return "missing_customer_email";
-    case "unmapped_product":
-      return "unmapped_category";
     case "possible_duplicate":
       return "possible_duplicate";
     case "duplicate_exclusion":
@@ -115,7 +111,6 @@ function explain(reportingDecision: B2cPaymentDecision["reportingDecision"], blo
     missing_business_date: "an unavailable business date",
     missing_customer_email: "a missing customer email",
     missing_fx: "a foreign-currency amount awaiting an approved conversion",
-    unmapped_category: "an unmapped category",
     possible_duplicate: "an unresolved possible duplicate",
     duplicate_exclusion: "an audited duplicate exclusion",
     failed_payment: "a payment that did not succeed",

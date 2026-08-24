@@ -17,7 +17,6 @@ const QUEUE_CHIPS: Array<{ value: B2cWorkQueueFilter; label: string }> = [
 
 const NEXT_ACTION_LABEL: Record<B2cWorkItem["nextAction"], string> = {
   correct: "Correct",
-  map: "Map product",
   convert_fx: "Convert FX",
   choose_payment_duplicate: "Choose duplicate",
   choose_finance_duplicate: "Choose canonical row",

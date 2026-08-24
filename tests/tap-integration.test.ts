@@ -9,6 +9,7 @@ import { processTapWebhook, runTapHistoricalBackfillBatch, runTapReconciliation 
 
 const charge = {
   id: "chg_TS01", status: "CAPTURED", amount: "50.420", currency: "USD", created: "2026-08-04T08:00:00.000Z",
+  description: "Tap Founding Membership",
   customer: { first_name: "Khansa", last_name: "Khatoon", email: "khansa@example.com", phone: { country_code: "973", number: "16825644112" } },
   metadata: { product_id: "tap_price_founding", plan: "Founding Membership" }, reference: { gateway: "gw_1", payment: "p_1" },
 };
@@ -28,7 +29,7 @@ describe("Tap normalisation and signed event processing", () => {
   it("keeps direct Tap fields, uses Bahrain business date, and never guesses a product", () => {
     const payment = normaliseTapCharge(charge, "product_id");
     expect(payment).toMatchObject({ chargeId: "chg_TS01", paymentStatus: "succeeded", customerName: "Khansa Khatoon", customerEmail: "khansa@example.com", customerPhone: "+97316825644112", productReference: "tap_price_founding", originalAmount: "50.42", amountUsd: "50.42", originalCurrency: "USD" });
-    expect(payment.sourceMetadata).toMatchObject({ provider_plan_name: "Founding Membership", tap_gateway_reference: "gw_1" });
+    expect(payment.sourceMetadata).toMatchObject({ description: "Tap Founding Membership", provider_plan_name: "Founding Membership", tap_gateway_reference: "gw_1" });
     expect(payment.occurredOn).toMatch(/^2026-08-04$/);
   });
 

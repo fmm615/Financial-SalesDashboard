@@ -5,7 +5,6 @@ const base: B2cPaymentDecisionInput = {
   sourceSystem: "stripe",
   paymentStatus: "succeeded",
   customerEmail: "member@example.com",
-  categoryCode: "membership",
   occurredOn: "2026-08-01",
   openFlagTypes: new Set<string>(),
   amountUsd: "100",
@@ -13,7 +12,7 @@ const base: B2cPaymentDecisionInput = {
 };
 
 describe("resolveB2cPaymentDecision", () => {
-  it("reports a clean succeeded USD mapped payment", () => {
+  it("reports a clean succeeded USD provider payment", () => {
     const decision = resolveB2cPaymentDecision(base);
     expect(decision).toMatchObject({
       sourceStatus: "succeeded",
@@ -241,14 +240,15 @@ describe("resolveB2cPaymentDecision", () => {
     expect(decision.postingStatus).toBe("not_applicable");
   });
 
-  it("blocks an unmapped category", () => {
-    const decision = resolveB2cPaymentDecision({ ...base, categoryCode: "unmapped" });
-    expect(decision.blockingReasons).toContain("unmapped_category");
-    expect(decision.reportingDecision).toBe("blocked");
+  it("keeps an unmapped provider category reportable", () => {
+    const input = { ...base, categoryCode: "unmapped", openFlagTypes: new Set(["unmapped_product"]) };
+    const decision = resolveB2cPaymentDecision(input);
+    expect(decision.blockingReasons).toEqual([]);
+    expect(decision.reportingDecision).toBe("reportable");
   });
 
-  it("waives the unmapped-category and missing-email rules through an exception, but never a duplicate or failed status", () => {
-    const exception = { ...base, customerEmail: null, categoryCode: "unmapped", hasFinanceException: true };
+  it("waives the missing-email rule through an exception, but never a duplicate or failed status", () => {
+    const exception = { ...base, customerEmail: null, hasFinanceException: true };
     expect(resolveB2cPaymentDecision(exception).reportingDecision).toBe("exception_included");
     expect(resolveB2cPaymentDecision({ ...exception, openFlagTypes: new Set(["possible_duplicate"]) }).reportingDecision).toBe("blocked");
     expect(resolveB2cPaymentDecision({ ...exception, paymentStatus: "failed" }).reportingDecision).toBe("blocked");

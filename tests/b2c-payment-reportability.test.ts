@@ -5,27 +5,46 @@ describe("B2C payment reportability", () => {
   const completePayment = {
     paymentStatus: "succeeded" as const,
     customerEmail: "member@example.com",
-    categoryCode: "membership",
     openFlagTypes: new Set<string>(),
   };
 
-  it("counts only a completed, categorised, non-reviewable source payment", () => {
+  it("counts a completed, non-reviewable source payment regardless of category metadata", () => {
     expect(isReportableB2cPayment(completePayment)).toBe(true);
     expect(b2cPaymentExclusionReasons(completePayment)).toEqual([]);
   });
 
-  it("keeps a source payment out of totals for every approved exclusion reason", () => {
-    expect(b2cPaymentExclusionReasons({ ...completePayment, customerEmail: null, categoryCode: "unmapped", openFlagTypes: new Set(["possible_duplicate", "needs_follow_up"]) })).toEqual([
-      "missing_customer_email", "unmapped_product", "possible_duplicate", "needs_follow_up",
-    ]);
-    expect(isReportableB2cPayment({ ...completePayment, paymentStatus: "failed" })).toBe(false);
+  it("does not block a provider payment on optional category metadata", () => {
+    const input = {
+      paymentStatus: "succeeded" as const,
+      customerEmail: "member@example.com",
+      categoryCode: "unmapped",
+      openFlagTypes: new Set(["unmapped_product"]),
+      originalCurrency: "USD",
+      amountUsd: "120.000000",
+    };
+
+    expect(b2cPaymentExclusionReasons(input)).toEqual([]);
+    expect(isReportableB2cPayment(input)).toBe(true);
+  });
+
+  it.each([
+    ["missing email", { customerEmail: null }, ["missing_customer_email"]],
+    ["failed status", { paymentStatus: "failed" as const }, ["not_succeeded"]],
+    ["pending status", { paymentStatus: "pending" as const }, ["not_succeeded"]],
+    ["missing FX", { originalCurrency: "BHD", amountUsd: null }, ["needs_fx_review"]],
+    ["possible duplicate", { openFlagTypes: new Set(["possible_duplicate"]) }, ["possible_duplicate"]],
+    ["duplicate exclusion", { hasDuplicateExclusion: true }, ["duplicate_exclusion"]],
+    ["blocking follow-up", { hasBlockingNeedsFollowUp: true }, ["needs_follow_up"]],
+  ] as const)("keeps a source payment out of totals for %s", (_caseName, overrides, expectedReasons) => {
+    const input = { ...completePayment, ...overrides };
+    expect(b2cPaymentExclusionReasons(input)).toEqual(expectedReasons);
+    expect(isReportableB2cPayment(input)).toBe(false);
   });
 
   it("allows only the documented missing-data exception while preserving duplicate and failed blocks", () => {
     const approvedException = {
       ...completePayment,
       customerEmail: null,
-      categoryCode: "membership",
       openFlagTypes: new Set(["needs_follow_up", "unmapped_product"]),
       hasFinanceException: true,
       hasBlockingNeedsFollowUp: false,
