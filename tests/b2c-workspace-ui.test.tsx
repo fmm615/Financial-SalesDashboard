@@ -342,6 +342,79 @@ describe("Work queue", () => {
 });
 
 describe("Ledger", () => {
+  it("asks the server to apply a Source filter and renders the returned ledger page unchanged", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    const workspaceUrls: string[] = [];
+    const serverReturnedRow: B2cSafeLedgerRow = {
+      ...ledgerRow,
+      id: "payment-returned-by-server",
+      customerName: "Server returned this row",
+      customerEmail: "returned@example.com",
+      source: "Tap",
+      sourceSystem: "tap",
+      providerReference: "tap_returned",
+    };
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (!url.includes("/api/b2c/workspace")) return { ok: false, json: async () => ({ error: "unexpected" }) };
+      workspaceUrls.push(url);
+      const source = new URL(url, "https://playbook.test").searchParams.get("source");
+      const rows = source === "stripe" ? [serverReturnedRow] : [ledgerRow];
+      return { ok: true, json: async () => ({ role: "admin", ledger: { rows, nextCursor: source ? null : "100", hasMore: !source, totalCount: source ? 211 : rows.length }, workItems }) };
+    }));
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "Stripe" } });
+
+    await waitFor(() => expect(workspaceUrls.some((url) => {
+      const params = new URL(url, "https://playbook.test").searchParams;
+      return params.get("source") === "stripe" && params.get("cursor") === null;
+    })).toBe(true));
+    expect((await screen.findAllByText("Server returned this row")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Maya Al Khalifa")).not.toBeInTheDocument();
+    expect(screen.getByText("Showing 1 of 211 records")).toBeInTheDocument();
+  });
+
+  it("sends every remaining Ledger filter to the server", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    const foreignCurrencyRow: B2cSafeLedgerRow = {
+      ...ledgerRow,
+      sourceOriginalCurrency: "BHD",
+      foreignCurrencyReview: true,
+    };
+    stubFetch({ role: "admin", ledgerRows: [foreignCurrencyRow] });
+    const fetchMock = vi.mocked(global.fetch);
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={{ ...snapshot, period: { ...snapshot.period, month: "all", monthLabel: "All time", isAllTime: true }, tapStatementUnmatchedCount: 1 }} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    const expectQuery = async (key: string, value: string) => {
+      await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => new URL(String(input), "https://playbook.test").searchParams.get(key) === value)).toBe(true));
+    };
+
+    fireEvent.change(screen.getByPlaceholderText("Name, email, mobile, or ID"), { target: { value: "Maya" } });
+    await expectQuery("search", "Maya");
+    fireEvent.change(screen.getByLabelText("Payment status"), { target: { value: "Refunded" } });
+    await expectQuery("paymentStatus", "Refunded");
+    fireEvent.change(screen.getByLabelText("Issue"), { target: { value: "none" } });
+    await expectQuery("issue", "none");
+    fireEvent.click(screen.getByText("More filters"));
+    fireEvent.change(screen.getByLabelText("Date from"), { target: { value: "2026-08-01" } });
+    await expectQuery("dateFrom", "2026-08-01");
+    fireEvent.change(screen.getByLabelText("Date to"), { target: { value: "2026-08-31" } });
+    await expectQuery("dateTo", "2026-08-31");
+    fireEvent.change(screen.getByLabelText("Minimum USD"), { target: { value: "10" } });
+    await expectQuery("minAmountUsd", "10");
+    fireEvent.change(screen.getByLabelText("Maximum USD"), { target: { value: "100" } });
+    await expectQuery("maxAmountUsd", "100");
+    fireEvent.change(screen.getByLabelText("PLAYBOOK category"), { target: { value: "membership" } });
+    await expectQuery("category", "membership");
+    fireEvent.click(screen.getByRole("button", { name: "Needs FX review (1)" }));
+    await expectQuery("foreignCurrencyOnly", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Tap statement unmatched (1)" }));
+    await expectQuery("issue", "Tap statement unmatched");
+  });
+
   it("shows customer, email, mobile, date, amount, source, description, status, and one Review action", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
     stubFetch({ role: "admin" });

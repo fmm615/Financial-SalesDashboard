@@ -18,10 +18,13 @@ afterEach(() => vi.unstubAllGlobals());
 
 /** The Ledger tab loads its rows from `/api/b2c/workspace`; the header totals still come from the snapshot prop. */
 function stubWorkspaceFetch(rows: B2cLedgerRow[]) {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-    ok: true,
-    json: async () => ({ role: "admin", ledger: { rows, nextCursor: null, hasMore: false, totalCount: rows.length }, workItems: null }),
-  }));
+  const fetchMock = vi.fn(async (input: string | URL) => {
+    const issue = new URL(String(input), "https://playbook.test").searchParams.get("issue");
+    const filteredRows = issue === "Tap statement unmatched" ? rows.filter((row) => row.issue === issue) : rows;
+    return { ok: true, json: async () => ({ role: "admin", ledger: { rows: filteredRows, nextCursor: null, hasMore: false, totalCount: filteredRows.length }, workItems: null }) };
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 describe("Tap statement unmatched ledger review", () => {
@@ -108,7 +111,7 @@ describe("Tap statement unmatched ledger review", () => {
         },
       ],
     } as unknown as B2cDashboardSnapshot;
-    stubWorkspaceFetch(snapshot.rows);
+    const fetchMock = stubWorkspaceFetch(snapshot.rows);
 
     render(<B2cOperations snapshot={snapshot} />);
 
@@ -120,5 +123,6 @@ describe("Tap statement unmatched ledger review", () => {
     expect(await within(table).findByText("18.00 BHD")).toBeInTheDocument();
     expect(within(table).getByText("Not matched to Tap API")).toBeInTheDocument();
     expect(within(table).queryByText("Normal payment")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => new URL(String(input), "https://playbook.test").searchParams.get("issue") === "Tap statement unmatched")).toBe(true);
   });
 });

@@ -15,8 +15,13 @@ export type B2cLedgerQuery = {
   period?: string;
   source?: B2cLedgerRow["sourceSystem"];
   sourceStatus?: "succeeded" | "failed" | "pending";
+  paymentStatus?: B2cLedgerRow["paymentStatus"];
   reportingDecision?: B2cPaymentDecision["reportingDecision"];
-  issue?: NonNullable<B2cLedgerRow["issue"]>;
+  issue?: NonNullable<B2cLedgerRow["issue"]> | "none";
+  dateFrom?: string;
+  dateTo?: string;
+  category?: string;
+  foreignCurrencyOnly?: boolean;
   currency?: string;
   minAmountUsd?: string;
   maxAmountUsd?: string;
@@ -78,15 +83,21 @@ export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2c
 function matchesQuery(row: B2cDecoratedLedgerRow, query: B2cLedgerQuery): boolean {
   if (query.source && row.sourceSystem !== query.source) return false;
   if (query.sourceStatus && row.decision.sourceStatus !== query.sourceStatus) return false;
+  if (query.paymentStatus && row.paymentStatus !== query.paymentStatus) return false;
   if (query.reportingDecision && row.decision.reportingDecision !== query.reportingDecision) return false;
-  if (query.issue && row.issue !== query.issue) return false;
+  if (query.issue === "none" ? row.issue !== null : query.issue && row.issue !== query.issue) return false;
+  if (query.dateFrom && row.dateValue < query.dateFrom) return false;
+  if (query.dateTo && row.dateValue > query.dateTo) return false;
+  if (query.category && row.category !== query.category) return false;
+  if (query.foreignCurrencyOnly && !row.foreignCurrencyReview) return false;
   if (query.currency && (row.sourceOriginalCurrency ?? "USD") !== query.currency) return false;
-  if (query.minAmountUsd && (row.amountValueUsd === null || Number(row.amountValueUsd) < Number(query.minAmountUsd))) return false;
-  if (query.maxAmountUsd && (row.amountValueUsd === null || Number(row.amountValueUsd) > Number(query.maxAmountUsd))) return false;
+  const absoluteAmountUsd = row.amountValueUsd === null ? null : Math.abs(Number(row.amountValueUsd));
+  if (query.minAmountUsd && (absoluteAmountUsd === null || absoluteAmountUsd < Number(query.minAmountUsd))) return false;
+  if (query.maxAmountUsd && (absoluteAmountUsd === null || absoluteAmountUsd > Number(query.maxAmountUsd))) return false;
   if (query.search) {
     const needle = query.search.trim().toLowerCase();
     if (!needle) return true;
-    const haystack = [row.customerName, row.customerEmail, row.providerReference, row.category].filter(Boolean).join(" ").toLowerCase();
+    const haystack = [row.customerName, row.customerEmail, row.customerPhone, row.providerReference].filter(Boolean).join(" ").toLowerCase();
     if (!haystack.includes(needle)) return false;
   }
   return true;

@@ -33,29 +33,18 @@ function formatCoverageTimestamp(value: string | null): string | null {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bahrain" }).format(new Date(value));
 }
 
-function filterRows(rows: B2cSafeLedgerRow[], filters: B2cLedgerFiltersState): B2cSafeLedgerRow[] {
-  const search = filters.search.trim().toLowerCase();
-  const minimum = filters.minAmount === "" ? null : Number(filters.minAmount);
-  const maximum = filters.maxAmount === "" ? null : Number(filters.maxAmount);
+function sourceQueryValue(source: string): "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker" | null {
+  if (source === "Stripe") return "stripe";
+  if (source === "Tap") return "tap";
+  if (source === "Manual bank transfer") return "manual_bank_transfer";
+  return source.startsWith("Finance") ? "finance_tracker" : null;
+}
 
-  return rows.filter((row) => {
-    const searchable = [row.customerName, row.customerEmail, row.customerPhone, row.providerReference].filter(Boolean).join(" ").toLowerCase();
-    const absoluteAmount = row.amountValueUsd === null ? null : Math.abs(Number(row.amountValueUsd));
-
-    return (
-      (!search || searchable.includes(search)) &&
-      (!filters.dateFrom || row.dateValue >= filters.dateFrom) &&
-      (!filters.dateTo || row.dateValue <= filters.dateTo) &&
-      (minimum === null || (absoluteAmount !== null && absoluteAmount >= minimum)) &&
-      (maximum === null || (absoluteAmount !== null && absoluteAmount <= maximum)) &&
-      (filters.status === "all" || row.paymentStatus === filters.status) &&
-      (filters.source === "all" || row.source === filters.source) &&
-      (filters.category === "all" || row.category === filters.category) &&
-      (!filters.foreignCurrencyOnly || row.foreignCurrencyReview) &&
-      (!filters.tapStatementUnmatchedOnly || row.tapStatementUnmatched === true) &&
-      (filters.issue === "all" || filters.issue === "none" ? filters.issue !== "none" || row.issue === null : row.issue === filters.issue)
-    );
-  });
+function sourceStatusQueryValue(status: string): "succeeded" | "failed" | "pending" | null {
+  if (status === "Completed") return "succeeded";
+  if (status === "Failed") return "failed";
+  if (status === "Pending") return "pending";
+  return null;
 }
 
 function TabBar({ active, onSelect, showWork }: { active: WorkspaceTab; onSelect: (tab: WorkspaceTab) => void; showWork: boolean }) {
@@ -115,6 +104,7 @@ export function B2cWorkspace({
   }
 
   const [ledgerRows, setLedgerRows] = useState<B2cSafeLedgerRow[]>([]);
+  const [ledgerTotalCount, setLedgerTotalCount] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [workItems, setWorkItems] = useState<B2cWorkspaceOverview | null>(null);
@@ -131,17 +121,35 @@ export function B2cWorkspace({
     const params = new URLSearchParams({ limit: "100" });
     if (period) params.set("period", period);
     if (cursor) params.set("cursor", cursor);
+    const search = filters.search.trim();
+    const source = sourceQueryValue(filters.source);
+    const sourceStatus = sourceStatusQueryValue(filters.status);
+    const issue = filters.tapStatementUnmatchedOnly
+      ? "Tap statement unmatched"
+      : filters.issue !== "all" ? filters.issue : null;
+    if (search) params.set("search", search);
+    if (source) params.set("source", source);
+    if (sourceStatus) params.set("sourceStatus", sourceStatus);
+    if (filters.status !== "all") params.set("paymentStatus", filters.status);
+    if (issue) params.set("issue", issue);
+    if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+    if (filters.dateTo) params.set("dateTo", filters.dateTo);
+    if (filters.category !== "all") params.set("category", filters.category);
+    if (filters.foreignCurrencyOnly) params.set("foreignCurrencyOnly", "true");
+    if (filters.minAmount) params.set("minAmountUsd", filters.minAmount);
+    if (filters.maxAmount) params.set("maxAmountUsd", filters.maxAmount);
     const response = await fetch(`/api/b2c/workspace?${params.toString()}`, { cache: "no-store" });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok || !payload || typeof payload !== "object" || !("ledger" in payload)) throw new Error("Workspace data unavailable");
     return payload as WorkspaceLedgerResponse;
-  }, [period]);
+  }, [filters, period]);
 
   const reload = useCallback(async () => {
     setLedgerLoadError(false);
     try {
       const page = await loadLedgerPage(null);
       setLedgerRows(page.ledger.rows);
+      setLedgerTotalCount(page.ledger.totalCount);
       setNextCursor(page.ledger.nextCursor);
       setHasMore(page.ledger.hasMore);
       setWorkItems(page.workItems);
@@ -158,6 +166,7 @@ export function B2cWorkspace({
     try {
       const page = await loadLedgerPage(nextCursor);
       setLedgerRows((current) => [...current, ...page.ledger.rows]);
+      setLedgerTotalCount(page.ledger.totalCount);
       setNextCursor(page.ledger.nextCursor);
       setHasMore(page.ledger.hasMore);
     } catch {
@@ -167,7 +176,13 @@ export function B2cWorkspace({
     }
   }
 
-  const visibleRows = useMemo(() => filterRows(ledgerRows, filters), [ledgerRows, filters]);
+  function handleFiltersChange(nextFilters: B2cLedgerFiltersState) {
+    setNextCursor(null);
+    setHasMore(false);
+    setFilters(nextFilters);
+  }
+
+  const visibleRows = ledgerRows;
   const sources = useMemo(() => [...new Set(ledgerRows.map((row) => row.source))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
   const categories = useMemo(() => [...new Set(ledgerRows.map((row) => row.category))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
   const issues = useMemo(() => [...new Set(ledgerRows.flatMap((row) => (row.issue ? [row.issue] : [])))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
@@ -178,11 +193,11 @@ export function B2cWorkspace({
 
   function toggleTapStatementUnmatchedOnly() {
     if (snapshot && !snapshot.period.isAllTime) {
-      setFilters({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: true });
+      handleFiltersChange({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: true });
       setQuery({ period: "all", tab: "ledger" });
       return;
     }
-    setFilters((current) => ({ ...current, tapStatementUnmatchedOnly: !current.tapStatementUnmatchedOnly }));
+    handleFiltersChange({ ...filters, tapStatementUnmatchedOnly: !filters.tapStatementUnmatchedOnly });
   }
 
   // A record deep-linked from the Work queue or Review Queue opens the same shared drawer.
@@ -309,7 +324,7 @@ export function B2cWorkspace({
         : <EmptyState title="Loading the Work queue" description="Preparing prioritized B2C records." />)}
 
       {activeTab === "ledger" && <SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
-        <B2cLedgerFilters filters={filters} onChange={setFilters} onTapStatementUnmatchedToggle={toggleTapStatementUnmatchedOnly} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={ledgerRows.length} foreignCurrencyCount={foreignCurrencyCount} tapStatementUnmatchedCount={tapStatementUnmatchedCount} />
+        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} onTapStatementUnmatchedToggle={toggleTapStatementUnmatchedOnly} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} tapStatementUnmatchedCount={tapStatementUnmatchedCount} />
         {visibleRows.length === 0 ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." /> : <B2cLedgerTable rows={visibleRows} onReview={openRow} />}
         {hasMore && <div className="mt-4 text-center"><button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="min-h-11 rounded-pill border border-border px-5 text-sm font-medium text-brand-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60">{loadingMore ? "Loading…" : "Load more"}</button></div>}
 

@@ -116,6 +116,24 @@ describe("GET /api/b2c/workspace", () => {
     expect(mocks.page).toHaveBeenCalledWith({ source: "stripe", sort: "amount_desc" });
   });
 
+  it("accepts every exposed ledger filter before it loads the server-filtered page", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.getApprovedRole.mockResolvedValue("viewer");
+    mocks.page.mockResolvedValue(ledgerPage);
+
+    const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?dateFrom=2026-08-01&dateTo=2026-08-31&category=membership&foreignCurrencyOnly=true&issue=none&paymentStatus=Refunded"));
+
+    expect(response.status).toBe(200);
+    expect(mocks.page).toHaveBeenCalledWith({
+      dateFrom: "2026-08-01",
+      dateTo: "2026-08-31",
+      category: "membership",
+      foreignCurrencyOnly: true,
+      issue: "none",
+      paymentStatus: "Refunded",
+    });
+  });
+
   it("returns a safe error without leaking a raw repository failure", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
     mocks.getApprovedRole.mockResolvedValue("admin");
