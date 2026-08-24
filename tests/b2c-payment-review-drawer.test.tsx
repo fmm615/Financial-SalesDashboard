@@ -114,13 +114,51 @@ describe("B2C payment review drawer", () => {
       isForeignCurrency: true,
       foreignCurrencyReview: false,
       hasFxConversion: true,
-      openReviewFlags: [{ id: "flag-1", type: "Unmapped product", reason: "Stripe did not provide a mapped product." }],
+      openReviewFlags: [],
       decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_fx"], explanation: "Blocked by a foreign-currency amount awaiting an approved conversion." },
     });
     renderDrawer({ kind: "row", row });
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getByText(/Finance USD conversion/)).toBeInTheDocument();
+  });
+
+  it("keeps an unmapped provider payment reviewable without offering a reusable mapping", async () => {
+    const fetchMock = stubFetchByUrl([["/evidence", () => ({ ok: true, json: async () => ({
+      paymentId: "payment-1", source: "Stripe", sourceSystem: "stripe", providerReference: "ch_123", date: "Aug 9, 2026",
+      stripeEvidence: {
+        originalCurrency: "USD", originalAmount: "100.00", amountRefunded: "0", description: "Founding Membership", sellerMessage: null, cardholderName: null,
+        settlementGrossAmount: null, settlementCurrency: null, settlementExchangeRate: null, settlementFeeAmount: null, settlementFeeTaxAmount: null, settlementNetAmount: null, refunds: [],
+      },
+    }) })]]);
+    const row = baseRow({
+      customerEmail: null,
+      category: "Unmapped",
+      sourceDescription: "Founding Membership",
+      openReviewFlags: [
+        { id: "missing-email", type: "Missing customer email", reason: "Stripe did not provide a customer email." },
+        { id: "unmapped", type: "Unmapped product" as never, reason: "The retained mapping flag is historical evidence." },
+      ],
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_customer_email"], explanation: "Blocked by a missing customer email." },
+    });
+    renderDrawer({ kind: "row", row });
+    const dialog = screen.getByRole("dialog");
+
+    await screen.findByText("Founding Membership");
+    expect(within(dialog).getByLabelText(/PLAYBOOK reporting category/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Count in Finance despite missing source details")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Create reusable product mapping")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Internal product code")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Save local product mapping" })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("approved product mapping")).not.toBeInTheDocument();
+
+    const includeButton = within(dialog).getByRole("button", { name: "Include in PLAYBOOK Finance" });
+    expect(includeButton).toBeDisabled();
+    fireEvent.click(within(dialog).getByLabelText(/exact provider payment ID/i));
+    fireEvent.click(within(dialog).getByLabelText(/found no known duplicate/i));
+    fireEvent.change(within(dialog).getAllByLabelText(/Reason \/ evidence/)[1], { target: { value: "Finance verified the missing email cannot be recovered." } });
+    expect(includeButton).toBeEnabled();
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/admin/b2c/products/map", expect.anything());
   });
 
   it("preserves the draft and shows an error when a save fails, without closing the drawer", async () => {

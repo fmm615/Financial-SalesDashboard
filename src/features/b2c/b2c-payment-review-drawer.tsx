@@ -38,7 +38,7 @@ const fieldClass = "block min-w-0 text-sm font-medium text-text-secondary";
  * Everything else available renders under "More actions".
  */
 type DrawerPrimaryAction =
-  | "correct" | "map" | "convert_fx" | "review_exception"
+  | "correct" | "convert_fx" | "review_exception"
   | "choose_payment_duplicate" | "compare" | "review_import_version"
   | "posted_adjustment" | "retry_source" | "post"
   | null;
@@ -171,7 +171,7 @@ function ActionSlot({ row, primary, onSaved, onPaymentDuplicateSaved }: { row: B
   if (primary === "review_import_version") return <p className="text-sm leading-6 text-text-muted">This Payment Tracker row needs an explicit new/revision/existing-payment decision. Payment Tracker import history is reviewed from Sources.</p>;
   if (primary === "retry_source") return <p className="text-sm leading-6 text-text-muted">Retry the failed provider sync from Sources.</p>;
   if (primary === "post") return <p className="text-sm leading-6 text-text-muted">Post approved Finance payments from the Work queue&rsquo;s Ready-to-post action.</p>;
-  const financeDecisionPrimary = primary === "map" || primary === "convert_fx" || primary === "review_exception" ? primary : null;
+  const financeDecisionPrimary = primary === "convert_fx" || primary === "review_exception" ? primary : null;
   return <B2cPaymentFinanceDecisionFragment row={row} primary={financeDecisionPrimary} onSaved={onSaved} />;
 }
 
@@ -188,7 +188,7 @@ function ViewerReadOnlyNote() {
 
 /**
  * The one shared record drawer. Work queue and Ledger both open this same
- * shell. Every correction, mapping, FX conversion, Finance exception, refund
+ * shell. Every correction, FX conversion, Finance exception, refund
  * FX, duplicate decision, and posted-adjustment action lives here, converted
  * to dialog-free fragments this drawer owns directly -- there is no separate
  * evidence dialog, edit modal, or refund-FX modal at the row level.

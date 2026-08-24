@@ -217,8 +217,7 @@ export function resolveB2cContactDisplay(source: Pick<ReturnType<typeof resolveE
 
 export type B2cOpenReviewFlag = {
   id: string;
-  // Task 4 removes the legacy member together with the last mapping-only drawer path.
-  type: Exclude<B2cLedgerRow["issue"], null> | "Unmapped product";
+  type: Exclude<B2cLedgerRow["issue"], null>;
   reason: string;
 };
 
