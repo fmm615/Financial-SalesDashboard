@@ -95,6 +95,7 @@ function countDuplicateCandidates(assessment: FinanceImportAssessment): PaymentT
 function buildReplacementRows(assessment: FinanceImportAssessment, rowIds: string[]): FinanceImportVersionReplacementRow[] {
   return assessment.rows.map((row, index) => ({
     financeRowId: rowIds[index],
+    sourceTab: row.sourceTab,
     sourceIdentity: row.normalizedCustomerName && row.occurredOn && row.amountUsd && row.normalizedPaymentMethod
       ? createFinanceSourceIdentity({
         normalizedCustomerName: row.normalizedCustomerName,

@@ -1,16 +1,20 @@
 import { normalizeApprovedFinancePaymentMethod } from "@/lib/b2c/approved-finance-payment";
 
+export type FinanceImportSourceTab = "B2C" | "B2C Cons";
+
 /** A prior import's staging row, already linked to a stable lineage. */
 export type FinanceImportVersionPreviousRow = {
   financeRowId: string;
   sourceIdentity: string;
   lineageId: string;
+  sourceTab: FinanceImportSourceTab;
 };
 
 /** A replacement workbook's staging row. `sourceIdentity` is null when the row is too incomplete to identify (still staged for audit, never diffed). */
 export type FinanceImportVersionReplacementRow = {
   financeRowId: string;
   sourceIdentity: string | null;
+  sourceTab: FinanceImportSourceTab;
 };
 
 /** A payment already representing this identity outside the Payment Tracker workbook, e.g. a manual bank transfer. */
@@ -90,6 +94,24 @@ export function previewFinanceImportVersion(input: FinanceImportVersionInput): F
   for (const [identity, rows] of replacementByIdentity) {
     const priorRows = previousByIdentity.get(identity) ?? [];
     const representedPayment = representedByIdentity.get(identity) ?? null;
+
+    const isApprovedCrossTabPair =
+      rows.length === 2 &&
+      priorRows.length === 0 &&
+      !representedPayment &&
+      new Set(rows.map((row) => row.sourceTab)).size === 2;
+
+    if (isApprovedCrossTabPair) {
+      newCandidates.push({
+        candidateId: nextCandidateId("new", identity),
+        financeRowIds: rows.map((row) => row.financeRowId),
+        sourceIdentity: identity,
+        priorLineageIds: [],
+        priorPaymentIds: [],
+        reason: "One approved B2C and B2C Cons row describe the same payment.",
+      });
+      continue;
+    }
 
     if (rows.length > 1 || priorRows.length > 1) {
       for (const row of rows) {

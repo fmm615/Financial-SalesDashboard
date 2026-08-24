@@ -7,6 +7,7 @@ import { PrimaryButton, StatusBadge } from "@/components/ui";
 import { useCanManage } from "@/lib/auth/role-context";
 import type { B2cBlockingReason } from "@/lib/b2c/payment-decision";
 import type { B2cWorkItem } from "@/server/services/b2c-work-items";
+import type { B2cPendingCandidateRecord } from "@/server/services/b2c-work-items";
 import type { B2cPostedFinanceAdjustmentContext } from "@/server/services/adjust-b2c-finance-payment";
 import type { PostedFinanceAdjustmentRequest } from "@/lib/validation/b2c-posted-adjustment-contracts";
 import { B2cPaymentFinanceDecisionFragment, B2cPaymentLocalValuesFragment, type B2cReviewRow } from "@/features/b2c/b2c-payment-review-actions";
@@ -14,10 +15,18 @@ import { B2cRefundFxReviewActions } from "@/features/b2c/b2c-refund-fx-review-ac
 import { B2cSourceEvidencePanel } from "@/features/b2c/b2c-source-evidence-panel";
 import { B2cAuditTimeline } from "@/features/b2c/b2c-audit-timeline";
 import { B2cExactDuplicateReview } from "@/features/b2c/b2c-exact-duplicate-review";
+import { B2cPaymentDuplicateReview } from "@/features/b2c/b2c-payment-duplicate-review";
+import { B2cImportVersionDecision } from "@/features/b2c/b2c-import-version-decision";
+import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
+import { B2cStagingDateAuthority } from "@/features/b2c/b2c-staging-date-authority";
+import type { B2cStagingDateAuthorityRecord } from "@/server/repositories/b2c-workspace-repository";
 
 export type B2cPaymentReviewDrawerTarget =
   | { kind: "row"; row: B2cReviewRow }
-  | { kind: "workItem"; item: B2cWorkItem };
+  | { kind: "workItem"; item: B2cWorkItem }
+  | { kind: "candidate"; candidate: B2cPendingCandidateRecord }
+  | { kind: "financeDuplicate"; group: AdminExactDuplicateGroup }
+  | { kind: "stagingDateAuthority"; row: B2cStagingDateAuthorityRecord };
 
 const inputClass = "mt-1 block h-10 w-full min-w-0 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
 const textareaClass = "mt-1 block min-h-24 w-full min-w-0 resize-y rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent";
@@ -30,7 +39,7 @@ const fieldClass = "block min-w-0 text-sm font-medium text-text-secondary";
  */
 type DrawerPrimaryAction =
   | "correct" | "map" | "convert_fx" | "review_exception"
-  | "choose_duplicate" | "compare" | "review_import_version"
+  | "choose_payment_duplicate" | "compare" | "review_import_version"
   | "posted_adjustment" | "retry_source" | "post"
   | null;
 
@@ -43,7 +52,7 @@ const REASON_TO_ACTION: Partial<Record<B2cBlockingReason, DrawerPrimaryAction>> 
   other_open_review: "correct",
   unmapped_category: "map",
   missing_fx: "convert_fx",
-  possible_duplicate: "choose_duplicate",
+  possible_duplicate: "choose_payment_duplicate",
   unmatched_evidence: "compare",
   ambiguous_finance_lineage: "review_import_version",
 };
@@ -151,17 +160,14 @@ function B2cPostedFinanceAdjustmentFragment({ paymentId, onSaved }: { paymentId:
 }
 
 /** Picks and renders the one Finance-decision action a Payment or Refund row currently needs. */
-function ActionSlot({ row, primary, onSaved }: { row: B2cReviewRow; primary: DrawerPrimaryAction; onSaved: () => void }) {
+function ActionSlot({ row, primary, onSaved, onPaymentDuplicateSaved }: { row: B2cReviewRow; primary: DrawerPrimaryAction; onSaved: () => void; onPaymentDuplicateSaved: (resolvedPaymentIds: string[]) => void }) {
   if (row.recordType === "Refund") {
     if (!row.isForeignCurrency) return <p className="text-sm text-text-muted">This refund needs no further Finance decision.</p>;
     return <B2cRefundFxReviewActions row={row} onSaved={onSaved} />;
   }
   if (row.recordType !== "Payment") return <p className="text-sm text-text-muted">This is retained statement evidence only; it has no local action.</p>;
   if (primary === "posted_adjustment") return <B2cPostedFinanceAdjustmentFragment paymentId={row.id} onSaved={onSaved} />;
-  // The pending Finance Tracker duplicate-decision review already renders
-  // dialog-free and writes only through the existing per-group decision
-  // route; the drawer reuses it directly rather than duplicating it.
-  if (primary === "choose_duplicate") return <B2cExactDuplicateReview onGroupsChanged={async () => onSaved()} />;
+  if (primary === "choose_payment_duplicate") return <B2cPaymentDuplicateReview paymentId={row.id} onSaved={onPaymentDuplicateSaved} />;
   if (primary === "compare") return <p className="text-sm leading-6 text-text-muted">Retained provider evidence does not match this record. Provider sync, backfill, and import history are reviewed from Sources.</p>;
   if (primary === "review_import_version") return <p className="text-sm leading-6 text-text-muted">This Payment Tracker row needs an explicit new/revision/existing-payment decision. Payment Tracker import history is reviewed from Sources.</p>;
   if (primary === "retry_source") return <p className="text-sm leading-6 text-text-muted">Retry the failed provider sync from Sources.</p>;
@@ -188,7 +194,14 @@ function ViewerReadOnlyNote() {
  * to dialog-free fragments this drawer owns directly -- there is no separate
  * evidence dialog, edit modal, or refund-FX modal at the row level.
  */
-export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPaymentReviewDrawerTarget | null; onClose: () => void }) {
+export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved, onPaymentDuplicateResolved, onFinanceDuplicateResolved, onStagingDateAuthorityResolved }: {
+  target: B2cPaymentReviewDrawerTarget | null;
+  onClose: () => void;
+  onCandidateResolved?: (candidateId: string) => void;
+  onPaymentDuplicateResolved?: (resolvedPaymentIds: string[]) => void;
+  onFinanceDuplicateResolved?: (groupId: string) => void;
+  onStagingDateAuthorityResolved?: (financeRowId: string) => void;
+}) {
   const canManage = useCanManage();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -205,15 +218,24 @@ export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPayment
       previouslyFocused?.focus();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target ? (target.kind === "row" ? target.row.id : target.item.id) : null]);
+  }, [target ? (target.kind === "row" ? target.row.id : target.kind === "candidate" ? target.candidate.candidateId : target.kind === "financeDuplicate" ? target.group.groupId : target.kind === "stagingDateAuthority" ? target.row.financeRowId : target.item.id) : null]);
 
   if (!target) return null;
 
-  const title = target.kind === "row" ? (target.row.customerName ?? target.row.customerEmail ?? "B2C record") : target.item.title;
-  // A save keeps the Admin in the same queue: it never removes the item
-  // optimistically. Closing only happens after the server confirms the
-  // write, at which point the Ledger/Work queue refetch on their own.
+  const title = target.kind === "row"
+    ? (target.row.customerName ?? target.row.customerEmail ?? "B2C record")
+    : target.kind === "candidate"
+      ? `Resolve the Payment Tracker version decision for ${target.candidate.customerLabel}`
+      : target.kind === "financeDuplicate"
+        ? "Choose the canonical Payment Tracker row"
+        : target.kind === "stagingDateAuthority"
+          ? `Confirm the parsed Date for ${target.row.sourceTab} row ${target.row.sourceRowNumber}`
+        : target.item.title;
   function handleSaved() { onClose(); }
+  function handlePaymentDuplicateSaved(resolvedPaymentIds: string[]) {
+    onPaymentDuplicateResolved?.(resolvedPaymentIds);
+    onClose();
+  }
 
   return <div className="fixed inset-0 z-50 overflow-hidden bg-brand-primary/30 p-4 sm:p-6" role="presentation" onMouseDown={onClose}>
     <section
@@ -231,7 +253,7 @@ export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPayment
         </button>
       </div>
 
-      {target.kind === "row" ? <RowSummary row={target.row} /> : <WorkItemSummary item={target.item} />}
+      {target.kind === "row" ? <RowSummary row={target.row} /> : target.kind === "workItem" ? <WorkItemSummary item={target.item} /> : null}
 
       {target.kind === "row" && <>
         <Section title="Source evidence">
@@ -247,7 +269,7 @@ export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPayment
         </Section>}
 
         <Section title="Finance decision">
-          {!canManage ? <ViewerReadOnlyNote /> : <ActionSlot row={target.row} primary={primaryActionForRow(target.row)} onSaved={handleSaved} />}
+          {!canManage ? <ViewerReadOnlyNote /> : <ActionSlot row={target.row} primary={primaryActionForRow(target.row)} onSaved={handleSaved} onPaymentDuplicateSaved={handlePaymentDuplicateSaved} />}
         </Section>
 
         <Section title="Audit history"><B2cAuditTimeline recordId={target.row.id} /></Section>
@@ -255,6 +277,18 @@ export function B2cPaymentReviewDrawer({ target, onClose }: { target: B2cPayment
 
       {target.kind === "workItem" && <Section title="Finance decision">
         {!canManage ? <ViewerReadOnlyNote /> : <p className="text-sm leading-6 text-text-secondary">{target.item.explanation} Open this item from the Ledger once its record is loaded to review and act on the current values.</p>}
+      </Section>}
+
+      {target.kind === "candidate" && <Section title="Finance decision">
+        <B2cImportVersionDecision candidate={target.candidate} onSaved={(candidateId) => { onCandidateResolved?.(candidateId); onClose(); }} />
+      </Section>}
+
+      {target.kind === "financeDuplicate" && <Section title="Finance decision">
+        {!canManage ? <ViewerReadOnlyNote /> : <B2cExactDuplicateReview key={target.group.groupId} group={target.group} onGroupsChanged={(groupId) => { onFinanceDuplicateResolved?.(groupId); handleSaved(); }} />}
+      </Section>}
+
+      {target.kind === "stagingDateAuthority" && <Section title="Finance decision">
+        {!canManage ? <ViewerReadOnlyNote /> : <B2cStagingDateAuthority row={target.row} onSaved={(financeRowId) => { onStagingDateAuthorityResolved?.(financeRowId); handleSaved(); }} />}
       </Section>}
     </section>
   </div>;

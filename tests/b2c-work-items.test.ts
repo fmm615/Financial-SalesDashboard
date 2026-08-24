@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { resolveB2cPaymentDecision } from "@/lib/b2c/payment-decision";
 import {
   buildB2cReadyToPostWorkItem,
+  buildB2cFinanceExactDuplicateWorkItems,
+  buildB2cProviderEvidenceMismatchWorkItems,
   buildB2cRecordWorkItems,
+  buildB2cPendingCandidateWorkItems,
   buildB2cSourceFailureWorkItems,
   buildB2cWorkItems,
   visibleGroupForQueue,
   type B2cWorkItemRecord,
 } from "@/server/services/b2c-work-items";
+import { buildB2cWorkspaceOverview, chunkB2cWorkspaceQueryValues } from "@/server/repositories/b2c-workspace-repository";
+import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
 const succeededBase = {
   sourceSystem: "stripe" as const,
@@ -31,6 +36,22 @@ function record(overrides: Partial<B2cWorkItemRecord> & { decision: B2cWorkItemR
     ...overrides,
   };
 }
+
+const financeRow = (
+  financeRowId: string,
+  sourceTab: "B2C" | "B2C Cons",
+): AdminExactDuplicateGroup["rows"][number] => ({
+  financeRowId,
+  sourceTab,
+  sourceRowNumber: sourceTab === "B2C" ? 12 : 33,
+  occurredOn: "2026-08-01",
+  amountUsd: "100.000000",
+  customerName: "Maya Al Khalifa",
+  customerEmail: "member@example.com",
+  customerPhone: null,
+  category: "membership",
+  paymentMethod: "Stripe",
+});
 
 describe("visibleGroupForQueue", () => {
   it("groups FX and mapping under data", () => {
@@ -67,7 +88,7 @@ describe("buildB2cRecordWorkItems", () => {
     const decision = resolveB2cPaymentDecision({ ...succeededBase, openFlagTypes: new Set(["possible_duplicate"]) });
     const items = buildB2cRecordWorkItems(record({ decision }));
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ queue: "duplicate", visibleGroup: "duplicates", nextAction: "choose_duplicate" });
+    expect(items[0]).toMatchObject({ queue: "duplicate", visibleGroup: "duplicates", nextAction: "choose_payment_duplicate" });
   });
 
   it("produces no work item for a failed or pending source payment -- nothing is actionable in this workspace", () => {
@@ -141,8 +162,110 @@ describe("buildB2cRecordWorkItems", () => {
     });
     const items = buildB2cRecordWorkItems(record({ id: "manual-1", decision, financeMethod: "bank_transfer" }));
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ queue: "duplicate", nextAction: "choose_duplicate", recordId: "manual-1" });
+    expect(items[0]).toMatchObject({ queue: "duplicate", nextAction: "choose_payment_duplicate", recordId: "manual-1" });
     expect(items.some((item) => item.queue === "ready_to_post")).toBe(false);
+  });
+});
+
+describe("duplicate work-item targets", () => {
+  it("routes payment duplicate groups and Finance exact groups to different drawer targets", () => {
+    const financeGroup: AdminExactDuplicateGroup = {
+      groupId: "group-1",
+      state: "exact_duplicate_candidate",
+      rows: [
+        financeRow("finance-row-1", "B2C"),
+        financeRow("finance-row-2", "B2C Cons"),
+      ],
+    };
+    const paymentItems = buildB2cRecordWorkItems(record({
+      decision: resolveB2cPaymentDecision({ ...succeededBase, hasOpenPaymentDuplicate: true }),
+    }));
+    const financeItems = buildB2cFinanceExactDuplicateWorkItems([financeGroup]);
+
+    expect(paymentItems[0]).toMatchObject({
+      nextAction: "choose_payment_duplicate",
+      href: "/operations/b2c?tab=work&record=payment-1",
+    });
+    expect(financeItems[0]).toMatchObject({
+      nextAction: "choose_finance_duplicate",
+      href: "/operations/b2c?tab=work&financeDuplicate=group-1",
+    });
+  });
+});
+
+describe("buildB2cPendingCandidateWorkItems", () => {
+  it("turns an undecided import-version candidate into one reconciliation work item", () => {
+    const items = buildB2cPendingCandidateWorkItems([{
+      candidateId: "candidate-1",
+      importId: "import-1",
+      candidateKind: "new",
+      sourceIdentity: "a".repeat(64),
+      financeRowIds: ["row-1"],
+      priorLineageIds: [],
+      priorPaymentIds: [],
+      customerLabel: "Maya Al Khalifa",
+      amountUsd: "399.000000",
+      occurredOn: "2026-08-01",
+    }]);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      id: "candidate:candidate-1",
+      recordId: "candidate-1",
+      recordKind: "finance_row",
+      queue: "reconciliation",
+      visibleGroup: "reconciliation",
+      nextAction: "review_import_version",
+      href: "/operations/b2c?tab=work&candidate=candidate-1",
+    });
+  });
+
+  it("includes unresolved candidates in the workspace reconciliation count", () => {
+    const overview = buildB2cWorkspaceOverview({
+      ledgerRows: [],
+      pendingCandidates: [{
+        candidateId: "candidate-1", importId: "import-1", candidateKind: "ambiguous",
+        sourceIdentity: "b".repeat(64), financeRowIds: ["row-1"], priorLineageIds: [], priorPaymentIds: [],
+        customerLabel: "Hoor Alshubbar", amountUsd: "399.000000", occurredOn: "2026-08-01",
+      }],
+    });
+
+    expect(overview.counts).toMatchObject({ all: 1, reconciliation: 1 });
+    expect(overview.items[0]).toMatchObject({ recordId: "candidate-1", nextAction: "review_import_version" });
+  });
+});
+
+describe("buildB2cProviderEvidenceMismatchWorkItems", () => {
+  it("turns every recorded provider-evidence mismatch into one actionable reconciliation item", () => {
+    const items = buildB2cProviderEvidenceMismatchWorkItems([{
+      evidenceId: "evidence-1",
+      paymentId: "payment-1",
+      customerLabel: "Maya Al Khalifa",
+      amountUsd: "120.000000",
+      mismatchFields: ["amount", "currency"],
+    }]);
+
+    expect(items).toEqual([expect.objectContaining({
+      id: "provider-evidence-mismatch:evidence-1",
+      recordId: "payment-1",
+      recordKind: "provider_payment",
+      queue: "reconciliation",
+      visibleGroup: "reconciliation",
+      nextAction: "compare",
+      title: "Compare provider evidence for Maya Al Khalifa",
+      explanation: "The provider transaction ID matches, but the amount and currency differ.",
+      financialImpactUsd: "120.000000",
+      href: "/operations/b2c?tab=work&record=payment-1",
+    })]);
+  });
+});
+
+describe("chunkB2cWorkspaceQueryValues", () => {
+  it("bounds large candidate source-row lookups below URL-size limits", () => {
+    const batches = chunkB2cWorkspaceQueryValues(Array.from({ length: 20_000 }, (_, index) => `row-${index}`));
+    expect(batches).toHaveLength(200);
+    expect(batches.every((batch) => batch.length <= 100)).toBe(true);
+    expect(batches.flat()).toHaveLength(20_000);
   });
 });
 

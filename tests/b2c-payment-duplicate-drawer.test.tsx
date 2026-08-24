@@ -15,6 +15,7 @@ function duplicateFlaggedRow(): B2cReviewRow {
     date: "Oct 5, 2025", dateValue: "2025-10-05", amountUsd: "$475.00", amountValueUsd: "475", sourceAmountUsd: "$475.00", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2025-10-05",
     category: "membership", membershipTier: "Annual", billingInterval: "Annual", source: "Stripe", paymentStatus: "Completed",
     providerReference: "ch_dup_1", sourceSystem: "stripe", productReference: "price_annual", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
+    hasOpenPaymentDuplicate: true, hasDuplicateExclusion: false,
     openReviewFlags: [{ id: "flag-dup-1", type: "Possible duplicate", reason: "A verified local correction matches another completed B2C payment by customer, amount, category, and date within 48 hours." }],
     issue: "Possible duplicate",
     decision: {
@@ -24,7 +25,7 @@ function duplicateFlaggedRow(): B2cReviewRow {
   } as B2cReviewRow;
 }
 
-const group = {
+const group: Extract<B2cPaymentReviewDrawerTarget, { kind: "financeDuplicate" }>["group"] = {
   groupId: "22222222-2222-4222-8222-222222222222", state: "exact_duplicate_candidate", rows: [
     { financeRowId: "33333333-3333-4333-8333-333333333333", sourceTab: "B2C", sourceRowNumber: 12, occurredOn: "2025-10-05", amountUsd: "475", customerName: "Reham", customerEmail: "rgarash@example.com", customerPhone: null, category: "B2C-Membership", paymentMethod: "Stripe" },
     { financeRowId: "44444444-4444-4444-8444-444444444444", sourceTab: "B2C Cons", sourceRowNumber: 33, occurredOn: "2025-10-05", amountUsd: "475", customerName: "Reham", customerEmail: "rgarash@example.com", customerPhone: null, category: "B2C-Membership", paymentMethod: "Stripe" },
@@ -49,36 +50,68 @@ function renderDrawer(target: B2cPaymentReviewDrawerTarget, role: "admin" | "vie
   return onClose;
 }
 
-describe("B2C payment duplicate drawer action", () => {
-  it("shows the pending exact-duplicate decision as the row's one primary Finance-decision action", async () => {
-    stubFetch([["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })]]);
+describe("B2C payment and Finance duplicate drawer actions", () => {
+  it("keeps a payment duplicate in its payment-record drawer instead of rendering a Finance exact pair", async () => {
+    const fetchMock = stubFetch([
+      ["/duplicate-group", () => ({ ok: true, json: async () => ({ kind: "group", group: {
+        groupId: "11111111-1111-4111-8111-111111111111", detectionReason: "Matching payment facts within the approved window.", members: [
+          { paymentId: "payment-dup-1", sourceSystem: "stripe", providerReference: "ch_dup_1", customerName: "Reham Al Garash", sourceCustomerEmail: "rgarash@example.com", effectiveCustomerEmail: "rgarash@example.com", sourceAmount: "475", sourceCurrency: "USD", effectiveAmountUsd: "475", sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2025-10-05", effectiveOccurredOn: "2025-10-05" },
+          { paymentId: "payment-dup-2", sourceSystem: "manual_bank_transfer", providerReference: "bank-ref-2", customerName: "Reham Al Garash", sourceCustomerEmail: "rgarash@example.com", effectiveCustomerEmail: "reham@example.com", sourceAmount: "475", sourceCurrency: "USD", effectiveAmountUsd: "475", sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2025-10-05", effectiveOccurredOn: "2025-10-05" },
+        ],
+      } }) })],
+    ]);
     renderDrawer({ kind: "row", row: duplicateFlaggedRow() });
     const dialog = screen.getByRole("dialog");
 
-    expect(await within(dialog).findByText("B2C row 12")).toBeInTheDocument();
-    expect(within(dialog).getByText("B2C Cons row 33")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Confirm canonical Finance row" })).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Exclude group" })).toBeInTheDocument();
+    expect(await within(dialog).findByText("Payment duplicate review")).toBeInTheDocument();
+    expect(within(dialog).getByText("bank-ref-2")).toBeInTheDocument();
+    expect(within(dialog).getByText("Effective comparison value:")).toBeInTheDocument();
+    expect(within(dialog).queryByText("B2C row 12")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/reconciliation/exact-duplicates"), expect.anything());
+  });
+
+  it("requires a meaningful reason before resolving every payment in an explicit keep-all decision", async () => {
+    const fetchMock = stubFetch([
+      ["/duplicate-group", () => ({ ok: true, json: async () => ({ kind: "group", group: {
+        groupId: "11111111-1111-4111-8111-111111111111", detectionReason: "Matching payment facts within the approved window.", members: [
+          { paymentId: "payment-dup-1", sourceSystem: "stripe", providerReference: "ch_dup_1", customerName: "Reham Al Garash", sourceCustomerEmail: "rgarash@example.com", effectiveCustomerEmail: "rgarash@example.com", sourceAmount: "475", sourceCurrency: "USD", effectiveAmountUsd: "475", sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2025-10-05", effectiveOccurredOn: "2025-10-05" },
+          { paymentId: "payment-dup-2", sourceSystem: "manual_bank_transfer", providerReference: "bank-ref-2", customerName: "Reham Al Garash", sourceCustomerEmail: "rgarash@example.com", effectiveCustomerEmail: "rgarash@example.com", sourceAmount: "475", sourceCurrency: "USD", effectiveAmountUsd: "475", sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2025-10-05", effectiveOccurredOn: "2025-10-05" },
+        ],
+      } }) })],
+      ["/payment-duplicate-groups/", () => ({ ok: true, json: async () => ({ groupId: "11111111-1111-4111-8111-111111111111", resolvedPaymentIds: ["payment-dup-1", "payment-dup-2"] }) })],
+    ]);
+    const onClose = renderDrawer({ kind: "row", row: duplicateFlaggedRow() });
+
+    const reason = await screen.findByLabelText("Payment duplicate decision reason");
+    const keepAll = screen.getByRole("button", { name: "Keep all payments" });
+    expect(keepAll).toBeDisabled();
+    fireEvent.change(reason, { target: { value: "Finance verified both provider records are separate payments." } });
+    expect(keepAll).toBeEnabled();
+    fireEvent.click(keepAll);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/admin/b2c/payment-duplicate-groups/11111111-1111-4111-8111-111111111111/decision",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ decision: "keep_all", canonicalPaymentId: null, reason: "Finance verified both provider records are separate payments." }) }),
+    ));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
   it("never shows a manual Find-exact-duplicates trigger -- groups are created automatically during Payment Tracker finalization", async () => {
-    stubFetch([["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })]]);
+    stubFetch([]);
     renderDrawer({ kind: "row", row: duplicateFlaggedRow() });
     const dialog = screen.getByRole("dialog");
 
-    await within(dialog).findByText("B2C row 12");
     expect(within(dialog).queryByRole("button", { name: "Find exact duplicates" })).not.toBeInTheDocument();
   });
 
-  it("records a decision through the existing per-group reconciliation route with one selection and one reason", async () => {
+  it("records a Finance exact-pair decision through the existing per-group reconciliation route with one selection and one reason", async () => {
     const fetchMock = stubFetch([
-      ["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })],
       ["/decision", () => ({ ok: true, json: async () => ({ decisionId: "decision-1" }) })],
     ]);
-    const onClose = renderDrawer({ kind: "row", row: duplicateFlaggedRow() });
+    const onClose = renderDrawer({ kind: "financeDuplicate", group });
     const dialog = screen.getByRole("dialog");
 
-    await within(dialog).findByText("B2C row 12");
+    expect(within(dialog).getByText("B2C row 12")).toBeInTheDocument();
     const confirm = within(dialog).getByRole("button", { name: "Confirm canonical Finance row" });
     expect(confirm).toBeDisabled();
 
@@ -94,13 +127,29 @@ describe("B2C payment duplicate drawer action", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
-  it("never lets a Viewer see or trigger the duplicate decision", () => {
-    const fetchMock = stubFetch([["/reconciliation/exact-duplicates", () => ({ ok: true, json: async () => ({ groups: [group] }) })]]);
-    renderDrawer({ kind: "row", row: duplicateFlaggedRow() }, "viewer");
+  it("replaces the retained Finance pair when a direct Finance deep link changes groups", () => {
+    const nextGroup = {
+      ...group,
+      groupId: "55555555-5555-4555-8555-555555555555",
+      rows: group.rows.map((row, index) => ({ ...row, sourceRowNumber: index === 0 ? 88 : 99 })),
+    };
+    const onClose = vi.fn();
+    const rendered = render(<RoleProvider role="admin"><B2cPaymentReviewDrawer target={{ kind: "financeDuplicate", group }} onClose={onClose} /></RoleProvider>);
+    expect(screen.getByText("B2C row 12")).toBeInTheDocument();
+
+    rendered.rerender(<RoleProvider role="admin"><B2cPaymentReviewDrawer target={{ kind: "financeDuplicate", group: nextGroup }} onClose={onClose} /></RoleProvider>);
+
+    expect(screen.getByText("B2C row 88")).toBeInTheDocument();
+    expect(screen.queryByText("B2C row 12")).not.toBeInTheDocument();
+  });
+
+  it("never lets a Viewer see or trigger a Finance duplicate decision", () => {
+    const fetchMock = stubFetch([]);
+    renderDrawer({ kind: "financeDuplicate", group }, "viewer");
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getAllByText("Viewer access is read-only. Only an Admin can take this action.").length).toBeGreaterThanOrEqual(1);
     expect(within(dialog).queryByText("B2C row 12")).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/reconciliation/exact-duplicates"), expect.anything());
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

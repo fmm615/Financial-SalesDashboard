@@ -14,6 +14,10 @@ export type B2cPaymentReportabilityInput = {
   hasFinanceException?: boolean;
   /** Immutable provenance from the approved Finance Payment Tracker posting path. */
   isApprovedFinancePayment?: boolean;
+  /** Safe, per-payment state from the approved duplicate-group reporting RPC. */
+  hasOpenPaymentDuplicate?: boolean;
+  /** A resolved duplicate-group member exclusion, retained even after flags close. */
+  hasDuplicateExclusion?: boolean;
   /** Source follow-up problems other than the explicitly permitted missing-email exception. */
   hasBlockingNeedsFollowUp?: boolean;
 };
@@ -23,6 +27,7 @@ export type B2cPaymentExclusionReason =
   | "missing_customer_email"
   | "unmapped_product"
   | "possible_duplicate"
+  | "duplicate_exclusion"
   | "needs_follow_up"
   | "needs_fx_review";
 
@@ -35,6 +40,8 @@ export function b2cPaymentExclusionReasons(input: B2cPaymentReportabilityInput):
   if (!input.customerEmail && !exceptionApproved && !approvedFinancePayment) reasons.push("missing_customer_email");
   if ((!input.categoryCode || input.categoryCode === "unmapped" || input.openFlagTypes.has("unmapped_product")) && !exceptionApproved) reasons.push("unmapped_product");
   if (input.openFlagTypes.has("possible_duplicate")) reasons.push("possible_duplicate");
+  if (input.hasOpenPaymentDuplicate && !reasons.includes("possible_duplicate")) reasons.push("possible_duplicate");
+  if (input.hasDuplicateExclusion) reasons.push("duplicate_exclusion");
   if (input.hasBlockingNeedsFollowUp ?? input.openFlagTypes.has("needs_follow_up")) reasons.push("needs_follow_up");
   return reasons;
 }

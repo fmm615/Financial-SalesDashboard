@@ -30,20 +30,20 @@ Every task below closes one or more of these. IDs are referenced by task.
 | ID | Severity | Defect | Status |
 |---|---|---|---|
 | D1 | Critical | Identity separator: TS used a raw NUL, SQL used a space | **Fixed** in `399e694` (pre-plan) |
-| D2 | Critical | Identity canonicalization: TS uses NFKD+mark-strip, SQL uses `unaccent()` — different algorithms | Open — found during this plan's investigation, **not** in the external audit |
-| D3 | High | Exact cross-tab `B2C`+`B2C Cons` pairs classify as `ambiguous` and can never be posted | Open |
-| D4 | High | Import-version decisions have no reachable UI; candidates never become work items | Open |
-| D5 | High | First-import auto-link never records a decision → permanent phantom candidates in readiness | Open |
-| D6 | Medium | Provider-evidence mismatches computed then discarded; never persisted or surfaced | Open |
-| D7 | Medium | Generic `possible_duplicate` payments route to the Finance workbook exact-pair component | Open |
-| D8 | Medium | Ledger filters apply only to already-loaded rows, not server-side | Open |
-| D9 | Medium | Manual-transfer timestamp: RPC accepts a timestamp with no explicit offset | Open |
-| D10 | Medium | `date-authority` staging-row date fix has no live UI caller | Open |
+| D2 | Critical | Identity canonicalization: TS uses NFKD+mark-strip, SQL uses `unaccent()` — different algorithms | **Fixed** in `6b114e5` — one forward SQL canonicalizer and a database-generated golden corpus prove byte-identical TypeScript/SQL output. |
+| D3 | High | Exact cross-tab `B2C`+`B2C Cons` pairs classify as `ambiguous` and can never be posted | **Fixed** in `b762513` — source tabs are carried through versioning and exactly one approved cross-tab pair resolves to one lineage. |
+| D4 | High | Import-version decisions have no reachable UI; candidates never become work items | **Fixed** in `ac02b35` — undecided candidates are Work-queue items with a protected shared-drawer decision flow. |
+| D5 | High | First-import auto-link never records a decision → permanent phantom candidates in readiness | **Fixed** in `52519b1` — first-import confirmation uses the same persisted decision path as reviewed candidates. |
+| D6 | Medium | Provider-evidence mismatches computed then discarded; never persisted or surfaced | **Fixed** in `38bfd3f` — mismatches are immutable retained evidence links and reconciliation work items. |
+| D7 | Medium | Generic `possible_duplicate` payments route to the Finance workbook exact-pair component | **Fixed** — `20260820111000_b2c_payment_duplicate_groups.sql` and its protected Admin workflow separate B2C payment groups from Finance workbook exact groups; each has a distinct work item and drawer action. |
+| D8 | Medium | Ledger filters apply only to already-loaded rows, not server-side | **Fixed** in `1c9d9d6`, hardened in `255f06e` — all exposed filters, counts, and option metadata are server-owned and stale page responses cannot mix filter generations. |
+| D9 | Medium | Manual-transfer timestamp: RPC accepts a timestamp with no explicit offset | **Fixed** in `6df262e` — SQL rejects offset-less timestamps and the review UI shows the offset-bearing instant plus Bahrain business date. |
+| D10 | Medium | `date-authority` staging-row date fix has no live UI caller | **Fixed** in `31464e4`, hardened in `3f841db` — actionable staging conflicts route through the shared drawer and resolved/corrected/posted rows cannot be reoffered. |
 | D11 | High | Two migrations share the identical timestamp `20260805120000` (`b2c_finance_exception_decisions.sql` and `tap_b2c_mapping.sql`), so `supabase db reset` fails with a duplicate `schema_migrations` primary key and no migration can be applied at all | **Fixed** in Task 1 — renamed `tap_b2c_mapping.sql` to `20260805130000_tap_b2c_mapping.sql` (no ordering dependency between the two files; `docs/TAP_SETUP.md` reference updated) |
 | D12 | Medium | `supabase/seed.sql` inserts a `financial_targets` row with `metric_code = 'sales'`, a value never in the approved list added by `20260811100000_target_management.sql` (`financial_targets_approved_metric_check`); `supabase db reset`/`supabase start` fails while seeding | **Fixed** in Task 1 — changed the seed row's `metric_code` to `total_recognised_sales`, the approved value closest to the original placeholder's intent |
 | D13 | High | `reserve_b2c_finance_manual_bank_transfer_lineage()` (`20260818100000_b2c_finance_import_lineages.sql`) calls unqualified `digest()` but locks `search_path = public` only, omitting `extensions` where pgcrypto lives — the same class of bug already fixed once for Finance posting in `20260817103000_fix_finance_posting_extension_search_path.sql`. Any manual bank transfer with a valid `customer_name`/`occurred_on`/`amount_usd` fails this AFTER INSERT trigger with `function digest(text, unknown) does not exist`, so `record_b2c_manual_bank_transfer()` always fails in practice | **Fixed** in Task 1 — added `supabase/migrations/20260818100500_fix_reserve_manual_bank_transfer_lineage_search_path.sql` (`alter function ... set search_path = public, extensions`), mirroring the established fix pattern |
-| D14 | High | `apply_stripe_product_mapping()` (`20260804140000_stripe_product_mapping_review.sql`) locks `search_path = public` only (line 32) but calls unqualified `digest()` at line 114 to recompute `duplicate_fingerprint` after a Stripe product mapping is applied — the same bug class as D13. Not exercised by any pgTAP or Vitest test, so it fails silently at runtime whenever an admin applies a Stripe product mapping | Open — found during Task 1's investigation of D13, out of scope for Task 1 (pgTAP-running only, not a general defect sweep). Same fix as D13 would apply: `alter function public.apply_stripe_product_mapping() set search_path = public, extensions;` in a new follow-up migration |
-| D15 | High | `apply_b2c_product_mapping()` (`20260805130000_tap_b2c_mapping.sql`) locks `search_path = public` only (line 18) but calls unqualified `digest()` at line 84 to recompute `duplicate_fingerprint` after a Tap product mapping is applied — the same bug class as D13. Not exercised by any pgTAP or Vitest test, so it fails silently at runtime whenever an admin applies a Tap product mapping | Open — found during Task 1's investigation of D13, out of scope for Task 1 (pgTAP-running only, not a general defect sweep). Same fix as D13 would apply: `alter function public.apply_b2c_product_mapping() set search_path = public, extensions;` in a new follow-up migration |
+| D14 | High | `apply_stripe_product_mapping()` (`20260804140000_stripe_product_mapping_review.sql`) locks `search_path = public` only (line 32) but calls unqualified `digest()` at line 114 to recompute `duplicate_fingerprint` after a Stripe product mapping is applied — the same bug class as D13. Not exercised by any pgTAP or Vitest test, so it fails silently at runtime whenever an admin applies a Stripe product mapping | **Fixed** in `4b38adf` — forward migration `20260820114000_fix_b2c_product_mapping_extension_search_path.sql` restores `extensions` and pgTAP executes the real mapping writer. |
+| D15 | High | `apply_b2c_product_mapping()` (`20260805130000_tap_b2c_mapping.sql`) locks `search_path = public` only (line 18) but calls unqualified `digest()` at line 84 to recompute `duplicate_fingerprint` after a Tap product mapping is applied — the same bug class as D13. Not exercised by any pgTAP or Vitest test, so it fails silently at runtime whenever an admin applies a Tap product mapping | **Fixed** in `4b38adf` — the same forward migration restores `extensions` and pgTAP executes the real Tap mapping writer. |
 
 ---
 
@@ -53,6 +53,7 @@ Every task below closes one or more of these. IDs are referenced by task.
 - `supabase/migrations/20260820100000_b2c_shared_identity_canonicalization.sql` — one canonical-text SQL function, replacing three inline copies (D2)
 - `supabase/migrations/20260820103000_b2c_exact_pair_and_candidate_decisions.sql` — exact-pair confirm + first-import decision rows (D3, D5)
 - `supabase/migrations/20260820110000_b2c_provider_evidence_mismatches.sql` — persist mismatches (D6)
+- `supabase/migrations/20260820111000_b2c_payment_duplicate_groups.sql` — SQL-authoritative B2C payment duplicate groups (D7)
 - `supabase/migrations/20260820113000_b2c_manual_transfer_offset_guard.sql` — require explicit UTC offset (D9)
 - `tests/b2c-identity-parity-corpus.ts` — the shared golden corpus, imported by both the Vitest parity test and the pgTAP fixture generator (D2)
 - `tests/b2c-finance-identity-parity.test.ts` — Vitest half of the parity check (D2)
@@ -184,7 +185,7 @@ The durable fix is not "make the two implementations look alike" (that inspectio
 - Consumes: a green pgTAP suite from Task 1.
 - Produces: `public.b2c_canonical_identity_text(text) returns text` (SQL) and `canonicalIdentityText(value: string): string` (TS), guaranteed equal over the corpus. Later tasks must not reimplement either.
 
-- [ ] **Step 1: Write the shared corpus**
+- [x] **Step 1: Write the shared corpus**
 
 Create `tests/b2c-identity-parity-corpus.ts`. Every entry is a real-shaped name that stresses a different divergence:
 
@@ -212,7 +213,7 @@ export const identityParityCorpus = [
 ] as const;
 ```
 
-- [ ] **Step 2: Write the failing Vitest parity test**
+- [x] **Step 2: Write the failing Vitest parity test**
 
 Create `tests/b2c-finance-identity-parity.test.ts`. It asserts TS canonicalization matches a fixture of SQL output that Step 5 generates:
 
@@ -247,13 +248,13 @@ describe("identity canonicalization is identical in TypeScript and SQL", () => {
 });
 ```
 
-- [ ] **Step 3: Run it and verify it fails**
+- [x] **Step 3: Run it and verify it fails**
 
 Run: `npx vitest run tests/b2c-finance-identity-parity.test.ts`
 
 Expected: FAIL — `canonicalIdentityText` is not exported yet and the fixture does not exist.
 
-- [ ] **Step 4: Write the shared SQL function**
+- [x] **Step 4: Write the shared SQL function**
 
 Create `supabase/migrations/20260820100000_b2c_shared_identity_canonicalization.sql`. Use `normalize(..., NFKD)` (PostgreSQL 13+) plus an explicit combining-mark range, mirroring the TypeScript exactly, and **stop using `unaccent()`** for identity text:
 
@@ -301,7 +302,7 @@ Then replace the three inline copies to call it. In `20260818100000` the trigger
 
 Apply the same substitution in the backfill loop (`20260818103000`) and the manual-transfer RPC (`20260818113000`). **Do not edit those already-applied migration files** — add the `create or replace function` bodies to this new migration so the change ships forward.
 
-- [ ] **Step 5: Emit the SQL fixture from pgTAP**
+- [x] **Step 5: Emit the SQL fixture from pgTAP**
 
 Add to `supabase/tests/database_foundation.test.sql` (and bump `plan(N)` by 1):
 
@@ -343,7 +344,7 @@ SQL
 
 If neither form works in this environment, generate the fixture with a one-off `psql` against the local stack — the mechanism matters less than the fixture being **produced by the database, never hand-written**.
 
-- [ ] **Step 6: Export the TS canonicalizer and align it**
+- [x] **Step 6: Export the TS canonicalizer and align it**
 
 In `src/lib/b2c/finance-source-identity.ts`, export the existing function so the parity test can reach it, and add the cross-reference comment:
 
@@ -364,7 +365,7 @@ export function canonicalIdentityText(value: string): string {
 }
 ```
 
-- [ ] **Step 7: Run both halves**
+- [x] **Step 7: Run both halves**
 
 ```bash
 npm run supabase:test && npx vitest run tests/b2c-finance-identity-parity.test.ts
@@ -372,11 +373,11 @@ npm run supabase:test && npx vitest run tests/b2c-finance-identity-parity.test.t
 
 Expected: both PASS. If a corpus entry disagrees, the SQL combining-mark class in Step 4 is missing a range — widen it and regenerate the fixture. Do **not** delete the failing corpus entry.
 
-- [ ] **Step 8: Prove the guard works**
+- [x] **Step 8: Prove the guard works**
 
 Temporarily change the TS `.toLocaleLowerCase("en-US")` to `.toUpperCase()`, re-run the parity test, confirm it FAILS, then revert. A parity test that cannot fail is worthless.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add supabase/migrations/20260820100000_b2c_shared_identity_canonicalization.sql \
@@ -385,6 +386,12 @@ git add supabase/migrations/20260820100000_b2c_shared_identity_canonicalization.
   supabase/tests/database_foundation.test.sql
 git commit -m "fix(b2c): one identity canonicalization rule, proven across TS and SQL"
 ```
+
+---
+
+**Status: Done** (`6b114e5`). The shared database-generated corpus covers
+Unicode canonicalization, while the complete source-identity hash retains its
+independent SQL mirror regression.
 
 ---
 
@@ -403,7 +410,7 @@ git commit -m "fix(b2c): one identity canonicalization rule, proven across TS an
 - Consumes: `canonicalIdentityText` from Task 2.
 - Produces: `FinanceImportVersionReplacementRow` and `FinanceImportVersionPreviousRow` both gain `sourceTab: "B2C" | "B2C Cons"`. `FinanceImportDiff.newCandidates` may now contain a candidate whose `financeRowIds` has two entries (the approved pair); every other candidate kind keeps exactly one.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/b2c-finance-source-identity.test.ts`:
 
@@ -444,13 +451,13 @@ it("still holds two rows from the SAME tab as ambiguous", () => {
 
 Also update the existing `"holds repeated same-key rows as ambiguous instead of merging them"` test to give all three rows `sourceTab: "B2C"`, so it keeps asserting real behavior rather than the absence of a field.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `npx vitest run tests/b2c-finance-source-identity.test.ts`
 
 Expected: FAIL — `sourceTab` is not a property of the row types.
 
-- [ ] **Step 3: Thread `sourceTab` through the types**
+- [x] **Step 3: Thread `sourceTab` through the types**
 
 In `src/server/services/b2c-finance-import-versioning.ts`:
 
@@ -471,7 +478,7 @@ export type FinanceImportVersionReplacementRow = {
 };
 ```
 
-- [ ] **Step 4: Classify the approved pair**
+- [x] **Step 4: Classify the approved pair**
 
 Replace the ambiguity branch in `previewFinanceImportVersion`. The approved pair is exactly two rows, one per tab, with no prior lineage and no represented payment:
 
@@ -504,7 +511,7 @@ Replace the ambiguity branch in `previewFinanceImportVersion`. The approved pair
     }
 ```
 
-- [ ] **Step 5: Supply `sourceTab` at both call sites**
+- [x] **Step 5: Supply `sourceTab` at both call sites**
 
 In `src/server/services/payment-tracker-upload.ts`, `buildReplacementRows` already maps over `assessment.rows`, which carry `sourceTab`:
 
@@ -518,17 +525,17 @@ In `src/server/services/payment-tracker-upload.ts`, `buildReplacementRows` alrea
 
 In `src/server/repositories/b2c-finance-reconciliation-repository.ts`, add `source_tab` to the `getPreviousImportLineagedRows` select and map it through as `sourceTab`.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run: `npx vitest run tests/b2c-finance-source-identity.test.ts tests/payment-tracker-upload-api.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 7: Add the pgTAP proof**
+- [x] **Step 7: Add the pgTAP proof**
 
 Add to `supabase/tests/database_foundation.test.sql` (bump `plan(N)` by 2): stage a first import containing one `B2C` and one `B2C Cons` row for the same identity, pass the merged `new` candidate, then assert (a) exactly one lineage exists for that identity, and (b) both `finance_row_id`s link to it. Follow the existing fixture style in that file.
 
-- [ ] **Step 8: Verify and commit**
+- [x] **Step 8: Verify and commit**
 
 ```bash
 npm run supabase:test && npx vitest run && npm run typecheck && npm run lint
@@ -538,6 +545,11 @@ git add src/server/services/b2c-finance-import-versioning.ts \
   tests/b2c-finance-source-identity.test.ts supabase/tests/database_foundation.test.sql
 git commit -m "fix(b2c): let an approved cross-tab exact pair resolve to one lineage"
 ```
+
+---
+
+**Status: Done** (`b762513`). Exact approved cross-tab pairs now resolve to
+one lineage; same-tab repeats remain ambiguous and non-postable.
 
 ---
 
@@ -555,7 +567,7 @@ The clean fix removes the duplication rather than patching around it: **insert t
 - Consumes: the exact-pair candidate shape from Task 3 (a `new` candidate may carry two `financeRowIds`).
 - Produces: after any first-ever import, zero candidates without a decision.
 
-- [ ] **Step 1: Write the failing pgTAP assertion**
+- [x] **Step 1: Write the failing pgTAP assertion**
 
 Add to `supabase/tests/database_foundation.test.sql` (bump `plan(N)` by 1):
 
@@ -573,13 +585,13 @@ select is(
 );
 ```
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `npm run supabase:test`
 
 Expected: FAIL — auto-linked candidates currently have no decision row.
 
-- [ ] **Step 3: Replace the auto-link with an auto-decision**
+- [x] **Step 3: Replace the auto-link with an auto-decision**
 
 In the new migration, `create or replace` `finalize_b2c_finance_import_version`, changing only the first-import branch. Delete the manual lineage-insert and link-insert; insert a decision instead:
 
@@ -603,19 +615,25 @@ In the new migration, `create or replace` `finalize_b2c_finance_import_version`,
 
 Then confirm `apply_b2c_finance_import_version_decision` links **every** id in `finance_row_ids` (not just the first) — Task 3's approved pair depends on this. If it links only one, fix it here and note it in the Defect Register.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `npm run supabase:test`
 
 Expected: PASS, including Task 3's exact-pair assertions.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/migrations/20260820103000_b2c_exact_pair_and_candidate_decisions.sql \
   supabase/tests/database_foundation.test.sql
 git commit -m "fix(b2c): record a decision for auto-confirmed first-import candidates"
 ```
+
+---
+
+**Status: Done** (`52519b1`). A first import records its automatic
+`confirm_new` decision through the same trigger-owned path, so no phantom
+candidate remains in readiness.
 
 ---
 
@@ -635,7 +653,7 @@ git commit -m "fix(b2c): record a decision for auto-confirmed first-import candi
 - Consumes: `POST /api/admin/b2c/finance-imports/[importId]/lineage-decisions` with `{ decision, candidateId, targetLineageId?, targetPaymentId?, reason }` (already built, already tested).
 - Produces: `B2cPendingCandidateWorkItem = { candidateId, importId, candidateKind, sourceIdentity, financeRowIds, priorLineageIds, priorPaymentIds }`, surfaced as work items with `visibleGroup: "reconciliation"` and `nextAction: "review_import_version"`.
 
-- [ ] **Step 1: Write the failing work-item test**
+- [x] **Step 1: Write the failing work-item test**
 
 Add to `tests/b2c-work-items.test.ts`:
 
@@ -658,13 +676,13 @@ it("turns an undecided import-version candidate into one reconciliation work ite
 });
 ```
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 Run: `npx vitest run tests/b2c-work-items.test.ts`
 
 Expected: FAIL — `buildB2cPendingCandidateWorkItems` does not exist.
 
-- [ ] **Step 3: Build the work items**
+- [x] **Step 3: Build the work items**
 
 In `src/server/services/b2c-work-items.ts`:
 
@@ -706,23 +724,23 @@ export function buildB2cPendingCandidateWorkItems(records: B2cPendingCandidateRe
 }
 ```
 
-- [ ] **Step 4: Load candidates in the repository**
+- [x] **Step 4: Load candidates in the repository**
 
 In `src/server/repositories/b2c-workspace-repository.ts`, add a loader that joins undecided candidates to one representative staging row for its label, and fold the result into `buildB2cWorkspaceOverview`. Query `b2c_finance_import_version_candidates` where no matching row exists in `b2c_finance_import_version_decisions` and `candidate_kind <> 'removed'`, then look up `b2c_finance_staging_rows` for `financeRowIds[0]` to fill `customerLabel`, `amountUsd`, and `occurredOn`.
 
-- [ ] **Step 5: Write the failing drawer test**
+- [x] **Step 5: Write the failing drawer test**
 
 Create `tests/b2c-import-version-decision-ui.test.tsx` asserting: all three decision options render for an Admin; `confirm_new` submits with no target; `link_existing_manual` requires a `targetPaymentId`; a reason under 3 characters keeps the submit disabled; and a Viewer sees the read-only note instead.
 
-- [ ] **Step 6: Build the drawer fragment**
+- [x] **Step 6: Build the drawer fragment**
 
 Create `src/features/b2c/b2c-import-version-decision.tsx`. It posts to the existing route, shows the candidate's kind-specific explanation, requires a reason, and disables submit until the chosen decision has its required target. Follow the dialog-free fragment pattern of `B2cPostedFinanceAdjustmentFragment` in the drawer — the drawer owns open/close/focus/refresh.
 
-- [ ] **Step 7: Route to it from the drawer**
+- [x] **Step 7: Route to it from the drawer**
 
 In `b2c-payment-review-drawer.tsx`, add a `{ kind: "candidate"; candidate: … }` target variant, and render `B2cImportVersionDecision` when `primary === "review_import_version"`. Replace the current informational placeholder text.
 
-- [ ] **Step 8: Verify and commit**
+- [x] **Step 8: Verify and commit**
 
 ```bash
 npx vitest run && npm run typecheck && npm run lint
@@ -731,6 +749,11 @@ git add src/features/b2c/b2c-import-version-decision.tsx src/server/services/b2c
   tests/b2c-import-version-decision-ui.test.tsx tests/b2c-work-items.test.ts
 git commit -m "feat(b2c): make import-version candidates resolvable from the Work queue"
 ```
+
+---
+
+**Status: Done** (`ac02b35`). Pending version candidates are actionable from
+the shared Work queue/drawer through the existing protected decision route.
 
 ---
 
@@ -751,7 +774,7 @@ git commit -m "feat(b2c): make import-version candidates resolvable from the Wor
 **Interfaces:**
 - Produces: `b2c_provider_evidence_payment_links.match_state` accepts `'exact_match' | 'mismatch'`, plus a `mismatch_fields text[]` column. Mismatches become work items with `nextAction: "compare"`.
 
-- [ ] **Step 1: Relax the constraint and add the field**
+- [x] **Step 1: Relax the constraint and add the field**
 
 In the new migration:
 
@@ -778,19 +801,19 @@ alter table public.b2c_provider_evidence_payment_links
   );
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 In `tests/b2c-provider-evidence-reconciliation.test.ts`, replace the "persists only the exact matches" assertion with one asserting mismatches persist too, carrying their `mismatch_fields`, while `unmatchedEvidence` still persists nothing (there is no payment to link to).
 
-- [ ] **Step 3: Persist mismatches**
+- [x] **Step 3: Persist mismatches**
 
 In `linkB2cProviderEvidenceExactMatches` (rename to `linkB2cProviderEvidence`), upsert mismatches alongside exact matches with `match_state: "mismatch"` and `mismatch_fields: match.fields`.
 
-- [ ] **Step 4: Surface them as work items**
+- [x] **Step 4: Surface them as work items**
 
 Load `match_state = 'mismatch'` links in the workspace repository and map each to a work item with `queue: "reconciliation"`, `nextAction: "compare"`, and an explanation naming the differing fields.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm run supabase:test && npx vitest run && npm run typecheck && npm run lint
@@ -800,6 +823,11 @@ git add supabase/migrations/20260820110000_b2c_provider_evidence_mismatches.sql 
   tests/b2c-provider-evidence-reconciliation.test.ts
 git commit -m "feat(b2c): persist provider-evidence mismatches and surface them for review"
 ```
+
+---
+
+**Status: Done** (`38bfd3f`). Same-provider-ID disagreements are retained
+immutably with their mismatch fields and surfaced for reconciliation.
 
 ---
 
@@ -815,19 +843,19 @@ Every `possible_duplicate` maps to `choose_duplicate`, and the drawer renders th
 **Interfaces:**
 - Produces: `B2cPaymentDecision.blockingReasons` distinguishes `possible_duplicate` (a `b2c_payments` content flag) from `finance_exact_duplicate` (an unresolved `b2c_reconciliation_groups` pair).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/b2c-payment-duplicate-routing.test.tsx`: a `finance_tracker` row with an unresolved cross-tab group renders the exact-pair review; a `manual_bank_transfer` row flagged `possible_duplicate` renders the payment-level keep/exclude flow and **not** the workbook component.
 
-- [ ] **Step 2: Add the distinct blocking reason**
+- [x] **Step 2: Add the distinct blocking reason**
 
 Add `"finance_exact_duplicate"` to `B2cBlockingReason`, set it when the row is `finance_tracker` with an unresolved reconciliation group, and keep `possible_duplicate` for the payment-level flag. Add its `reasonText` entry and a `REASON_PLAN` entry mapping it to `choose_duplicate`.
 
-- [ ] **Step 3: Route each to its own fragment**
+- [x] **Step 3: Route each to its own fragment**
 
 In the drawer, render `B2cExactDuplicateReview` only for `finance_exact_duplicate`. For `possible_duplicate`, render a payment-level fragment that resolves the review flag through the existing review-flag resolution route with a required reason.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 npx vitest run && npm run typecheck && npm run lint
@@ -835,6 +863,16 @@ git add src/features/b2c/b2c-payment-review-drawer.tsx src/lib/b2c/payment-decis
   tests/b2c-payment-duplicate-routing.test.tsx
 git commit -m "fix(b2c): give payment-level duplicates their own review action"
 ```
+
+**Status: Done.** The original generic-flag design was replaced by the
+database-owned payment duplicate-group workflow in
+`20260820111000_b2c_payment_duplicate_groups.sql`: successful payment writes
+construct auditable groups, only the protected Admin decision RPC can choose
+`keep_all` or `keep_one`, and reportability is derived server-side. Finance
+workbook exact pairs remain in `b2c_reconciliation_groups`, with a separate
+work item and review component. Provider repositories no longer perform a
+second client-side content-duplicate scan or directly upsert payment
+`possible_duplicate` flags.
 
 ---
 
@@ -846,21 +884,27 @@ git commit -m "fix(b2c): give payment-level duplicates their own review action"
 - Modify: `src/features/b2c/b2c-workspace.tsx`
 - Modify: `tests/b2c-workspace-ui.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Assert that changing the Source filter issues a fetch whose URL contains `source=`, and that the client does not filter locally (a row the server returned stays visible).
 
-- [ ] **Step 2: Send the filters**
+- [x] **Step 2: Send the filters**
 
 In `loadLedgerPage`, map filter state onto the query string (`search`, `source`, `sourceStatus`, `issue`, `minAmountUsd`, `maxAmountUsd`, `sort`), reset the cursor whenever filters change, and delete the local `filterRows` call so the server is the single source of truth.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 ```bash
 npx vitest run && npm run typecheck && npm run lint
 git add src/features/b2c/b2c-workspace.tsx tests/b2c-workspace-ui.test.tsx
 git commit -m "fix(b2c): filter the ledger server-side instead of per loaded page"
 ```
+
+---
+
+**Status: Done** (`1c9d9d6`, `255f06e`). Every exposed Ledger filter is
+server-side; response generations prevent stale pagination from mixing state,
+and safe metadata is computed before filtering and paging.
 
 ---
 
@@ -874,7 +918,7 @@ git commit -m "fix(b2c): filter the ledger server-side instead of per loaded pag
 - Modify: `tests/b2c-manual-bank-transfer-ui.test.tsx`
 - Modify: `supabase/tests/database_foundation.test.sql`
 
-- [ ] **Step 1: Reject an offset-less timestamp in SQL**
+- [x] **Step 1: Reject an offset-less timestamp in SQL**
 
 In the new migration, `create or replace` `record_b2c_manual_bank_transfer` and add, before the cast:
 
@@ -887,15 +931,15 @@ In the new migration, `create or replace` `record_b2c_manual_bank_transfer` and 
   end if;
 ```
 
-- [ ] **Step 2: Make the offset explicit and visible in the UI**
+- [x] **Step 2: Make the offset explicit and visible in the UI**
 
 In `b2c-manual-bank-transfer.tsx`, label the field with the timezone actually being applied and show the derived Bahrain business date in the Step 2 review, so the Admin confirms the date PLAYBOOK will record rather than inferring it.
 
-- [ ] **Step 3: Add the pgTAP assertion**
+- [x] **Step 3: Add the pgTAP assertion**
 
 Assert `record_b2c_manual_bank_transfer` raises when `p_received_at_raw` has no offset (bump `plan(N)` by 1).
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 npm run supabase:test && npx vitest run && npm run typecheck && npm run lint
@@ -904,6 +948,12 @@ git add supabase/migrations/20260820113000_b2c_manual_transfer_offset_guard.sql 
   supabase/tests/database_foundation.test.sql
 git commit -m "fix(b2c): require an explicit UTC offset on a manual bank transfer"
 ```
+
+---
+
+**Status: Done** (`6df262e`). The forward RPC guard requires `Z` or an
+explicit numeric offset; the Admin confirms both the instant and derived
+Bahrain business date.
 
 ---
 
@@ -917,15 +967,15 @@ git commit -m "fix(b2c): require an explicit UTC offset on a manual bank transfe
 - Modify: `src/server/repositories/b2c-workspace-repository.ts`
 - Create: `tests/b2c-staging-date-authority-ui.test.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Assert the fragment posts exactly one `financeRowId` per request (the route accepts exactly one reviewed row), requires a meaningful reason, and shows both the conflicting declared month/year and the parsed date before submitting.
 
-- [ ] **Step 2: Build the fragment and surface the work item**
+- [x] **Step 2: Build the fragment and surface the work item**
 
 Create the fragment calling `POST /api/admin/b2c/finance-actions/date-authority`. In the workspace repository, surface staging rows carrying `declared_month_conflicts_with_date` / `declared_year_conflicts_with_date` as `data`-group work items with `nextAction: "correct"`, and route them to this fragment in the drawer.
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 ```bash
 npx vitest run && npm run typecheck && npm run lint
@@ -936,9 +986,15 @@ git commit -m "feat(b2c): resolve a staging-row date conflict from the shared dr
 
 ---
 
+**Status: Done** (`31464e4`, `3f841db`). The shared drawer now reaches the
+one-row Date-authority action, while already corrected, confirmed, posted, or
+mixed-issue staging rows stay out of that queue.
+
+---
+
 ### Task 11: Full verification and status update
 
-- [ ] **Step 1: Run everything**
+- [x] **Step 1: Run everything**
 
 ```bash
 npx vitest run && npm run typecheck && npm run lint && npm run build && npm run supabase:test
@@ -946,7 +1002,7 @@ npx vitest run && npm run typecheck && npm run lint && npm run build && npm run 
 
 Expected: all five exit `0`.
 
-- [ ] **Step 2: Re-audit for the same bug class**
+- [x] **Step 2: Re-audit for the same bug class**
 
 ```bash
 python3 -c "
@@ -962,11 +1018,34 @@ for root,dirs,files in os.walk('.'):
 
 Expected: no output. Then `rg` for any formula still duplicated across TS and SQL without a parity test, and add one if found.
 
-- [ ] **Step 3: Update the original plan's status**
+- [x] **Step 3: Update the original plan's status**
 
 Mark each defect resolved in the Defect Register above, and update the "Progress & amendments" section of `docs/superpowers/plans/2026-08-18-b2c-single-control-flow.md` to reflect that the audit findings are closed.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
+
+**Status: Done (2026-08-24).** D14/D15 were included in closeout because a
+plan whose goal is to close every registered defect could not leave two known
+High runtime failures open. Forward migration
+`20260820114000_fix_b2c_product_mapping_extension_search_path.sql` restores
+the trusted `extensions` path for both mapping writers, with real pgTAP calls.
+
+The formula audit also found that the manual-transfer content fingerprint and
+reviewed-input token crossed TypeScript/SQL without a direct parity fixture.
+`tests/b2c-hash-parity-corpus.ts` and the PostgreSQL-generated
+`tests/fixtures/sql-b2c-hashes.json` now cover both. pgTAP calls the real
+financial RPC with those reviewed-input hashes and asserts its stored
+fingerprints; Vitest independently computes the TypeScript side. This matters
+for the reviewed-input token too: although it is not itself a financial total,
+it is the fail-closed guarantee that the financial write still matches the
+facts the Admin reviewed.
+
+Fresh closeout evidence: 66 Vitest files / 541 tests, TypeScript, lint, the
+production Next.js build, a clean local Supabase reset through migration
+`20260820114000`, and 138/138 pgTAP assertions all pass. The raw-NUL scan is
+empty. The user reported applying the two closeout migrations manually; this
+is not a claim that live data or deployment behavior was independently
+verified from this workspace.
 
 ```bash
 git add docs/superpowers/plans/

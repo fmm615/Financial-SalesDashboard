@@ -15,8 +15,13 @@ export type B2cLedgerQuery = {
   period?: string;
   source?: B2cLedgerRow["sourceSystem"];
   sourceStatus?: "succeeded" | "failed" | "pending";
+  paymentStatus?: B2cLedgerRow["paymentStatus"];
   reportingDecision?: B2cPaymentDecision["reportingDecision"];
-  issue?: NonNullable<B2cLedgerRow["issue"]>;
+  issue?: NonNullable<B2cLedgerRow["issue"]> | "none";
+  dateFrom?: string;
+  dateTo?: string;
+  category?: string;
+  foreignCurrencyOnly?: boolean;
   currency?: string;
   minAmountUsd?: string;
   maxAmountUsd?: string;
@@ -29,9 +34,18 @@ export type B2cLedgerPage = {
   nextCursor: string | null;
   hasMore: boolean;
   totalCount: number;
+  filterMetadata: B2cLedgerFilterMetadata;
 };
 
-/** The single open-flag label that maps back into a raw gate flag type. Refund/Tap-only labels are never gate inputs. */
+/** Safe values/counts for filters across the selected period, before the active page query is applied. */
+export type B2cLedgerFilterMetadata = {
+  sources: string[];
+  categories: string[];
+  issues: NonNullable<B2cLedgerRow["issue"]>[];
+  foreignCurrencyCount: number;
+};
+
+/** Raw labels preserve ungrouped historical flags. Grouped duplicate state comes only from the safe per-payment boolean. */
 const OPEN_FLAG_LABEL_TO_TYPE: Partial<Record<NonNullable<B2cOpenReviewFlag["type"]>, string>> = {
   "Possible duplicate": "possible_duplicate",
   "Unmapped product": "unmapped_product",
@@ -52,6 +66,7 @@ function paymentStatusForDecision(row: B2cLedgerRow): "succeeded" | "failed" | "
  */
 export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2cDecoratedLedgerRow {
   const openFlagTypes = new Set(row.openReviewFlags.flatMap((flag) => {
+    if (flag.type === "Possible duplicate" && row.hasOpenPaymentDuplicate) return [];
     const rawType = OPEN_FLAG_LABEL_TO_TYPE[flag.type];
     return rawType ? [rawType] : [];
   }));
@@ -66,6 +81,8 @@ export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2c
     amountUsd: row.amountValueUsd,
     hasFinanceException: row.hasFinanceException,
     isApprovedFinancePayment: row.sourceSystem === "finance_tracker",
+    hasOpenPaymentDuplicate: row.hasOpenPaymentDuplicate,
+    hasDuplicateExclusion: row.hasDuplicateExclusion,
     evidenceMatchState: row.tapStatementUnmatched ? "unmatched" : "not_required",
     financeLineageStatus: row.sourceSystem === "finance_tracker" ? "posted" : "not_applicable",
   }, today);
@@ -75,15 +92,21 @@ export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2c
 function matchesQuery(row: B2cDecoratedLedgerRow, query: B2cLedgerQuery): boolean {
   if (query.source && row.sourceSystem !== query.source) return false;
   if (query.sourceStatus && row.decision.sourceStatus !== query.sourceStatus) return false;
+  if (query.paymentStatus && row.paymentStatus !== query.paymentStatus) return false;
   if (query.reportingDecision && row.decision.reportingDecision !== query.reportingDecision) return false;
-  if (query.issue && row.issue !== query.issue) return false;
+  if (query.issue === "none" ? row.issue !== null : query.issue && row.issue !== query.issue) return false;
+  if (query.dateFrom && row.dateValue < query.dateFrom) return false;
+  if (query.dateTo && row.dateValue > query.dateTo) return false;
+  if (query.category && row.category !== query.category) return false;
+  if (query.foreignCurrencyOnly && !row.foreignCurrencyReview) return false;
   if (query.currency && (row.sourceOriginalCurrency ?? "USD") !== query.currency) return false;
-  if (query.minAmountUsd && (row.amountValueUsd === null || Number(row.amountValueUsd) < Number(query.minAmountUsd))) return false;
-  if (query.maxAmountUsd && (row.amountValueUsd === null || Number(row.amountValueUsd) > Number(query.maxAmountUsd))) return false;
+  const absoluteAmountUsd = row.amountValueUsd === null ? null : Math.abs(Number(row.amountValueUsd));
+  if (query.minAmountUsd && (absoluteAmountUsd === null || absoluteAmountUsd < Number(query.minAmountUsd))) return false;
+  if (query.maxAmountUsd && (absoluteAmountUsd === null || absoluteAmountUsd > Number(query.maxAmountUsd))) return false;
   if (query.search) {
     const needle = query.search.trim().toLowerCase();
     if (!needle) return true;
-    const haystack = [row.customerName, row.customerEmail, row.providerReference, row.category].filter(Boolean).join(" ").toLowerCase();
+    const haystack = [row.customerName, row.customerEmail, row.customerPhone, row.providerReference].filter(Boolean).join(" ").toLowerCase();
     if (!haystack.includes(needle)) return false;
   }
   return true;
@@ -99,6 +122,15 @@ function sortRows(rows: B2cDecoratedLedgerRow[], sort: B2cLedgerSort): B2cDecora
   return sorted;
 }
 
+function buildFilterMetadata(rows: B2cDecoratedLedgerRow[]): B2cLedgerFilterMetadata {
+  return {
+    sources: [...new Set(rows.map((row) => row.source))].sort(),
+    categories: [...new Set(rows.map((row) => row.category))].sort(),
+    issues: [...new Set(rows.flatMap((row) => row.issue ? [row.issue] : []))].sort(),
+    foreignCurrencyCount: rows.filter((row) => row.foreignCurrencyReview).length,
+  };
+}
+
 /** A pure, in-memory page over an already-fetched, already-decorated row set. Cursor is an opaque row-index token. */
 export function pageB2cLedgerRows(rows: B2cDecoratedLedgerRow[], query: B2cLedgerQuery): B2cLedgerPage {
   const limit = Math.min(Math.max(query.limit ?? B2C_LEDGER_DEFAULT_LIMIT, 1), B2C_LEDGER_MAX_LIMIT);
@@ -107,7 +139,7 @@ export function pageB2cLedgerRows(rows: B2cDecoratedLedgerRow[], query: B2cLedge
   const page = filtered.slice(start, start + limit);
   const nextIndex = start + page.length;
   const hasMore = nextIndex < filtered.length;
-  return { rows: page, nextCursor: hasMore ? String(nextIndex) : null, hasMore, totalCount: filtered.length };
+  return { rows: page, nextCursor: hasMore ? String(nextIndex) : null, hasMore, totalCount: filtered.length, filterMetadata: buildFilterMetadata(rows) };
 }
 
 /** Loads and pages the B2C ledger. Reuses the existing dashboard snapshot for period scoping and every source read. */

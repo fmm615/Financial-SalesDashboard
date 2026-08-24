@@ -1,4 +1,6 @@
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { formatStripeBillingInterval, normaliseStripeCharge, normaliseStripeCheckoutPlan, normaliseStripeRefund, StripeRefundNotSucceededError } from "@/lib/integrations/stripe/normalise";
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
@@ -18,6 +20,16 @@ const charge = {
 const succeededRefund = { id: "re_123", charge: "ch_123", amount: 1200, currency: "usd", created: 1_754_000_100, status: "succeeded" };
 
 describe("Stripe normalisation and webhook security", () => {
+  it("leaves succeeded-payment content duplicate construction to SQL", () => {
+    const repositorySource = readFileSync(
+      path.join(process.cwd(), "src/server/repositories/stripe-sync-repository.ts"),
+      "utf8",
+    );
+
+    expect(repositorySource).not.toContain("findRecentContentDuplicates");
+    expect(repositorySource).not.toContain("[payment.id, ...duplicatePaymentIds]");
+  });
+
   it("rejects every HubSpot provider write method while allowing only its read search query", () => {
     expect(() => assertHubSpotReadOnlyRequest("/crm/v3/objects/deals/search", "POST")).not.toThrow();
     expect(() => assertHubSpotReadOnlyRequest("/crm/v3/objects/deals/123", "GET")).not.toThrow();

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  linkB2cProviderEvidenceExactMatches,
+  linkB2cProviderEvidence,
   reconcileProviderEvidence,
   type LocalProviderPaymentRecord,
   type ProviderEvidenceRecord,
@@ -83,8 +83,8 @@ describe("reconcileProviderEvidence", () => {
   });
 });
 
-describe("linkB2cProviderEvidenceExactMatches", () => {
-  it("persists only the exact matches, never mismatches or unmatched evidence", async () => {
+describe("linkB2cProviderEvidence", () => {
+  it("persists exact matches and mismatches with their differing fields, never unmatched evidence", async () => {
     const evidenceRows = [
       { id: "e1", provider_payment_id: "ch_a", credit_amount: "50.42", original_currency: "USD", occurred_at: "2026-08-09T09:37:33.000Z" },
       { id: "e2", provider_payment_id: "ch_mismatch", credit_amount: "10.00", original_currency: "USD", occurred_at: "2026-08-09T09:37:33.000Z" },
@@ -118,13 +118,16 @@ describe("linkB2cProviderEvidenceExactMatches", () => {
       }),
     };
 
-    const result = await linkB2cProviderEvidenceExactMatches(client as never, { importId: "import-1", provider: "stripe" });
+    const result = await linkB2cProviderEvidence(client as never, { importId: "import-1", provider: "stripe" });
 
     expect(result.exactMatches).toEqual([{ evidenceId: "e1", paymentId: "p1" }]);
     expect(result.mismatches).toHaveLength(1);
     expect(result.unmatchedEvidence).toEqual(["e3"]);
     expect(upsert).toHaveBeenCalledWith(
-      [{ provider_evidence_id: "e1", payment_id: "p1", match_state: "exact_match", matched_during_import_id: "import-1" }],
+      [
+        { provider_evidence_id: "e1", payment_id: "p1", match_state: "exact_match", mismatch_fields: [], matched_during_import_id: "import-1" },
+        { provider_evidence_id: "e2", payment_id: "p2", match_state: "mismatch", mismatch_fields: ["amount"], matched_during_import_id: "import-1" },
+      ],
       { onConflict: "provider_evidence_id", ignoreDuplicates: true },
     );
   });
@@ -155,11 +158,50 @@ describe("linkB2cProviderEvidenceExactMatches", () => {
       }),
     };
 
-    await linkB2cProviderEvidenceExactMatches(client as never, { importId: "import-1", provider: "tap" });
-    await linkB2cProviderEvidenceExactMatches(client as never, { importId: "import-2", provider: "tap" });
+    await linkB2cProviderEvidence(client as never, { importId: "import-1", provider: "tap" });
+    await linkB2cProviderEvidence(client as never, { importId: "import-2", provider: "tap" });
 
     expect(upsert).toHaveBeenCalledTimes(2);
     expect(upsert.mock.calls[0][1]).toEqual({ onConflict: "provider_evidence_id", ignoreDuplicates: true });
+  });
+
+  it("chunks a 20,000-row provider import into URL-safe payment-ID lookups", async () => {
+    const evidenceRows = Array.from({ length: 20_000 }, (_, index) => ({
+      id: `evidence-${index}`,
+      provider_payment_id: `ch_${index}`,
+      credit_amount: "50.42",
+      original_currency: "USD",
+      occurred_at: "2026-08-09T09:37:33.000Z",
+    }));
+    const paymentIdBatches = vi.fn();
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === "b2c_provider_evidence") {
+          const builder: Record<string, unknown> = {};
+          builder.select = vi.fn().mockReturnValue(builder);
+          builder.eq = vi.fn().mockReturnValue(builder);
+          builder.then = (resolve: (value: { data: unknown; error: null }) => unknown) => resolve({ data: evidenceRows, error: null });
+          return builder;
+        }
+        if (table === "b2c_payments") {
+          const builder: Record<string, unknown> = {};
+          builder.select = vi.fn().mockReturnValue(builder);
+          builder.eq = vi.fn().mockReturnValue(builder);
+          builder.in = vi.fn((_: string, values: string[]) => {
+            paymentIdBatches(values);
+            return builder;
+          });
+          builder.then = (resolve: (value: { data: unknown; error: null }) => unknown) => resolve({ data: [], error: null });
+          return builder;
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    await linkB2cProviderEvidence(client as never, { importId: "import-1", provider: "stripe" });
+
+    expect(paymentIdBatches).toHaveBeenCalledTimes(200);
+    expect(paymentIdBatches.mock.calls.every(([values]) => values.length <= 100)).toBe(true);
   });
 
   it("never links evidence to a payment, and never inserts links, when the import has no sale evidence", async () => {
@@ -176,7 +218,7 @@ describe("linkB2cProviderEvidenceExactMatches", () => {
       }),
     };
 
-    const result = await linkB2cProviderEvidenceExactMatches(client as never, { importId: "import-1", provider: "stripe" });
+    const result = await linkB2cProviderEvidence(client as never, { importId: "import-1", provider: "stripe" });
     expect(result).toEqual({ exactMatches: [], mismatches: [], unmatchedEvidence: [] });
   });
 });

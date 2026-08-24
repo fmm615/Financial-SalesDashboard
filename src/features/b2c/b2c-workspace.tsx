@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, MetricCard, SectionCard } from "@/components/ui";
@@ -12,7 +12,8 @@ import { B2cWorkQueue, type B2cWorkQueueFilter } from "@/features/b2c/b2c-work-q
 import { B2cSourceManagement } from "@/features/b2c/b2c-source-management";
 import { B2cPaymentReviewDrawer, type B2cPaymentReviewDrawerTarget } from "@/features/b2c/b2c-payment-review-drawer";
 import type { B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
-import type { B2cWorkspaceOverview } from "@/server/repositories/b2c-workspace-repository";
+import type { B2cLedgerFilterMetadata } from "@/server/repositories/b2c-ledger-repository";
+import { summarizeB2cWorkItemCounts, type B2cWorkspaceOverview } from "@/server/repositories/b2c-workspace-repository";
 import type { B2cWorkItem } from "@/server/services/b2c-work-items";
 
 type WorkspaceTab = "work" | "ledger" | "sources";
@@ -24,7 +25,7 @@ const TABS: Array<{ value: WorkspaceTab; label: string; adminOnly?: boolean }> =
 
 type WorkspaceLedgerResponse = {
   role: "admin" | "viewer";
-  ledger: { rows: B2cSafeLedgerRow[]; nextCursor: string | null; hasMore: boolean; totalCount: number };
+  ledger: { rows: B2cSafeLedgerRow[]; nextCursor: string | null; hasMore: boolean; totalCount: number; filterMetadata: B2cLedgerFilterMetadata };
   workItems: B2cWorkspaceOverview | null;
 };
 
@@ -33,29 +34,18 @@ function formatCoverageTimestamp(value: string | null): string | null {
   return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bahrain" }).format(new Date(value));
 }
 
-function filterRows(rows: B2cSafeLedgerRow[], filters: B2cLedgerFiltersState): B2cSafeLedgerRow[] {
-  const search = filters.search.trim().toLowerCase();
-  const minimum = filters.minAmount === "" ? null : Number(filters.minAmount);
-  const maximum = filters.maxAmount === "" ? null : Number(filters.maxAmount);
+function sourceQueryValue(source: string): "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker" | null {
+  if (source === "Stripe") return "stripe";
+  if (source === "Tap") return "tap";
+  if (source === "Manual bank transfer") return "manual_bank_transfer";
+  return source.startsWith("Finance") ? "finance_tracker" : null;
+}
 
-  return rows.filter((row) => {
-    const searchable = [row.customerName, row.customerEmail, row.customerPhone, row.providerReference].filter(Boolean).join(" ").toLowerCase();
-    const absoluteAmount = row.amountValueUsd === null ? null : Math.abs(Number(row.amountValueUsd));
-
-    return (
-      (!search || searchable.includes(search)) &&
-      (!filters.dateFrom || row.dateValue >= filters.dateFrom) &&
-      (!filters.dateTo || row.dateValue <= filters.dateTo) &&
-      (minimum === null || (absoluteAmount !== null && absoluteAmount >= minimum)) &&
-      (maximum === null || (absoluteAmount !== null && absoluteAmount <= maximum)) &&
-      (filters.status === "all" || row.paymentStatus === filters.status) &&
-      (filters.source === "all" || row.source === filters.source) &&
-      (filters.category === "all" || row.category === filters.category) &&
-      (!filters.foreignCurrencyOnly || row.foreignCurrencyReview) &&
-      (!filters.tapStatementUnmatchedOnly || row.tapStatementUnmatched === true) &&
-      (filters.issue === "all" || filters.issue === "none" ? filters.issue !== "none" || row.issue === null : row.issue === filters.issue)
-    );
-  });
+function sourceStatusQueryValue(status: string): "succeeded" | "failed" | "pending" | null {
+  if (status === "Completed") return "succeeded";
+  if (status === "Failed") return "failed";
+  if (status === "Pending") return "pending";
+  return null;
 }
 
 function TabBar({ active, onSelect, showWork }: { active: WorkspaceTab; onSelect: (tab: WorkspaceTab) => void; showWork: boolean }) {
@@ -103,6 +93,9 @@ export function B2cWorkspace({
   const activeTab: WorkspaceTab = requestedTab === "work" && !canManage ? "ledger" : (requestedTab ?? (canManage ? "work" : "ledger"));
   const activeQueue = (searchParams.get("queue") as B2cWorkQueueFilter | null) ?? "all";
   const recordParam = searchParams.get("record");
+  const candidateParam = searchParams.get("candidate");
+  const financeDuplicateParam = searchParams.get("financeDuplicate");
+  const dateAuthorityParam = searchParams.get("dateAuthority");
 
   function setQuery(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -113,6 +106,8 @@ export function B2cWorkspace({
   }
 
   const [ledgerRows, setLedgerRows] = useState<B2cSafeLedgerRow[]>([]);
+  const [ledgerTotalCount, setLedgerTotalCount] = useState(0);
+  const [ledgerFilterMetadata, setLedgerFilterMetadata] = useState<B2cLedgerFilterMetadata | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [workItems, setWorkItems] = useState<B2cWorkspaceOverview | null>(null);
@@ -121,79 +116,159 @@ export function B2cWorkspace({
 
   const [filters, setFilters] = useState<B2cLedgerFiltersState>(() => ({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: initialTapStatementUnmatchedOnly }));
   const [drawerTarget, setDrawerTarget] = useState<B2cPaymentReviewDrawerTarget | null>(null);
+  const justResolvedPaymentIds = useRef(new Set<string>());
+  const ledgerRequestGeneration = useRef(0);
+  const activeLedgerRequest = useRef<AbortController | null>(null);
 
   const period = snapshot?.period.month;
 
-  const loadLedgerPage = useCallback(async (cursor: string | null) => {
+  const loadLedgerPage = useCallback(async (cursor: string | null, signal: AbortSignal) => {
     const params = new URLSearchParams({ limit: "100" });
     if (period) params.set("period", period);
     if (cursor) params.set("cursor", cursor);
-    const response = await fetch(`/api/b2c/workspace?${params.toString()}`, { cache: "no-store" });
+    const search = filters.search.trim();
+    const source = sourceQueryValue(filters.source);
+    const sourceStatus = sourceStatusQueryValue(filters.status);
+    const issue = filters.tapStatementUnmatchedOnly
+      ? "Tap statement unmatched"
+      : filters.issue !== "all" ? filters.issue : null;
+    if (search) params.set("search", search);
+    if (source) params.set("source", source);
+    if (sourceStatus) params.set("sourceStatus", sourceStatus);
+    if (filters.status !== "all") params.set("paymentStatus", filters.status);
+    if (issue) params.set("issue", issue);
+    if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+    if (filters.dateTo) params.set("dateTo", filters.dateTo);
+    if (filters.category !== "all") params.set("category", filters.category);
+    if (filters.foreignCurrencyOnly) params.set("foreignCurrencyOnly", "true");
+    if (filters.minAmount) params.set("minAmountUsd", filters.minAmount);
+    if (filters.maxAmount) params.set("maxAmountUsd", filters.maxAmount);
+    const response = await fetch(`/api/b2c/workspace?${params.toString()}`, { cache: "no-store", signal });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok || !payload || typeof payload !== "object" || !("ledger" in payload)) throw new Error("Workspace data unavailable");
     return payload as WorkspaceLedgerResponse;
-  }, [period]);
+  }, [filters, period]);
+
+  const invalidateLedgerRequests = useCallback(() => {
+    ledgerRequestGeneration.current += 1;
+    activeLedgerRequest.current?.abort();
+    activeLedgerRequest.current = null;
+    setLoadingMore(false);
+  }, []);
+
+  const beginLedgerRequest = useCallback(() => {
+    invalidateLedgerRequests();
+    const controller = new AbortController();
+    activeLedgerRequest.current = controller;
+    return { controller, generation: ledgerRequestGeneration.current };
+  }, [invalidateLedgerRequests]);
 
   const reload = useCallback(async () => {
+    const { controller, generation } = beginLedgerRequest();
     setLedgerLoadError(false);
     try {
-      const page = await loadLedgerPage(null);
+      const page = await loadLedgerPage(null, controller.signal);
+      if (generation !== ledgerRequestGeneration.current) return;
       setLedgerRows(page.ledger.rows);
+      setLedgerTotalCount(page.ledger.totalCount);
+      setLedgerFilterMetadata(page.ledger.filterMetadata);
       setNextCursor(page.ledger.nextCursor);
       setHasMore(page.ledger.hasMore);
       setWorkItems(page.workItems);
     } catch {
-      setLedgerLoadError(true);
+      if (generation === ledgerRequestGeneration.current && !controller.signal.aborted) setLedgerLoadError(true);
+    } finally {
+      if (generation === ledgerRequestGeneration.current) activeLedgerRequest.current = null;
     }
-  }, [loadLedgerPage]);
+  }, [beginLedgerRequest, loadLedgerPage]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    void reload();
+    return invalidateLedgerRequests;
+  }, [invalidateLedgerRequests, reload]);
 
   async function loadMore() {
     if (!nextCursor) return;
+    const { controller, generation } = beginLedgerRequest();
     setLoadingMore(true);
     try {
-      const page = await loadLedgerPage(nextCursor);
+      const page = await loadLedgerPage(nextCursor, controller.signal);
+      if (generation !== ledgerRequestGeneration.current) return;
       setLedgerRows((current) => [...current, ...page.ledger.rows]);
+      setLedgerTotalCount(page.ledger.totalCount);
+      setLedgerFilterMetadata(page.ledger.filterMetadata);
       setNextCursor(page.ledger.nextCursor);
       setHasMore(page.ledger.hasMore);
     } catch {
-      setLedgerLoadError(true);
+      if (generation === ledgerRequestGeneration.current && !controller.signal.aborted) setLedgerLoadError(true);
     } finally {
-      setLoadingMore(false);
+      if (generation === ledgerRequestGeneration.current) {
+        activeLedgerRequest.current = null;
+        setLoadingMore(false);
+      }
     }
   }
 
-  const visibleRows = useMemo(() => filterRows(ledgerRows, filters), [ledgerRows, filters]);
-  const sources = useMemo(() => [...new Set(ledgerRows.map((row) => row.source))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
-  const categories = useMemo(() => [...new Set(ledgerRows.map((row) => row.category))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
-  const issues = useMemo(() => [...new Set(ledgerRows.flatMap((row) => (row.issue ? [row.issue] : [])))].sort().map((value) => ({ value, label: value })), [ledgerRows]);
-  const foreignCurrencyCount = useMemo(() => ledgerRows.filter((row) => row.foreignCurrencyReview).length, [ledgerRows]);
+  function handleFiltersChange(nextFilters: B2cLedgerFiltersState) {
+    invalidateLedgerRequests();
+    setNextCursor(null);
+    setHasMore(false);
+    setFilters(nextFilters);
+  }
+
+  const visibleRows = ledgerRows;
+  const sources = useMemo(() => (ledgerFilterMetadata?.sources ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
+  const categories = useMemo(() => (ledgerFilterMetadata?.categories ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
+  const issues = useMemo(() => (ledgerFilterMetadata?.issues ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
+  const foreignCurrencyCount = ledgerFilterMetadata?.foreignCurrencyCount ?? 0;
   // Undated Tap statement evidence falls outside every month-scoped period, so
   // the retained global count comes from the snapshot rather than the current page.
   const tapStatementUnmatchedCount = snapshot?.tapStatementUnmatchedCount ?? ledgerRows.filter((row) => row.tapStatementUnmatched).length;
 
   function toggleTapStatementUnmatchedOnly() {
     if (snapshot && !snapshot.period.isAllTime) {
-      setFilters({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: true });
+      handleFiltersChange({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: true });
       setQuery({ period: "all", tab: "ledger" });
       return;
     }
-    setFilters((current) => ({ ...current, tapStatementUnmatchedOnly: !current.tapStatementUnmatchedOnly }));
+    handleFiltersChange({ ...filters, tapStatementUnmatchedOnly: !filters.tapStatementUnmatchedOnly });
   }
 
   // A record deep-linked from the Work queue or Review Queue opens the same shared drawer.
   useEffect(() => {
-    if (!recordParam) { setDrawerTarget(null); return; }
+    if (!recordParam) justResolvedPaymentIds.current.clear();
+    if (financeDuplicateParam) {
+      const group = workItems?.financeDuplicateGroups?.find((item) => item.groupId === financeDuplicateParam);
+      setDrawerTarget(group ? { kind: "financeDuplicate", group } : null);
+      return;
+    }
+    if (candidateParam) {
+      const candidate = workItems?.pendingCandidates?.find((item) => item.candidateId === candidateParam);
+      setDrawerTarget(candidate ? { kind: "candidate", candidate } : null);
+      return;
+    }
+    if (dateAuthorityParam) {
+      const row = workItems?.stagingDateAuthorityRows?.find((item) => item.financeRowId === dateAuthorityParam);
+      setDrawerTarget(row ? { kind: "stagingDateAuthority", row } : null);
+      return;
+    }
+    if (!recordParam) {
+      setDrawerTarget(null);
+      return;
+    }
+    if (justResolvedPaymentIds.current.has(recordParam)) {
+      setDrawerTarget(null);
+      return;
+    }
     const row = ledgerRows.find((candidate) => candidate.id === recordParam);
     if (row) { setDrawerTarget({ kind: "row", row }); return; }
-    const item = workItems?.items.find((candidate) => candidate.recordId === recordParam);
-    if (item) setDrawerTarget({ kind: "workItem", item });
-  }, [recordParam, ledgerRows, workItems]);
+    const item = workItems?.items.find((candidate) => candidate.nextAction !== "choose_finance_duplicate" && candidate.recordId === recordParam);
+    setDrawerTarget(item ? { kind: "workItem", item } : null);
+  }, [candidateParam, dateAuthorityParam, financeDuplicateParam, recordParam, ledgerRows, workItems]);
 
   function closeDrawer() {
     setDrawerTarget(null);
-    setQuery({ record: null });
+    setQuery({ record: null, candidate: null, financeDuplicate: null, dateAuthority: null });
   }
 
   function openRow(row: B2cSafeLedgerRow) {
@@ -206,6 +281,61 @@ export function B2cWorkspace({
     // drawer with either the full loaded row (Ledger-quality detail) or, when
     // the record isn't on the current ledger page, the work item itself.
     router.push(item.href);
+  }
+
+  function handleCandidateResolved(candidateId: string) {
+    setWorkItems((current) => {
+      if (!current) return current;
+      const items = current.items.filter((item) => item.recordId !== candidateId);
+      return {
+        ...current,
+        items,
+        counts: summarizeB2cWorkItemCounts(items),
+        pendingCandidates: current.pendingCandidates?.filter((candidate) => candidate.candidateId !== candidateId),
+      };
+    });
+    void reload();
+  }
+
+  function handlePaymentDuplicateResolved(resolvedPaymentIds: string[]) {
+    const resolvedIds = new Set(resolvedPaymentIds);
+    for (const paymentId of resolvedIds) justResolvedPaymentIds.current.add(paymentId);
+    setWorkItems((current) => {
+      if (!current) return current;
+      const items = current.items.filter((item) => !resolvedIds.has(item.recordId));
+      return { ...current, items, counts: summarizeB2cWorkItemCounts(items) };
+    });
+    setDrawerTarget(null);
+    setQuery({ record: null });
+    void reload();
+  }
+
+  function handleFinanceDuplicateResolved(groupId: string) {
+    setWorkItems((current) => {
+      if (!current) return current;
+      const items = current.items.filter((item) => item.recordId !== groupId);
+      return {
+        ...current,
+        items,
+        counts: summarizeB2cWorkItemCounts(items),
+        financeDuplicateGroups: current.financeDuplicateGroups?.filter((group) => group.groupId !== groupId),
+      };
+    });
+    void reload();
+  }
+
+  function handleStagingDateAuthorityResolved(financeRowId: string) {
+    setWorkItems((current) => {
+      if (!current) return current;
+      const items = current.items.filter((item) => item.id !== `staging-date-authority:${financeRowId}`);
+      return {
+        ...current,
+        items,
+        counts: summarizeB2cWorkItemCounts(items),
+        stagingDateAuthorityRows: current.stagingDateAuthorityRows?.filter((row) => row.financeRowId !== financeRowId),
+      };
+    });
+    void reload();
   }
 
   const financialTotalsAvailable = snapshot?.sourceCoverage.reportingTotalsReady ?? false;
@@ -247,7 +377,7 @@ export function B2cWorkspace({
         : <EmptyState title="Loading the Work queue" description="Preparing prioritized B2C records." />)}
 
       {activeTab === "ledger" && <SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
-        <B2cLedgerFilters filters={filters} onChange={setFilters} onTapStatementUnmatchedToggle={toggleTapStatementUnmatchedOnly} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={ledgerRows.length} foreignCurrencyCount={foreignCurrencyCount} tapStatementUnmatchedCount={tapStatementUnmatchedCount} />
+        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} onTapStatementUnmatchedToggle={toggleTapStatementUnmatchedOnly} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} tapStatementUnmatchedCount={tapStatementUnmatchedCount} />
         {visibleRows.length === 0 ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." /> : <B2cLedgerTable rows={visibleRows} onReview={openRow} />}
         {hasMore && <div className="mt-4 text-center"><button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="min-h-11 rounded-pill border border-border px-5 text-sm font-medium text-brand-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60">{loadingMore ? "Loading…" : "Load more"}</button></div>}
 
@@ -268,6 +398,13 @@ export function B2cWorkspace({
       {activeTab === "sources" && <B2cSourceManagement />}
     </div>
 
-    <B2cPaymentReviewDrawer target={drawerTarget} onClose={closeDrawer} />
+    <B2cPaymentReviewDrawer
+      target={drawerTarget}
+      onClose={closeDrawer}
+      onCandidateResolved={handleCandidateResolved}
+      onPaymentDuplicateResolved={handlePaymentDuplicateResolved}
+      onFinanceDuplicateResolved={handleFinanceDuplicateResolved}
+      onStagingDateAuthorityResolved={handleStagingDateAuthorityResolved}
+    />
   </AppShell>;
 }

@@ -62,6 +62,7 @@ describe("B2C Stripe enrichment presentation", () => {
       date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2026-08-09",
       category: "membership", membershipTier: "Monthly", billingInterval: "Monthly", source: "Stripe", paymentStatus: "Completed" as const,
       providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
+      hasOpenPaymentDuplicate: false, hasDuplicateExclusion: false,
       openReviewFlags: [], issue: "Missing customer email" as const,
     };
     const snapshot: B2cDashboardSnapshot = {
@@ -110,6 +111,7 @@ describe("B2C Stripe enrichment presentation", () => {
       date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceOriginalCurrency: "USD", sourceDescription: "Founding Membership renewal", sourceDateValue: "2026-08-09",
       category: "membership", membershipTier: "Founding Membership", billingInterval: "Annual", source: "Stripe", paymentStatus: "Completed" as const,
       providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
+      hasOpenPaymentDuplicate: false, hasDuplicateExclusion: false,
       openReviewFlags: [], issue: null,
       stripeEvidence: {
         originalAmount: "50.42", originalCurrency: "USD", amountRefunded: "10.00", description: "Founding Membership renewal", sellerMessage: "Payment complete", cardholderName: "Stripe customer",

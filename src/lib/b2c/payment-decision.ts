@@ -23,6 +23,7 @@ export type B2cBlockingReason =
   | "missing_fx"
   | "unmapped_category"
   | "possible_duplicate"
+  | "duplicate_exclusion"
   | "failed_payment"
   | "pending_payment"
   | "unmatched_evidence"
@@ -38,7 +39,7 @@ export type B2cBlockingReason =
  * audited exclusion. Statement evidence intentionally never reaches
  * `b2cPaymentExclusionReasons` -- it is compared here, after the gate runs.
  */
-export type B2cPaymentDecisionInput = Pick<B2cPaymentReportabilityInput, "customerEmail" | "categoryCode" | "openFlagTypes" | "originalCurrency" | "amountUsd" | "hasFinanceException" | "isApprovedFinancePayment" | "hasBlockingNeedsFollowUp"> & {
+export type B2cPaymentDecisionInput = Pick<B2cPaymentReportabilityInput, "customerEmail" | "categoryCode" | "openFlagTypes" | "originalCurrency" | "amountUsd" | "hasFinanceException" | "isApprovedFinancePayment" | "hasOpenPaymentDuplicate" | "hasDuplicateExclusion" | "hasBlockingNeedsFollowUp"> & {
   sourceSystem: "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker";
   paymentStatus: "succeeded" | "failed" | "pending";
   /** A missing business date is unavailable, never guessed from another field. */
@@ -61,6 +62,8 @@ function toGateInput(input: B2cPaymentDecisionInput): B2cPaymentReportabilityInp
     amountUsd: input.amountUsd,
     hasFinanceException: input.hasFinanceException,
     isApprovedFinancePayment: input.isApprovedFinancePayment,
+    hasOpenPaymentDuplicate: input.hasOpenPaymentDuplicate,
+    hasDuplicateExclusion: input.hasDuplicateExclusion,
     hasBlockingNeedsFollowUp: input.hasBlockingNeedsFollowUp,
   };
 }
@@ -76,6 +79,8 @@ function translateGateReason(reason: B2cPaymentExclusionReason, input: B2cPaymen
       return "unmapped_category";
     case "possible_duplicate":
       return "possible_duplicate";
+    case "duplicate_exclusion":
+      return "duplicate_exclusion";
     case "needs_follow_up":
       return "other_open_review";
     case "needs_fx_review":
@@ -84,7 +89,7 @@ function translateGateReason(reason: B2cPaymentExclusionReason, input: B2cPaymen
 }
 
 function resolveReconciliationStatus(input: B2cPaymentDecisionInput): B2cPaymentDecision["reconciliationStatus"] {
-  if (input.openFlagTypes.has("possible_duplicate")) return "duplicate_pending";
+  if (input.openFlagTypes.has("possible_duplicate") || input.hasOpenPaymentDuplicate) return "duplicate_pending";
   return input.evidenceMatchState ?? "not_required";
 }
 
@@ -95,7 +100,11 @@ function resolvePostingStatus(input: B2cPaymentDecisionInput): B2cPaymentDecisio
 }
 
 function explain(reportingDecision: B2cPaymentDecision["reportingDecision"], blockingReasons: B2cBlockingReason[]): string {
-  if (reportingDecision === "excluded") return "This record is excluded by an explicit, audited decision.";
+  if (reportingDecision === "excluded") {
+    return blockingReasons.includes("duplicate_exclusion")
+      ? "This record is excluded by an audited duplicate exclusion."
+      : "This record is excluded by an explicit, audited decision.";
+  }
   if (blockingReasons.length === 0) {
     return reportingDecision === "exception_included"
       ? "Included by an audited Finance exception; every other blocking rule still passed."
@@ -108,6 +117,7 @@ function explain(reportingDecision: B2cPaymentDecision["reportingDecision"], blo
     missing_fx: "a foreign-currency amount awaiting an approved conversion",
     unmapped_category: "an unmapped category",
     possible_duplicate: "an unresolved possible duplicate",
+    duplicate_exclusion: "an audited duplicate exclusion",
     failed_payment: "a payment that did not succeed",
     pending_payment: "a payment that has not yet succeeded",
     unmatched_evidence: "provider evidence that does not match",
@@ -138,7 +148,7 @@ export function resolveB2cPaymentDecision(input: B2cPaymentDecisionInput, today 
 
   const uniqueBlockingReasons = [...new Set(blockingReasons)];
 
-  const reportingDecision: B2cPaymentDecision["reportingDecision"] = input.hasManualExclusion
+  const reportingDecision: B2cPaymentDecision["reportingDecision"] = input.hasManualExclusion || input.hasDuplicateExclusion
     ? "excluded"
     : uniqueBlockingReasons.length > 0
       ? "blocked"

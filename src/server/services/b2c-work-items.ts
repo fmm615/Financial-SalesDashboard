@@ -1,5 +1,6 @@
 import type { B2cBlockingReason, B2cPaymentDecision } from "@/lib/b2c/payment-decision";
 import type { FinancePostingReadiness } from "@/server/services/b2c-finance-action-center";
+import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
 /**
  * One accurate B2C work item. Internal `queue` values stay detailed so each
@@ -16,7 +17,7 @@ export type B2cWorkItem = {
   title: string;
   explanation: string;
   financialImpactUsd: string | null;
-  nextAction: "correct" | "map" | "convert_fx" | "choose_duplicate" | "compare" | "post" | "retry_source" | "review_exception" | "review_import_version";
+  nextAction: "correct" | "map" | "convert_fx" | "choose_payment_duplicate" | "choose_finance_duplicate" | "compare" | "post" | "retry_source" | "review_exception" | "review_import_version";
   href: string;
 };
 
@@ -38,6 +39,75 @@ export type B2cSourceFailureRecord = {
   reason: string;
   href: string;
 };
+
+/** One unresolved Payment Tracker import-version candidate, with source-row context for an Admin. */
+export type B2cPendingCandidateRecord = {
+  candidateId: string;
+  importId: string;
+  candidateKind: "new" | "ambiguous" | "existing_payment";
+  sourceIdentity: string;
+  financeRowIds: string[];
+  priorLineageIds: string[];
+  priorPaymentIds: string[];
+  customerLabel: string;
+  amountUsd: string | null;
+  occurredOn: string | null;
+};
+
+/** A provider-ID-linked payment whose retained evidence disagrees on one or more comparison facts. */
+export type B2cProviderEvidenceMismatchRecord = {
+  evidenceId: string;
+  paymentId: string;
+  customerLabel: string;
+  amountUsd: string | null;
+  mismatchFields: Array<"amount" | "currency" | "date" | "status">;
+};
+
+function formatProviderEvidenceMismatchFields(fields: B2cProviderEvidenceMismatchRecord["mismatchFields"]): string {
+  if (fields.length === 1) return fields[0];
+  if (fields.length === 2) return `${fields[0]} and ${fields[1]}`;
+  return `${fields.slice(0, -1).join(", ")}, and ${fields.at(-1)}`;
+}
+
+/** A retained mismatch stays visible until an Admin compares the original payment and provider evidence. */
+export function buildB2cProviderEvidenceMismatchWorkItems(records: B2cProviderEvidenceMismatchRecord[]): B2cWorkItem[] {
+  return records.map((record) => ({
+    id: `provider-evidence-mismatch:${record.evidenceId}`,
+    recordId: record.paymentId,
+    recordKind: "provider_payment",
+    queue: "reconciliation",
+    visibleGroup: "reconciliation",
+    financeMethod: null,
+    title: `Compare provider evidence for ${record.customerLabel}`,
+    explanation: `The provider transaction ID matches, but the ${formatProviderEvidenceMismatchFields(record.mismatchFields)} differ${record.mismatchFields.length === 1 ? "s" : ""}.`,
+    financialImpactUsd: record.amountUsd,
+    nextAction: "compare",
+    href: `/operations/b2c?tab=work&record=${record.paymentId}`,
+  }));
+}
+
+const CANDIDATE_EXPLANATION: Record<B2cPendingCandidateRecord["candidateKind"], string> = {
+  new: "This replacement-workbook row has no prior Payment Tracker row or existing payment with the same identity. Confirm it as a genuinely new payment, or link it to the record it revises.",
+  ambiguous: "Several rows share this payment identity, so PLAYBOOK cannot resolve them automatically. Decide each one explicitly.",
+  existing_payment: "This workbook row matches an existing manual bank transfer. Link it as evidence — it must never become a second payment.",
+};
+
+/** An undecided import-version candidate blocks its rows from posting until an Admin resolves it. */
+export function buildB2cPendingCandidateWorkItems(records: B2cPendingCandidateRecord[]): B2cWorkItem[] {
+  return records.map((record) => ({
+    id: `candidate:${record.candidateId}`,
+    recordId: record.candidateId,
+    recordKind: "finance_row",
+    queue: "reconciliation",
+    visibleGroup: "reconciliation",
+    financeMethod: null,
+    title: `Resolve the Payment Tracker version decision for ${record.customerLabel}`,
+    explanation: CANDIDATE_EXPLANATION[record.candidateKind],
+    financialImpactUsd: record.amountUsd,
+    nextAction: "review_import_version",
+    href: `/operations/b2c?tab=work&candidate=${record.candidateId}`,
+  }));
+}
 
 type ReasonPlan = {
   queue: B2cWorkItem["queue"];
@@ -88,7 +158,7 @@ const REASON_PLAN: Partial<Record<B2cBlockingReason, ReasonPlan>> = {
     explanation: "This foreign-currency record needs a Finance-approved USD conversion.",
   },
   possible_duplicate: {
-    queue: "duplicate", nextAction: "choose_duplicate",
+    queue: "duplicate", nextAction: "choose_payment_duplicate",
     title: (name) => `Choose the duplicate for ${name}`,
     explanation: "This record has an unresolved possible duplicate. Review both records and record one decision.",
   },
@@ -103,6 +173,23 @@ const REASON_PLAN: Partial<Record<B2cBlockingReason, ReasonPlan>> = {
     explanation: "This Payment Tracker row needs an explicit new/revision/existing-payment decision.",
   },
 };
+
+/** Finance exact groups are distinct from payment duplicate groups and open only their retained workbook pair. */
+export function buildB2cFinanceExactDuplicateWorkItems(groups: AdminExactDuplicateGroup[]): B2cWorkItem[] {
+  return groups.map((group) => ({
+    id: `finance-exact-duplicate:${group.groupId}`,
+    recordId: group.groupId,
+    recordKind: "finance_row",
+    queue: "duplicate",
+    visibleGroup: "duplicates",
+    financeMethod: null,
+    title: "Choose the canonical Payment Tracker row",
+    explanation: "Two retained Finance workbook rows are an unresolved exact cross-tab pair.",
+    financialImpactUsd: group.rows[0]?.amountUsd ?? null,
+    nextAction: "choose_finance_duplicate",
+    href: `/operations/b2c?tab=work&financeDuplicate=${group.groupId}`,
+  }));
+}
 
 export function visibleGroupForQueue(queue: B2cWorkItem["queue"]): B2cWorkItem["visibleGroup"] {
   if (queue === "duplicate") return "duplicates";

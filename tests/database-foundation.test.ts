@@ -443,6 +443,48 @@ describe("Phase 2 database migration contracts", () => {
     expect(reviewQueueSafety).toContain("create or replace function public.resolve_b2c_review_flag");
   });
 
+  it("creates an Admin-only, atomic B2C payment duplicate-group workflow", () => {
+    const sql = migration("20260820111000_b2c_payment_duplicate_groups.sql");
+    expect(sql).toContain("create table public.b2c_payment_duplicate_groups");
+    expect(sql).toContain("create table public.b2c_payment_duplicate_group_members");
+    expect(sql).toContain("create or replace function public.open_b2c_payment_duplicate_group");
+    expect(sql).toContain("create or replace function public.resolve_b2c_payment_duplicate_group");
+    expect(sql).toContain("create or replace function public.dismiss_stale_b2c_possible_duplicate_flag");
+    expect(sql).toContain("create or replace function public.get_b2c_payment_duplicate_reporting_states");
+    expect(sql).toContain("extensions.digest(");
+    expect(sql).toContain("p_decision not in ('keep_all', 'keep_one')");
+    expect(sql).toContain("public.is_admin()");
+    expect(sql).toContain("public.write_audit_event()");
+
+    const constructor = sql.slice(
+      sql.indexOf("create or replace function public.open_b2c_payment_duplicate_group"),
+      sql.indexOf("create or replace function public.resolve_b2c_payment_duplicate_group"),
+    );
+    const advisoryLock = constructor.indexOf("pg_advisory_xact_lock");
+    const firstRowLock = constructor.indexOf("for update");
+    expect(constructor).toContain("pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'))");
+    expect(constructor).not.toContain("'b2c_payment_duplicate:' || target.fingerprint");
+    expect(constructor).not.toContain("where payment.id = any(candidate_ids)");
+    expect(constructor).not.toContain("local_override.payment_id = any(candidate_ids)");
+    expect(advisoryLock).toBeGreaterThan(-1);
+    expect(firstRowLock).toBeGreaterThan(-1);
+    expect(advisoryLock).toBeLessThan(firstRowLock);
+
+    for (const [writer, nextWriter] of [
+      ["create or replace function public.apply_stripe_product_mapping", "create or replace function public.apply_b2c_product_mapping"],
+      ["create or replace function public.apply_b2c_product_mapping", "create or replace function public.record_b2c_manual_bank_transfer"],
+      ["create or replace function public.apply_b2c_payment_local_correction", "-- Fail closed: historical flags"],
+    ]) {
+      const writerBody = sql.slice(sql.indexOf(writer), sql.indexOf(nextWriter));
+      expect(writerBody.indexOf("pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'))")).toBeGreaterThan(-1);
+      expect(writerBody.indexOf("pg_advisory_xact_lock")).toBeLessThan(writerBody.indexOf("for update"));
+    }
+
+    const paymentTrigger = sql.indexOf("create trigger open_b2c_payment_duplicate_group_after_payment_write");
+    expect(sql.lastIndexOf("create or replace function public.record_b2c_manual_bank_transfer")).toBeGreaterThan(paymentTrigger);
+    expect(sql.lastIndexOf("create or replace function public.apply_b2c_payment_local_correction")).toBeGreaterThan(paymentTrigger);
+  });
+
   it("persists only exact provider-evidence links, immutably and Admin-only", () => {
     const sql = migration("20260818110000_b2c_provider_evidence_links.sql");
 
@@ -452,6 +494,15 @@ describe("Phase 2 database migration contracts", () => {
     expect(sql).toContain("execute procedure public.prevent_b2c_finance_lineage_mutation()");
     expect(sql).toContain("create policy admin_insert on public.b2c_provider_evidence_payment_links");
     expect(sql).toContain("public.is_admin()");
+  });
+
+  it("permits immutable provider-evidence mismatches only with named comparison fields", () => {
+    const sql = migration("20260820110000_b2c_provider_evidence_mismatches.sql");
+
+    expect(sql).toContain("check (match_state in ('exact_match', 'mismatch'))");
+    expect(sql).toContain("add column if not exists mismatch_fields text[] not null default '{}'");
+    expect(sql).toContain("cardinality(mismatch_fields) > 0");
+    expect(sql).toContain("array['amount', 'currency', 'date', 'status']::text[]");
   });
 
   it("records a manual bank transfer only through one locked, re-validating RPC", () => {

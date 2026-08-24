@@ -80,6 +80,40 @@ describe("resolveB2cPaymentDecision", () => {
     expect(decision.reconciliationStatus).toBe("duplicate_pending");
   });
 
+  it("keeps an open payment duplicate group blocked independently of raw review-flag translation", () => {
+    const decision = resolveB2cPaymentDecision({
+      ...base, openFlagTypes: new Set(), hasOpenPaymentDuplicate: true,
+    });
+
+    expect(decision).toMatchObject({
+      reconciliationStatus: "duplicate_pending",
+      reportingDecision: "blocked",
+    });
+    expect(decision.blockingReasons).toContain("possible_duplicate");
+  });
+
+  it("keeps an explicitly excluded duplicate outside reporting after its flag closes", () => {
+    const decision = resolveB2cPaymentDecision({
+      ...base, openFlagTypes: new Set(), hasDuplicateExclusion: true,
+    });
+
+    expect(decision.reportingDecision).toBe("excluded");
+    expect(decision.blockingReasons).toContain("duplicate_exclusion");
+    expect(decision.explanation).toContain("an audited duplicate exclusion");
+  });
+
+  it("keeps a prior duplicate exclusion excluded when a later group inclusion leaves no open duplicate", () => {
+    const decision = resolveB2cPaymentDecision({
+      ...base,
+      openFlagTypes: new Set(),
+      hasOpenPaymentDuplicate: false,
+      hasDuplicateExclusion: true,
+    });
+
+    expect(decision.reportingDecision).toBe("excluded");
+    expect(decision.blockingReasons).toEqual(["duplicate_exclusion"]);
+  });
+
   it("blocks a payment whose business date has not happened yet, even when it is already posted", () => {
     const decision = resolveB2cPaymentDecision({
       ...base, sourceSystem: "finance_tracker", occurredOn: "2026-11-01", isApprovedFinancePayment: true,
