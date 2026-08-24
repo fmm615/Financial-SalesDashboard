@@ -27,7 +27,10 @@ describe("B2cStagingDateAuthority", () => {
     expect(screen.getByText("B2C row 42")).toBeInTheDocument();
     expect(screen.getByText("September")).toBeInTheDocument();
     expect(screen.getByText("2025")).toBeInTheDocument();
-    expect(screen.getByText("2026-08-11")).toBeInTheDocument();
+    expect(screen.getByText("Stored value: 2026-08-11")).toBeInTheDocument();
+    expect(screen.getByText("11 August 2026")).toBeInTheDocument();
+    expect(screen.getByText("DD/MM/YYYY: 11/08/2026")).toBeInTheDocument();
+    expect(screen.getByText(/The workbook.s Date value says 11 August 2026\. The Month label says September\./)).toBeInTheDocument();
 
     const save = screen.getByRole("button", { name: "Confirm parsed Date" });
     expect(save).toBeDisabled();
