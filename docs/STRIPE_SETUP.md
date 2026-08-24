@@ -85,10 +85,13 @@ other active review conditions remain visible for traceability.
 
 Existing product mappings, mapping functions, classifications, and historical
 `unmapped_product` flags are read-only audit history. After merged code is
-deployed, manually run
-`supabase/migrations/20260824150000_retire_b2c_product_mapping_requirement.sql`
-in Supabase SQL Editor and confirm it succeeds before relying on this behavior.
-Do not run `supabase db push` for this change.
+deployed, manually run these migrations in order in Supabase SQL Editor:
+
+1. `supabase/migrations/20260824150000_retire_b2c_product_mapping_requirement.sql`
+2. `supabase/migrations/20260824151000_preserve_retired_unmapped_product_flag_history.sql`
+
+Confirm both succeed before relying on this behavior. Do not run `supabase db
+push` for this change.
 
 The daily job should call `/api/internal/reconcile/stripe` with the `Authorization: Bearer <INTEGRATION_CRON_SECRET>` header. It re-reads the last 48 hours, using provider IDs and content fingerprints to avoid double-counting.
 

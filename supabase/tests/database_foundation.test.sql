@@ -1,6 +1,6 @@
 begin;
 
-select plan(150);
+select plan(153);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -1987,6 +1987,66 @@ select throws_ok(
   'P0001',
   'Only a succeeded provider payment can be included by Finance exception',
   'a failed provider payment still cannot receive a Finance exception'
+);
+
+reset role;
+
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, category_code, payment_status,
+  original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values (
+  'c5000000-0000-4000-8000-000000000001', 'stripe', 'ch_retired_unmapped_flag_category_correction',
+  'retired.flag@playbook.test', 'unmapped', 'succeeded', 147, 'USD', 1, 147, 147,
+  '2026-09-04 08:00:00+00', '2026-09-04', repeat('8', 64)
+);
+
+insert into public.review_flags (
+  id, source_area, source_record_id, flag_type, status, priority, reason
+) values (
+  'd5000000-0000-4000-8000-000000000001', 'b2c_payment',
+  'c5000000-0000-4000-8000-000000000001', 'unmapped_product', 'open', 2,
+  'Historical mapping evidence retained after provider category retirement.'
+);
+
+set local role authenticated;
+
+select public.apply_b2c_payment_local_correction(
+  'c5000000-0000-4000-8000-000000000001', null, null, null,
+  'membership', null, null, null,
+  'Admin verified optional local category metadata without changing retired audit history.'
+);
+
+select is(
+  (select status::text from public.review_flags where id = 'd5000000-0000-4000-8000-000000000001'),
+  'open',
+  'an Admin local category correction preserves an open historical unmapped-product flag'
+);
+
+select is(
+  (select count(*)::integer from public.review_flag_resolutions
+   where flag_id = 'd5000000-0000-4000-8000-000000000001'),
+  0,
+  'an Admin local category correction adds no resolution for retired unmapped-product history'
+);
+
+select ok(
+  exists (
+    select 1
+    from public.b2c_payment_local_overrides
+    where payment_id = 'c5000000-0000-4000-8000-000000000001'
+      and category_code = 'membership'
+      and created_by = auth.uid()
+  )
+  and exists (
+    select 1
+    from public.financial_corrections
+    where target_area = 'b2c_payment'
+      and target_record_id = 'c5000000-0000-4000-8000-000000000001'
+      and after_value ->> 'category_code' = 'membership'
+      and reason = 'Admin verified optional local category metadata without changing retired audit history.'
+  ),
+  'the local category override and financial correction audit remain persisted'
 );
 
 reset role;
