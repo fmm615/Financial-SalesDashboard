@@ -60,4 +60,4 @@ No migration required or created. This task changes only live TypeScript project
 
 ## Commit
 
-Pending final verification and commit.
+`58491f6a4b7805f86a9b04e251ed86da8f1a6c73` — `refactor(b2c): retire unmapped ledger issues`
