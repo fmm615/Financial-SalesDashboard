@@ -258,7 +258,7 @@ independent dimensions rather than passed through the financial gate, and a
 refund's own decision never overwrites its linked payment's `sourceStatus`.
 `src/server/services/b2c-work-items.ts` turns unresolved blocking reasons into
 detailed internal `B2cWorkItem` queues (`data_quality`, `duplicate`, `fx`,
-`mapping`, `reconciliation`, `source_failure`), which `b2c-workspace-repository.ts`
+`reconciliation`, `source_failure`), which `b2c-workspace-repository.ts`
 groups into the four visible Work queue filters (`data`, `duplicates`,
 `reconciliation`, `ready_to_post`); Ready-to-post is always one aggregated item
 sourced from Task 2's `summarizeFinancePostingReadiness`, never one row per
@@ -268,7 +268,7 @@ rather than re-querying B2C sources. `b2c-dashboard-repository.ts` remains the
 one compatibility facade underneath both.
 
 The shared record drawer (`b2c-payment-review-drawer.tsx`) is the one place
-every B2C correction, mapping, FX conversion, Finance exception, refund FX,
+every B2C correction, FX conversion, Finance exception, refund FX,
 Finance-Tracker duplicate decision, and posted-Finance adjustment is reachable
 from -- Work queue and Ledger both open it, and it owns opening, closing,
 focus, errors, and refresh; there is no separate per-row dialog. It picks one
@@ -283,7 +283,11 @@ it currently believes are true plus the corrected value, never a signed
 adjustment row. Because `/api/b2c/workspace` never carries `stripeEvidence`,
 the drawer's Source evidence panel reads full Stripe evidence itself, only for
 an Admin, through a dedicated `/api/admin/b2c/payments/[paymentId]/evidence`
-route built on the same dashboard snapshot.
+route built on the same dashboard snapshot. Provider descriptions are source
+evidence and the visible product label; optional local category/tier metadata
+does not enter the reportability decision. The retained `unmapped` value stays
+inside the duplicate fingerprint only, never as a Work-queue, Ledger-issue,
+Review-Queue, or drawer mapping action.
 
 ## Authentication boundary
 

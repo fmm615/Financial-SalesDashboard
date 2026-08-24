@@ -12,7 +12,7 @@ const base: B2cPaymentDecisionInput = {
 };
 
 describe("resolveB2cPaymentDecision", () => {
-  it("reports a clean succeeded USD mapped payment", () => {
+  it("reports a clean succeeded USD provider payment", () => {
     const decision = resolveB2cPaymentDecision(base);
     expect(decision).toMatchObject({
       sourceStatus: "succeeded",

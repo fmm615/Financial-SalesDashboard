@@ -992,3 +992,18 @@ B2C is complete only when:
 - Viewer access is read-only at the server and database layers;
 - one known month reconciles to approved source counts and totals;
 - Vitest, TypeScript, ESLint, production build, pgTAP, and B2C Playwright acceptance all pass.
+
+---
+
+## 2026-08-24 amendment — optional provider product category
+
+This completed plan's historical mapping tasks and evidence remain unchanged.
+The approved [optional provider product category design](../specs/2026-08-24-optional-provider-product-category-design.md)
+supersedes its mandatory Stripe/Tap mapping gate and mapping drawer/route
+assumptions. Provider descriptions are source evidence and visible product
+labels; category/tier are optional local metadata; `unmapped` remains only in
+the duplicate fingerprint. Mapping is no longer a Work-queue, Ledger-issue,
+generic Review Queue, or drawer workflow. Historical mapping records/functions
+remain read-only after forward migration
+`20260824150000_retire_b2c_product_mapping_requirement.sql`; manual bank
+transfer and Finance Tracker category requirements are unchanged.

@@ -1062,3 +1062,20 @@ These remain open after this plan and need a human, not code:
 - **Correcting the Hoor Alshubbar payment** (`85edf4fe-346b-483a-8053-199e6b1e2961`, wrong date `2026-11-01`) through the now-live posted-adjustment flow.
 - **Reconciling one real approved month** against Finance's own totals (Task 7 Step 5 of the original plan).
 - **Playwright**: `tests/e2e/b2c-workspace-flow.spec.ts` exists but needs the dependency installed, a config, seeded fixtures, and non-OAuth auth fixtures. Its selectors were written against the pre-remediation UI and will need updating after Tasks 5, 7, and 10.
+
+---
+
+## 2026-08-24 amendment — optional provider product category
+
+This completed remediation plan remains an accurate record of the mapping
+write-path defects it closed at the time. The approved
+[optional provider product category design](../specs/2026-08-24-optional-provider-product-category-design.md)
+supersedes the live mapping-policy assumptions: Stripe/Tap descriptions are
+source evidence and visible product labels; category/tier are optional local
+metadata; and `unmapped` remains only the internal duplicate-fingerprint
+value. The former mapping records/functions and unmapped flags remain read-only
+history, while the live B2C Work queue, Ledger issues, generic Review Queue,
+and shared drawer expose no mapping workflow. Forward migration
+`20260824150000_retire_b2c_product_mapping_requirement.sql` revokes the
+remaining authenticated mapping writes; manual bank-transfer and Finance
+Tracker category requirements are unchanged.
