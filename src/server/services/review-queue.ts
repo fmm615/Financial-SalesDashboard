@@ -1,6 +1,7 @@
 export type ReviewQueueStatus = "open" | "resolved" | "dismissed";
 
 export type ReviewQueueFlagType = "refunded" | "failed" | "possible_duplicate" | "unmapped_product" | "needs_follow_up" | "needs_fx_review";
+export type ReviewQueueLiveFlagType = Exclude<ReviewQueueFlagType, "unmapped_product">;
 
 export type ReviewQueueFlagRecord = {
   id: string;
@@ -27,7 +28,7 @@ export type ReviewQueueItem = ReviewQueueFlagRecord & {
 
 export type ReviewQueueFilters = {
   status: ReviewQueueStatus | "all";
-  flagType?: ReviewQueueFlagType;
+  flagType?: ReviewQueueLiveFlagType;
   priority?: number;
   query?: string;
 };
@@ -152,7 +153,9 @@ export function createReviewQueueMetrics(items: ReviewQueueItem[], now: Date): R
 export function createReviewQueueService(repository: ReviewQueueRepository, now: () => Date = () => new Date()) {
   return {
     async list(filters: ReviewQueueFilters): Promise<{ items: ReviewQueueItem[]; metrics: ReviewQueueMetrics }> {
-      const items = filterReviewQueueItems((await repository.listFlags()).map(toReviewQueueItem), filters);
+      const liveFlags = (await repository.listFlags())
+        .filter((flag) => flag.flagType !== "unmapped_product");
+      const items = filterReviewQueueItems(liveFlags.map(toReviewQueueItem), filters);
       return { items, metrics: createReviewQueueMetrics(items, now()) };
     },
     async detail(flagId: string): Promise<ReviewQueueDetail | null> {
