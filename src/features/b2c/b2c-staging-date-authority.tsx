@@ -20,11 +20,6 @@ function readableDate(value: string): string {
   }).format(new Date(`${value}T00:00:00Z`));
 }
 
-function dayMonthYear(value: string): string {
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
-}
-
 /**
  * Confirms the already-parsed Date for exactly one immutable Payment Tracker
  * staging row. The browser submits no replacement date: the protected RPC
@@ -43,6 +38,7 @@ export function B2cStagingDateAuthority({ row, onSaved }: {
   const [message, setMessage] = useState<string | null>(null);
   const canSubmit = canManage && hasMeaningfulReason(reason) && !saving;
   const parsedDate = readableDate(row.occurredOn);
+  const workbookDate = declaredValue(row.reportedDateRaw);
 
   async function submit() {
     if (!canSubmit) return;
@@ -81,10 +77,11 @@ export function B2cStagingDateAuthority({ row, onSaved }: {
   }
 
   return <div>
-    <p className="text-sm leading-6 text-text-secondary">The workbook&rsquo;s Date value says {parsedDate}. The Month label says {declaredValue(row.declaredMonth)}. Confirm the Date only when it is the authoritative financial date.</p>
+    <p className="text-sm leading-6 text-text-secondary">The workbook&rsquo;s Date cell reads {workbookDate}. It was interpreted as {parsedDate} using DD/MM/YYYY. The Month label says {declaredValue(row.declaredMonth)}. Confirm the parsed date only when it is the authoritative financial date.</p>
     <dl className="mt-4 grid gap-3 rounded-input border border-border bg-surface-muted/35 p-4 text-sm sm:grid-cols-2">
       <div><dt className="text-text-muted">Source row</dt><dd className="mt-1 font-medium text-text-primary">{row.sourceTab} row {row.sourceRowNumber}</dd></div>
-      <div><dt className="text-text-muted">Workbook Date</dt><dd className="mt-1 font-medium text-text-primary">{parsedDate}</dd><dd className="mt-1 text-text-secondary">DD/MM/YYYY: {dayMonthYear(row.occurredOn)}</dd><dd className="mt-1 text-xs text-text-muted">Stored value: {row.occurredOn}</dd></div>
+      <div><dt className="text-text-muted">Workbook Date (as written)</dt><dd className="mt-1 font-medium text-text-primary">{workbookDate}</dd></div>
+      <div><dt className="text-text-muted">Parsed financial date</dt><dd className="mt-1 font-medium text-text-primary">{parsedDate}</dd><dd className="mt-1 text-xs text-text-muted">Stored as: {row.occurredOn}</dd></div>
       <div><dt className="text-text-muted">Declared Month</dt><dd className="mt-1 text-text-secondary">{declaredValue(row.declaredMonth)}</dd></div>
       <div><dt className="text-text-muted">Declared Year</dt><dd className="mt-1 text-text-secondary">{declaredValue(row.declaredYear)}</dd></div>
     </dl>
