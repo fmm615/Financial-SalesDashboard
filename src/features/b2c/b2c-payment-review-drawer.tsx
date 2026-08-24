@@ -18,12 +18,15 @@ import { B2cExactDuplicateReview } from "@/features/b2c/b2c-exact-duplicate-revi
 import { B2cPaymentDuplicateReview } from "@/features/b2c/b2c-payment-duplicate-review";
 import { B2cImportVersionDecision } from "@/features/b2c/b2c-import-version-decision";
 import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
+import { B2cStagingDateAuthority } from "@/features/b2c/b2c-staging-date-authority";
+import type { B2cStagingDateAuthorityRecord } from "@/server/repositories/b2c-workspace-repository";
 
 export type B2cPaymentReviewDrawerTarget =
   | { kind: "row"; row: B2cReviewRow }
   | { kind: "workItem"; item: B2cWorkItem }
   | { kind: "candidate"; candidate: B2cPendingCandidateRecord }
-  | { kind: "financeDuplicate"; group: AdminExactDuplicateGroup };
+  | { kind: "financeDuplicate"; group: AdminExactDuplicateGroup }
+  | { kind: "stagingDateAuthority"; row: B2cStagingDateAuthorityRecord };
 
 const inputClass = "mt-1 block h-10 w-full min-w-0 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
 const textareaClass = "mt-1 block min-h-24 w-full min-w-0 resize-y rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent";
@@ -191,12 +194,13 @@ function ViewerReadOnlyNote() {
  * to dialog-free fragments this drawer owns directly -- there is no separate
  * evidence dialog, edit modal, or refund-FX modal at the row level.
  */
-export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved, onPaymentDuplicateResolved, onFinanceDuplicateResolved }: {
+export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved, onPaymentDuplicateResolved, onFinanceDuplicateResolved, onStagingDateAuthorityResolved }: {
   target: B2cPaymentReviewDrawerTarget | null;
   onClose: () => void;
   onCandidateResolved?: (candidateId: string) => void;
   onPaymentDuplicateResolved?: (resolvedPaymentIds: string[]) => void;
   onFinanceDuplicateResolved?: (groupId: string) => void;
+  onStagingDateAuthorityResolved?: (financeRowId: string) => void;
 }) {
   const canManage = useCanManage();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -214,7 +218,7 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved, o
       previouslyFocused?.focus();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target ? (target.kind === "row" ? target.row.id : target.kind === "candidate" ? target.candidate.candidateId : target.kind === "financeDuplicate" ? target.group.groupId : target.item.id) : null]);
+  }, [target ? (target.kind === "row" ? target.row.id : target.kind === "candidate" ? target.candidate.candidateId : target.kind === "financeDuplicate" ? target.group.groupId : target.kind === "stagingDateAuthority" ? target.row.financeRowId : target.item.id) : null]);
 
   if (!target) return null;
 
@@ -224,6 +228,8 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved, o
       ? `Resolve the Payment Tracker version decision for ${target.candidate.customerLabel}`
       : target.kind === "financeDuplicate"
         ? "Choose the canonical Payment Tracker row"
+        : target.kind === "stagingDateAuthority"
+          ? `Confirm the parsed Date for ${target.row.sourceTab} row ${target.row.sourceRowNumber}`
         : target.item.title;
   function handleSaved() { onClose(); }
   function handlePaymentDuplicateSaved(resolvedPaymentIds: string[]) {
@@ -279,6 +285,10 @@ export function B2cPaymentReviewDrawer({ target, onClose, onCandidateResolved, o
 
       {target.kind === "financeDuplicate" && <Section title="Finance decision">
         {!canManage ? <ViewerReadOnlyNote /> : <B2cExactDuplicateReview key={target.group.groupId} group={target.group} onGroupsChanged={(groupId) => { onFinanceDuplicateResolved?.(groupId); handleSaved(); }} />}
+      </Section>}
+
+      {target.kind === "stagingDateAuthority" && <Section title="Finance decision">
+        {!canManage ? <ViewerReadOnlyNote /> : <B2cStagingDateAuthority row={target.row} onSaved={(financeRowId) => { onStagingDateAuthorityResolved?.(financeRowId); handleSaved(); }} />}
       </Section>}
     </section>
   </div>;

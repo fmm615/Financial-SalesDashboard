@@ -24,6 +24,17 @@ export type B2cWorkspaceOverview = {
   counts: B2cWorkspaceCounts;
   pendingCandidates?: B2cPendingCandidateRecord[];
   financeDuplicateGroups?: AdminExactDuplicateGroup[];
+  stagingDateAuthorityRows?: B2cStagingDateAuthorityRecord[];
+};
+
+/** The minimum immutable workbook evidence required to confirm one parsed Date. */
+export type B2cStagingDateAuthorityRecord = {
+  financeRowId: string;
+  sourceTab: "B2C" | "B2C Cons";
+  sourceRowNumber: number;
+  declaredMonth: string | null;
+  declaredYear: string | null;
+  occurredOn: string;
 };
 
 /** Summarizes the internally detailed work items into the five visible Work queue filter counts. */
@@ -73,8 +84,10 @@ export function buildB2cWorkspaceOverview(input: {
   pendingCandidates?: B2cPendingCandidateRecord[];
   providerEvidenceMismatches?: B2cProviderEvidenceMismatchRecord[];
   financeDuplicateGroups?: AdminExactDuplicateGroup[];
+  stagingDateAuthorityRows?: B2cStagingDateAuthorityRecord[];
 }): B2cWorkspaceOverview {
   const items = [
+    ...buildB2cStagingDateAuthorityWorkItems(input.stagingDateAuthorityRows ?? []),
     ...buildB2cFinanceExactDuplicateWorkItems(input.financeDuplicateGroups ?? []),
     ...buildB2cPendingCandidateWorkItems(input.pendingCandidates ?? []),
     ...buildB2cProviderEvidenceMismatchWorkItems(input.providerEvidenceMismatches ?? []),
@@ -90,7 +103,25 @@ export function buildB2cWorkspaceOverview(input: {
     counts: summarizeB2cWorkItemCounts(items),
     pendingCandidates: input.pendingCandidates ?? [],
     financeDuplicateGroups: input.financeDuplicateGroups ?? [],
+    stagingDateAuthorityRows: input.stagingDateAuthorityRows ?? [],
   };
+}
+
+/** Date authority is restricted to an unposted row with no issue beyond its declared Month/Year labels. */
+export function buildB2cStagingDateAuthorityWorkItems(rows: B2cStagingDateAuthorityRecord[]): B2cWorkItem[] {
+  return rows.map((row) => ({
+    id: `staging-date-authority:${row.financeRowId}`,
+    recordId: row.financeRowId,
+    recordKind: "finance_row",
+    queue: "data_quality",
+    visibleGroup: "data",
+    financeMethod: null,
+    title: `Confirm the parsed Date for ${row.sourceTab} row ${row.sourceRowNumber}`,
+    explanation: "The declared Month or Year conflicts with the readable Date. Verify the retained workbook evidence, then confirm the parsed Date.",
+    financialImpactUsd: null,
+    nextAction: "correct",
+    href: `/operations/b2c?tab=work&dateAuthority=${row.financeRowId}`,
+  }));
 }
 
 type FailedSyncRun = { id: string; provider: "stripe" | "tap" };
@@ -121,6 +152,16 @@ type ProviderEvidenceMismatchLinkRow = {
     amount_usd: string | null;
   } | null;
 };
+type DateAuthorityOverrideRow = { finance_row_id: string; date_authority_confirmed_at: string | null };
+type FinanceLedgerPostRow = { finance_row_id: string };
+
+const DATE_AUTHORITY_ISSUES = new Set(["declared_month_conflicts_with_date", "declared_year_conflicts_with_date"]);
+
+function isUnresolvedDateAuthorityCandidate(row: Awaited<ReturnType<B2cFinanceActionRepository["listNeedsReviewRows"]>>[number]): boolean {
+  return Boolean(row.occurredOn)
+    && row.qualityIssues.length > 0
+    && row.qualityIssues.every((issue) => DATE_AUTHORITY_ISSUES.has(issue));
+}
 
 /** Loads the Admin Work queue overview. Reuses the dashboard snapshot and Task 2's Finance posting readiness RPC. */
 export class SupabaseB2cWorkspaceRepository {
@@ -214,14 +255,63 @@ export class SupabaseB2cWorkspaceRepository {
     }));
   }
 
+  /**
+   * Returns only Date-authority rows the protected RPC can still accept: the
+   * import completed, its only issue is a declared Month/Year conflict, and
+   * neither a prior authority decision nor a Finance ledger post exists.
+   */
+  private async listStagingDateAuthorityRows(): Promise<B2cStagingDateAuthorityRecord[]> {
+    const candidates = (await new B2cFinanceActionRepository(this.client).listNeedsReviewRows())
+      .filter(isUnresolvedDateAuthorityCandidate);
+    if (candidates.length === 0) return [];
+
+    const candidateIds = candidates.map((row) => row.financeRowId);
+    const confirmedIds = new Set<string>();
+    const postedIds = new Set<string>();
+    const batches = chunkB2cWorkspaceQueryValues(candidateIds);
+    for (let start = 0; start < batches.length; start += WORKSPACE_QUERY_CONCURRENCY) {
+      const currentBatches = batches.slice(start, start + WORKSPACE_QUERY_CONCURRENCY);
+      const [overrideResults, postResults] = await Promise.all([
+        Promise.all(currentBatches.map((ids) => this.client.from("b2c_finance_row_overrides")
+          .select("finance_row_id,date_authority_confirmed_at").in("finance_row_id", ids))),
+        Promise.all(currentBatches.map((ids) => this.client.from("b2c_finance_ledger_posts")
+          .select("finance_row_id").in("finance_row_id", ids))),
+      ]);
+      if (overrideResults.some((result) => result.error) || postResults.some((result) => result.error)) {
+        throw new Error("Could not load B2C Finance Date-authority status.");
+      }
+      for (const result of overrideResults) {
+        for (const row of (result.data ?? []) as DateAuthorityOverrideRow[]) {
+          if (row.date_authority_confirmed_at) confirmedIds.add(row.finance_row_id);
+        }
+      }
+      for (const result of postResults) {
+        for (const row of (result.data ?? []) as FinanceLedgerPostRow[]) postedIds.add(row.finance_row_id);
+      }
+    }
+
+    return candidates.flatMap((row): B2cStagingDateAuthorityRecord[] => {
+      if (!row.occurredOn || confirmedIds.has(row.financeRowId) || postedIds.has(row.financeRowId)) return [];
+      return [{
+        financeRowId: row.financeRowId,
+        sourceTab: row.sourceTab,
+        sourceRowNumber: row.sourceRowNumber,
+        declaredMonth: row.declaredMonth,
+        declaredYear: row.declaredYear,
+        occurredOn: row.occurredOn,
+      }];
+    });
+  }
+
   async overview(today = new Date()): Promise<B2cWorkspaceOverview> {
-    const [snapshot, sourceFailures, postingReadinessRows, pendingCandidates, providerEvidenceMismatches, financeDuplicateRows] = await Promise.all([
+    const [snapshot, sourceFailures, postingReadinessRows, pendingCandidates, providerEvidenceMismatches, financeDuplicateRows, stagingDateAuthorityRows] = await Promise.all([
       getB2cDashboardSnapshot(this.client, today),
       this.listFailedSourceRuns(),
       new B2cFinanceActionRepository(this.client).getFinancePostingReadinessRows(),
       this.listPendingImportVersionCandidates(),
       this.listProviderEvidenceMismatches(),
       new B2cExactDuplicateReconciliationRepository(this.client).listPendingExactDuplicateGroups(),
+      this.listStagingDateAuthorityRows(),
     ]);
     return buildB2cWorkspaceOverview({
       ledgerRows: snapshot.rows.map((row) => decorateB2cLedgerRow(row, today)),
@@ -230,6 +320,7 @@ export class SupabaseB2cWorkspaceRepository {
       pendingCandidates,
       providerEvidenceMismatches,
       financeDuplicateGroups: toAdminExactDuplicateGroups(financeDuplicateRows),
+      stagingDateAuthorityRows,
     });
   }
 }

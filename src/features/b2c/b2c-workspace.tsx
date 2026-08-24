@@ -95,6 +95,7 @@ export function B2cWorkspace({
   const recordParam = searchParams.get("record");
   const candidateParam = searchParams.get("candidate");
   const financeDuplicateParam = searchParams.get("financeDuplicate");
+  const dateAuthorityParam = searchParams.get("dateAuthority");
 
   function setQuery(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -246,6 +247,11 @@ export function B2cWorkspace({
       setDrawerTarget(candidate ? { kind: "candidate", candidate } : null);
       return;
     }
+    if (dateAuthorityParam) {
+      const row = workItems?.stagingDateAuthorityRows?.find((item) => item.financeRowId === dateAuthorityParam);
+      setDrawerTarget(row ? { kind: "stagingDateAuthority", row } : null);
+      return;
+    }
     if (!recordParam) {
       setDrawerTarget(null);
       return;
@@ -258,11 +264,11 @@ export function B2cWorkspace({
     if (row) { setDrawerTarget({ kind: "row", row }); return; }
     const item = workItems?.items.find((candidate) => candidate.nextAction !== "choose_finance_duplicate" && candidate.recordId === recordParam);
     setDrawerTarget(item ? { kind: "workItem", item } : null);
-  }, [candidateParam, financeDuplicateParam, recordParam, ledgerRows, workItems]);
+  }, [candidateParam, dateAuthorityParam, financeDuplicateParam, recordParam, ledgerRows, workItems]);
 
   function closeDrawer() {
     setDrawerTarget(null);
-    setQuery({ record: null, candidate: null, financeDuplicate: null });
+    setQuery({ record: null, candidate: null, financeDuplicate: null, dateAuthority: null });
   }
 
   function openRow(row: B2cSafeLedgerRow) {
@@ -313,6 +319,20 @@ export function B2cWorkspace({
         items,
         counts: summarizeB2cWorkItemCounts(items),
         financeDuplicateGroups: current.financeDuplicateGroups?.filter((group) => group.groupId !== groupId),
+      };
+    });
+    void reload();
+  }
+
+  function handleStagingDateAuthorityResolved(financeRowId: string) {
+    setWorkItems((current) => {
+      if (!current) return current;
+      const items = current.items.filter((item) => item.id !== `staging-date-authority:${financeRowId}`);
+      return {
+        ...current,
+        items,
+        counts: summarizeB2cWorkItemCounts(items),
+        stagingDateAuthorityRows: current.stagingDateAuthorityRows?.filter((row) => row.financeRowId !== financeRowId),
       };
     });
     void reload();
@@ -384,6 +404,7 @@ export function B2cWorkspace({
       onCandidateResolved={handleCandidateResolved}
       onPaymentDuplicateResolved={handlePaymentDuplicateResolved}
       onFinanceDuplicateResolved={handleFinanceDuplicateResolved}
+      onStagingDateAuthorityResolved={handleStagingDateAuthorityResolved}
     />
   </AppShell>;
 }
