@@ -1,5 +1,4 @@
 import { createB2cDuplicateFingerprint } from "@/lib/b2c/duplicate-fingerprint";
-import { createFinanceSourceIdentity } from "@/lib/b2c/finance-source-identity";
 import type { DatabaseClient } from "@/lib/supabase/server";
 import { hashPreparedManualBankTransfer, type ManualBankTransferDuplicateAssessment, type PreparedManualBankTransfer } from "@/server/services/record-manual-bank-transfer";
 import type { Database } from "@/types/database.generated";
@@ -23,16 +22,15 @@ function sourceLabelFor(sourceSystem: string): string {
   }
 }
 
-const RECONCILIATION_HREF = "/operations/b2c?tab=work&queue=reconciliation";
 const recordHref = (paymentId: string) => `/operations/b2c?tab=work&record=${paymentId}`;
 
 /**
  * The database RPC (record_b2c_manual_bank_transfer,
- * supabase/migrations/20260818113000_b2c_manual_bank_transfer_entry.sql) is
- * the sole authority for the write -- it independently rederives every check.
- * This repository's assessment path is advisory only, but it reuses the
- * exact same identity/fingerprint functions the rest of B2C relies on
- * (createFinanceSourceIdentity, createB2cDuplicateFingerprint) so the
+ * supabase/migrations/20260818113000_b2c_manual_bank_transfer_entry.sql, as
+ * trimmed by the removal-of-Payment-Tracker migration) is the sole authority
+ * for the write -- it independently rederives every check. This repository's
+ * assessment path is advisory only, but it reuses the exact same fingerprint
+ * function the rest of B2C relies on (createB2cDuplicateFingerprint) so the
  * preview an Admin reviews matches what the RPC will actually enforce.
  */
 export class SupabaseB2cPaymentsRepository implements B2cPaymentsRepository {
@@ -50,52 +48,6 @@ export class SupabaseB2cPaymentsRepository implements B2cPaymentsRepository {
     if (exactReferenceError) throw new Error(`Could not check the bank reference: ${exactReferenceError.message}`);
     if (exactReference) {
       return { inputSha256, matchState: "exact_existing", exactMatchReason: "bank_reference", exactMatchHref: recordHref(exactReference.id), possibleMatches: [] };
-    }
-
-    const financeIdentity = createFinanceSourceIdentity({
-      normalizedCustomerName: input.customerName,
-      occurredOn: input.occurredOn,
-      amountUsd: input.amountUsd,
-      normalizedPaymentMethod: "bank transfer",
-    });
-
-    const { data: lineage, error: lineageError } = await this.client
-      .from("b2c_finance_record_lineages")
-      .select("id,represented_payment_id")
-      .eq("source_identity", financeIdentity)
-      .maybeSingle();
-    if (lineageError) throw new Error(`Could not check the Payment Tracker lineage: ${lineageError.message}`);
-    if (lineage) {
-      let paymentId: string | null = lineage.represented_payment_id;
-      if (!paymentId) {
-        const { data: post } = await this.client.from("b2c_finance_ledger_posts").select("payment_id").eq("lineage_id", lineage.id).maybeSingle();
-        paymentId = post?.payment_id ?? null;
-      }
-      return {
-        inputSha256,
-        matchState: "exact_existing",
-        exactMatchReason: "finance_lineage",
-        exactMatchHref: paymentId ? recordHref(paymentId) : RECONCILIATION_HREF,
-        possibleMatches: [],
-      };
-    }
-
-    const { data: candidates, error: candidatesError } = await this.client
-      .from("b2c_finance_import_version_candidates")
-      .select("id")
-      .eq("source_identity", financeIdentity);
-    if (candidatesError) throw new Error(`Could not check the Payment Tracker import candidates: ${candidatesError.message}`);
-    if (candidates && candidates.length > 0) {
-      const candidateIds = candidates.map((row) => row.id);
-      const { data: decisions, error: decisionsError } = await this.client
-        .from("b2c_finance_import_version_decisions")
-        .select("candidate_id")
-        .in("candidate_id", candidateIds);
-      if (decisionsError) throw new Error(`Could not check the Payment Tracker import decisions: ${decisionsError.message}`);
-      const decided = new Set((decisions ?? []).map((row) => row.candidate_id));
-      if (candidateIds.some((id) => !decided.has(id))) {
-        return { inputSha256, matchState: "exact_existing", exactMatchReason: "finance_lineage", exactMatchHref: RECONCILIATION_HREF, possibleMatches: [] };
-      }
     }
 
     const duplicateFingerprint = createB2cDuplicateFingerprint({

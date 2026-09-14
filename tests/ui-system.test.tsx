@@ -110,7 +110,6 @@ describe("UI foundation", () => {
       const reviewDetail = await screen.findByRole("dialog");
       expect(reviewDetail).toBeInTheDocument();
       expect(within(reviewDetail).getByText("Duplicate decision required")).toBeInTheDocument();
-      expect(within(reviewDetail).getByText(/stays open until Finance's B2C duplicate decision workflow/i)).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Mark as reviewed" })).not.toBeInTheDocument();
     } finally {
       vi.unstubAllGlobals();

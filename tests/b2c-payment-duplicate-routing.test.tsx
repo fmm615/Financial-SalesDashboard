@@ -27,13 +27,6 @@ function duplicatePayment(): B2cReviewRow {
   } as B2cReviewRow;
 }
 
-const financeGroup: Extract<B2cPaymentReviewDrawerTarget, { kind: "financeDuplicate" }>["group"] = {
-  groupId: "22222222-2222-4222-8222-222222222222", state: "exact_duplicate_candidate", rows: [
-    { financeRowId: "33333333-3333-4333-8333-333333333333", sourceTab: "B2C", sourceRowNumber: 12, occurredOn: "2025-10-05", amountUsd: "475", customerName: "Reham", customerEmail: "rgarash@example.com", customerPhone: null, category: "membership", paymentMethod: "Bank transfer" },
-    { financeRowId: "44444444-4444-4444-8444-444444444444", sourceTab: "B2C Cons", sourceRowNumber: 33, occurredOn: "2025-10-05", amountUsd: "475", customerName: "Reham", customerEmail: "rgarash@example.com", customerPhone: null, category: "membership", paymentMethod: "Bank transfer" },
-  ],
-};
-
 function stubFetch() {
   const fetchMock = vi.fn((url: string) => {
     if (url.includes("/duplicate-group")) {
@@ -62,25 +55,15 @@ function renderDrawer(target: B2cPaymentReviewDrawerTarget, role: "admin" | "vie
 }
 
 describe("B2C payment duplicate routing", () => {
-  it("routes a payment duplicate to the payment duplicate review and never the Finance workflow", async () => {
+  it("routes a payment duplicate to the payment duplicate review", async () => {
     const fetchMock = stubFetch();
     renderDrawer({ kind: "row", row: duplicatePayment() });
 
     expect(await screen.findByText("Payment duplicate review")).toBeInTheDocument();
-    expect(screen.queryByText("Exact Finance duplicate review")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/admin/b2c/payments/payment-dup-1/duplicate-group",
       { cache: "no-store" },
     );
-  });
-
-  it("routes an explicit Finance group to its exact Finance workflow without loading a payment group", () => {
-    const fetchMock = stubFetch();
-    renderDrawer({ kind: "financeDuplicate", group: financeGroup });
-
-    expect(screen.getByText("Exact Finance duplicate review")).toBeInTheDocument();
-    expect(screen.queryByText("Payment duplicate review")).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/duplicate-group"), expect.anything());
   });
 
   it("shows a safe load error when a protected group response has malformed member data", async () => {

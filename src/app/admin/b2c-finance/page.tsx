@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 
-/** Kept only so an existing bookmark still resolves. The Work queue's Ready-to-post filter is now the one Finance posting surface. */
+/**
+ * Kept only so an existing bookmark still resolves. The Payment Tracker
+ * workbook/posting system this page used to administer has been removed
+ * entirely; there is no longer a Finance posting surface to redirect into.
+ */
 export default function B2cFinanceAdministrationPage() {
-  redirect("/operations/b2c?tab=work&queue=ready_to_post");
+  redirect("/operations/b2c?tab=work");
 }

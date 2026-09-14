@@ -12,11 +12,9 @@ import type { B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-r
 export function B2cOperations({
   snapshot = null,
   loadError,
-  initialTapStatementUnmatchedOnly = false,
 }: {
   snapshot?: B2cDashboardSnapshot | null;
   loadError?: string;
-  initialTapStatementUnmatchedOnly?: boolean;
 }) {
-  return <B2cWorkspace snapshot={snapshot} loadError={loadError} initialTapStatementUnmatchedOnly={initialTapStatementUnmatchedOnly} />;
+  return <B2cWorkspace snapshot={snapshot} loadError={loadError} />;
 }

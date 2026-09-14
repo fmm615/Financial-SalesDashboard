@@ -70,7 +70,7 @@ Store money as `numeric(20,6)` and FX rates as `numeric(20,10)`. Do not use floa
 
 Foreign-currency B2C source rows keep their provider amount and have no USD amount until Finance records an append-only conversion in `b2c_payment_fx_conversions` or `b2c_refund_fx_conversions`. These tables are read-only to approved users; only authenticated Admin RPCs may insert. The RPC locks the source record, computes the USD amount from the source amount and entered rate, creates a `financial_corrections` record, and records the authenticated actor. Direct generic USD overrides for foreign source rows are rejected.
 
-`b2c_finance_row_lineage_links`, `b2c_finance_import_version_candidates`, and `b2c_finance_import_version_decisions` are insert-only and immutable: a trigger rejects any update or delete. All three are Admin-only write and every insert is audited; a link or decision row always records the authenticated actor who created it, never a client-supplied value. `finalize_b2c_finance_import_version` is the only way to create a Payment Tracker import going forward — the plain JSON `finalize_b2c_finance_import` intake path and its `/api/admin/b2c/finance-imports/preview` and `/finalize` routes are removed. A lineage decision is written only through the protected `apply_b2c_finance_import_version_decision` trigger, which locks the target candidate and rejects a second, conflicting decision on it.
+The Payment Tracker Excel-workbook system (staging, exact cross-tab duplicate grouping, lineage/canonicalization, Finance staging-row actions, and posting-into-payments) has been removed entirely — see `20260901100000_remove_payment_tracker_sheet_system.sql`. Historical `b2c_payments` rows with `source_system = 'finance_tracker'` remain untouched, immutable reportable ledger history. A new iOS/bank-transfer ingestion system is pending a separate design.
 
 ## B2C payment duplicate groups
 
@@ -88,7 +88,6 @@ as `keep_all` (every member included) or `keep_one` (exactly one member
 included); a resolved exclusion always wins over an include when reporting
 eligibility is calculated. Only Admins can read membership or make decisions;
 approved reporting consumers receive only safe per-payment state booleans.
-Finance workbook exact pairs remain in `b2c_reconciliation_groups` and must
-never be mixed into payment duplicate groups. Historical backfill is guarded:
+Historical backfill is guarded:
 unprovable flags remain open, while only a stale orphaned duplicate flag with
 no current candidate can be dismissed by the protected Admin function.

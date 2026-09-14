@@ -111,9 +111,11 @@ request-scoped authenticated clients and protected RPCs. The guarded historical
 backfill preserves unprovable flags for review, and only a stale orphan flag
 with no current candidate can be dismissed.
 
-Payment duplicate groups contain only `b2c_payments`. They are intentionally
-separate from the Admin-reviewed Finance workbook exact groups in
-`b2c_reconciliation_groups`; each has its own work item and drawer action.
+Payment duplicate groups contain only `b2c_payments`. They are the one B2C
+content-duplicate mechanism now that the Payment Tracker workbook's own exact
+cross-tab grouping has been removed (see the B2C Finance reconciliation
+boundary below); Manual Bank Transfer's 48-hour content-duplicate check also
+runs through this same trigger, not a separate one.
 
 ## Targets boundary
 
@@ -134,78 +136,31 @@ target cannot be overwritten in place.
 
 ## B2C Finance reconciliation boundary
 
-Finance workbook reconciliation is a separate staging boundary, not an
-alternative B2C payment ledger. Only the `B2C` and `B2C Cons` tabs of the
-Finance Payment Tracker are accepted as USD revenue candidates, and their
-amounts exclude customer VAT. The original file hash, private Storage location,
-tab, one-based row number, raw cells, parsed values, quality issues, and actor
-are retained. Staging itself never writes to `b2c_payments` or a reportable
-view. The separately protected approved-Finance posting path below is the only
-exception, and it can post only the already approved iOS/bank-transfer rows.
+The entire Payment Tracker Excel-workbook system has been removed: workbook
+upload/parsing, the Finance staging tables, exact cross-tab duplicate grouping
+between the `B2C`/`B2C Cons` tabs, lineage tracking and canonicalization,
+Finance staging-row corrections/date-authority actions, and the posting of
+approved iOS/bank-transfer rows into `b2c_payments`. Stripe Charges and Tap
+statement CSV upload/evidence staging were removed earlier for the same
+reason: Stripe's and Tap's own APIs are now the sole source of truth for those
+two providers, and the sheet is no longer cross-referenced against them at
+all. `supabase/migrations/20260901100000_remove_payment_tracker_sheet_system.sql`
+is the single migration that drops every table, view, function, trigger, and
+enum type this system owned; every earlier migration file that created those
+objects is left untouched, per the project's additive-only migration history.
 
-Stripe Charges and Tap statements are payment evidence only. They may be linked
-to a Finance candidate during reconciliation, but never create a second Finance
-revenue row. Tap statement amounts remain in their original BHD currency; the
-application never invents a BHD-to-USD rate. Provider fees, fee VAT, transfers,
-opening balances, refunds, and unrecognised statement lines are retained with
-their own evidence kind and cannot be sales.
+There is an intentional functionality gap here: iOS and bank-transfer
+ingestion has no working intake path until the product owner designs and
+builds a new one. Historical `b2c_payments` rows with
+`source_system = 'finance_tracker'` (posted before this removal) are not
+deleted -- they remain fully reportable ledger history, labelled Finance — iOS
+or Finance — Bank transfer, with their original provenance preserved in each
+row's own `source_metadata`. No new `finance_tracker` payment can ever be
+created again.
 
-Source dates are parsed only when ISO, unambiguous `dd/mm/yyyy`, or a known
-Excel serial. A declared month/year disagreement creates a review issue; the
-application never swaps day/month or silently repairs the date. Exact source
-file hashes cannot be imported twice. Duplicate candidates, conflicts,
-zero-value rows, missing fields, and invalid rows remain staged and non-reportable
-until Finance makes an audited decision. A completed Finance import is stored
-atomically through a protected database function, rather than a sequence of
-browser writes.
-
-An Admin may upload the original Payment Tracker `.xlsx` only through the
-controlled B2C reconciliation workflow. The server validates and parses the
-two approved tabs, previews only safe quality counts, re-hashes the confirmed
-file, stores it in the private `b2c-finance-imports` bucket, and then invokes
-the atomic staging function. Storage policies permit only Admin access; no
-Viewer, anonymous user, or public URL can read the source workbook. Tap and
-Stripe evidence use separate future upload boundaries.
-
-Tap statements follow the same private-upload control but stage into provider
-evidence rather than Finance revenue candidates. Every source line is retained
-with its Tap kind and original currency, through an atomic Tap finalizer. No
-Tap upload can write a reportable payment or invent a BHD-to-USD rate.
-
-Stripe Charges CSV files use the same private staging boundary. A direct
-Stripe refund is retained as a second, linked evidence entry with an explicit
-source-entry key, so the original charge evidence remains intact. Typed source
-name, email, and phone fields are Admin-only; card, address, fingerprint, IP,
-payment-method, and metadata values are retained only in the private original
-file. This path does not create a B2C payment, USD conversion, or revenue total.
-
-The coverage API is deliberately safe for approved viewers: it exposes only
-source states and counts, never raw row data, provider IDs, or customer details.
-It always reports `Not fully loaded` until the complete Stripe Charges export,
-the required evidence, reconciliation, and a later Finance approval workflow
-exist. It does not calculate or display a B2C Finance revenue total.
-
-Exact cross-tab grouping is an Admin-only, review-first step after a completed
-Payment Tracker import. It creates a group only for one valid `B2C` row and one
-valid `B2C Cons` row with the exact normalized customer name, date, USD amount,
-and payment method. The tabs' category and contact fields are not equivalent,
-so they remain Admin review context rather than cross-tab matching keys.
-Repeated keys are ambiguous and never grouped automatically. Both rows remain
-immutable, and the reasoned canonical/excluded decision stays outside
-reportable payments and Finance period approval.
-
-Approved Finance iOS and bank-transfer rows have a narrow, separate ledger
-path. The protected transaction selects only valid, positive, dated tracker
-rows with those exact payment methods, preserves their source tab/row/import
-provenance, and creates one `finance_tracker` B2C payment plus one immutable
-ledger-post link. A `B2C`/`B2C Cons` duplicate group contributes only its
-canonical row; excluded or undecided groups contribute none. The tracker’s USD
-amount is retained as gross revenue excluding VAT—no Tap/Stripe fee, VAT,
-settlement, Apple aggregate proceeds, or FX value is inferred. The Admin’s
-posting action is the Finance approval for this limited source, so a missing
-e-mail remains visible but does not exclude the linked Finance payment by
-itself. All other reportability blocks remain active. Those rows are labelled
-Finance — iOS or Finance — Bank transfer and never claim a provider match.
+Manual Bank Transfer entry is unaffected apart from one narrowed check (see
+below): it remains the one way to record a genuinely new bank transfer
+directly into `b2c_payments`, with its own audited duplicate checks.
 
 Stripe API enrichment remains one-to-one with the existing B2C payment. The
 Charge ID is the payment identity; PaymentIntent, Checkout, Invoice, Payment
@@ -228,62 +183,38 @@ source amount, appends conversion history, and does not call a provider. The
 generic B2C local-correction path is intentionally unable to create a USD
 amount for a foreign source record.
 
-Posted Finance payments remain immutable after posting. An Admin amount or
-business-date correction is represented by signed rows in the append-only
-`b2c_finance_ledger_adjustments` stream, linked to the original payment and
-Finance source row. The effective ledger view adds those entries without
-rewriting provider evidence or the posted payment. The browser uses the
-expected-state RPC wrapper, so a stale Admin tab is rejected and must reload;
-retries are idempotent by adjustment request ID. All adjustment reasons and
-actors are written to the audit history, and the original source remains
-visible for traceability.
-
-Approved Finance posting is keyed by stable lineage identity, not by raw
-staging row. The same real payment can span several staging rows across
-different workbook versions; posting resolves each confirmed lineage to its
-current linked row and inserts at most one Finance payment per lineage, ever.
-A lineage already represented by an existing manual bank transfer is
-permanently excluded from this path, so it is never eligible for a second
-payment; an admin-confirmed revision to an already-posted lineage must go
-through the append-only posted-adjustment path above instead of a new post.
-
 B2C exposes one accurate decision and work-item layer on top of everything
 above. `src/lib/b2c/payment-decision.ts` translates the approved
 `b2cPaymentExclusionReasons` financial gate into a richer `B2cPaymentDecision`
 -- independent `sourceStatus`, `reconciliationStatus`, `reportingDecision`, and
 `postingStatus` facts, plus a detailed `B2cBlockingReason` list -- without
-loosening or duplicating a rule the gate already enforces. Statement/provider
-evidence and Finance-lineage posting state are resolved as additional,
-independent dimensions rather than passed through the financial gate, and a
-refund's own decision never overwrites its linked payment's `sourceStatus`.
+loosening or duplicating a rule the gate already enforces. `sourceSystem`
+still includes `finance_tracker` and `postingStatus`/`financeLineageStatus`
+are still resolved, purely to represent already-posted historical
+Finance-Tracker ledger rows accurately (always `"posted"`); no live code path
+can ever produce any other `financeLineageStatus`. A refund's own decision
+never overwrites its linked payment's `sourceStatus`.
 `src/server/services/b2c-work-items.ts` turns unresolved blocking reasons into
 detailed internal `B2cWorkItem` queues (`data_quality`, `duplicate`, `fx`,
 `mapping`, `reconciliation`, `source_failure`), which `b2c-workspace-repository.ts`
-groups into the four visible Work queue filters (`data`, `duplicates`,
-`reconciliation`, `ready_to_post`); Ready-to-post is always one aggregated item
-sourced from Task 2's `summarizeFinancePostingReadiness`, never one row per
-lineage. `b2c-ledger-repository.ts` adds the paged, filtered, sorted ledger
-read the workspace needs, decorating rows from the existing dashboard snapshot
-rather than re-querying B2C sources. `b2c-dashboard-repository.ts` remains the
-one compatibility facade underneath both.
+groups into the three visible Work queue filters (`data`, `duplicates`,
+`reconciliation`). `b2c-ledger-repository.ts` adds the paged, filtered, sorted
+ledger read the workspace needs, decorating rows from the existing dashboard
+snapshot rather than re-querying B2C sources. `b2c-dashboard-repository.ts`
+remains the one compatibility facade underneath both.
 
 The shared record drawer (`b2c-payment-review-drawer.tsx`) is the one place
 every B2C correction, mapping, FX conversion, Finance exception, refund FX,
-Finance-Tracker duplicate decision, and posted-Finance adjustment is reachable
-from -- Work queue and Ledger both open it, and it owns opening, closing,
-focus, errors, and refresh; there is no separate per-row dialog. It picks one
-primary action from a work item's `nextAction` (or, for a full ledger row, the
-same reason-to-action mapping applied to the row's own decision) and renders
-every other available action under "More actions". `adjust-b2c-finance-
-payment.ts` is the thin service the drawer's posted-adjustment action calls:
-it looks up the linked Finance row, reads back the current effective balance
-by replaying the payment plus its append-only adjustment history, and always
-calls the expected-state RPC above -- the browser only ever sends the values
-it currently believes are true plus the corrected value, never a signed
-adjustment row. Because `/api/b2c/workspace` never carries `stripeEvidence`,
-the drawer's Source evidence panel reads full Stripe evidence itself, only for
-an Admin, through a dedicated `/api/admin/b2c/payments/[paymentId]/evidence`
-route built on the same dashboard snapshot.
+and payment-duplicate decision is reachable from -- Work queue and Ledger both
+open it, and it owns opening, closing, focus, errors, and refresh; there is no
+separate per-row dialog. It picks one primary action from a work item's
+`nextAction` (or, for a full ledger row, the same reason-to-action mapping
+applied to the row's own decision) and renders every other available action
+under "More actions". Because `/api/b2c/workspace` never carries
+`stripeEvidence`, the drawer's Source evidence panel reads full Stripe
+evidence itself, only for an Admin, through a dedicated
+`/api/admin/b2c/payments/[paymentId]/evidence` route built on the same
+dashboard snapshot.
 
 ## Authentication boundary
 

@@ -6,6 +6,14 @@
  *
  * Do not use these raw rows in UI components. Map them through a repository or
  * domain type first. Regeneration will replace this Phase 2 checked-in snapshot.
+ *
+ * Hand-edited for the Payment Tracker removal migration
+ * (supabase/migrations/20260901100000_remove_payment_tracker_sheet_system.sql):
+ * every table/view/function/enum that migration drops was removed from this
+ * snapshot by hand, since `npm run supabase:types` could not be run against a
+ * live database in this environment. Regenerate this file against a real
+ * Supabase instance at the next opportunity to confirm it matches the actual
+ * post-migration schema exactly.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -211,80 +219,6 @@ export interface Database {
       }>;
       b2c_stripe_payment_details: Table<B2cStripePaymentDetailsRow>;
       b2c_stripe_refund_details: Table<B2cStripeRefundDetailsRow>;
-      b2c_finance_imports: Table<{
-        id: Uuid; source_kind: Database["public"]["Enums"]["b2c_finance_import_source_kind"]; source_file_name: string;
-        source_file_sha256: string; source_storage_bucket: string; source_storage_path: string;
-        import_status: Database["public"]["Enums"]["b2c_finance_import_status"]; safe_error_summary: string | null;
-        supersedes_import_id: Uuid | null;
-        imported_by: Uuid; completed_at: Timestamp | null; failed_at: Timestamp | null; created_at: Timestamp; updated_at: Timestamp;
-      }>;
-      b2c_finance_record_lineages: Table<{
-        id: Uuid; source_identity: string; represented_payment_id: Uuid | null; created_by: Uuid; created_at: Timestamp;
-      }>;
-      b2c_finance_row_lineage_links: Table<{
-        finance_row_id: Uuid; lineage_id: Uuid;
-        link_kind: "initial" | "unchanged_version" | "admin_confirmed_new" | "admin_confirmed_revision" | "admin_linked_existing_manual";
-        linked_by: Uuid; created_at: Timestamp;
-      }>;
-      b2c_finance_import_version_candidates: Table<{
-        id: Uuid; import_id: Uuid; candidate_kind: "new" | "removed" | "ambiguous" | "existing_payment"; source_identity: string;
-        finance_row_ids: Uuid[]; prior_lineage_ids: Uuid[]; prior_payment_ids: Uuid[]; created_at: Timestamp;
-      }>;
-      b2c_finance_import_version_decisions: Table<{
-        id: Uuid; import_id: Uuid; candidate_id: Uuid; decision: "confirm_new" | "link_revision" | "link_existing_manual";
-        target_lineage_id: Uuid | null; target_payment_id: Uuid | null; reason: string; decided_by: Uuid; created_at: Timestamp;
-      }>;
-      b2c_finance_staging_rows: Table<{
-        id: Uuid; import_id: Uuid; source_tab: "B2C" | "B2C Cons"; source_row_number: number; raw_payload: Json;
-        reported_date_raw: string; declared_month_raw: string | null; declared_year_raw: string | null; amount_usd_raw: string | null;
-        customer_name_raw: string | null; customer_email_raw: string | null; customer_phone_raw: string | null; category_raw: string | null;
-        membership_type_raw: string | null; payment_method_raw: string | null; payment_status_raw: string | null; note_raw: string | null;
-        occurred_on: string | null; amount_usd: Decimal | null; normalized_customer_name: string | null;
-        normalized_customer_email: string | null; normalized_customer_phone: string | null;
-        row_quality: Database["public"]["Enums"]["b2c_finance_row_quality"]; quality_issues: Json; created_at: Timestamp;
-      }>;
-      b2c_finance_row_overrides: Table<{
-        id: Uuid; finance_row_id: Uuid; occurred_on: string | null; amount_usd: Decimal | null;
-        customer_name: string | null; category_raw: string | null; date_authority_confirmed_at: Timestamp | null;
-        created_by: Uuid; updated_by: Uuid; created_at: Timestamp; updated_at: Timestamp;
-      }>;
-      b2c_finance_ledger_posts: Table<{
-        id: Uuid; finance_row_id: Uuid; payment_id: Uuid; finance_payment_method: "bank_transfer" | "ios";
-        source_amount_basis: "gross_excluding_vat"; posted_by: Uuid; posted_at: Timestamp; created_at: Timestamp;
-        lineage_id: Uuid;
-      }>;
-      b2c_finance_ledger_adjustments: Table<{
-        id: Uuid; payment_id: Uuid; finance_row_id: Uuid; adjustment_request_id: Uuid; entry_index: 1 | 2;
-        adjustment_kind: "amount_correction" | "date_reclassification" | "amount_and_date_correction";
-        amount_delta_usd: Decimal; occurred_on: string; reason: string; created_by: Uuid; created_at: Timestamp;
-      }>;
-      b2c_provider_evidence: Table<{
-        id: Uuid; import_id: Uuid; provider: "tap" | "stripe"; source_row_number: number; provider_row_id: string | null;
-        source_entry_key: "primary" | "refund"; provider_payment_id: string | null; provider_refund_id: string | null;
-        transaction_kind: Database["public"]["Enums"]["b2c_provider_evidence_kind"]; description_raw: string | null;
-        occurred_at: Timestamp | null; occurred_at_raw: string | null; original_currency: string; credit_amount: Decimal | null;
-        debit_amount: Decimal | null; customer_name: string | null; customer_email: string | null; customer_phone: string | null;
-        raw_payload: Json; created_at: Timestamp;
-      }>;
-      b2c_provider_evidence_payment_links: Table<{
-        id: Uuid; provider_evidence_id: Uuid; payment_id: Uuid; match_state: "exact_match" | "mismatch"; mismatch_fields: string[];
-        matched_during_import_id: Uuid | null; linked_by: Uuid | null; created_at: Timestamp;
-      }>;
-      b2c_reconciliation_groups: Table<{
-        id: Uuid; reconciliation_state: Database["public"]["Enums"]["b2c_reconciliation_state"];
-        canonical_finance_row_id: Uuid | null; decision_reason: string | null; decided_by: Uuid | null; decided_at: Timestamp | null;
-        grouping_key: string | null; created_by: Uuid; created_at: Timestamp;
-      }>;
-      b2c_reconciliation_finance_rows: Table<{
-        id: Uuid; reconciliation_group_id: Uuid; finance_row_id: Uuid; created_at: Timestamp;
-      }>;
-      b2c_reconciliation_provider_evidence: Table<{
-        id: Uuid; reconciliation_group_id: Uuid; provider_evidence_id: Uuid; created_at: Timestamp;
-      }>;
-      b2c_reconciliation_decisions: Table<{
-        id: Uuid; reconciliation_group_id: Uuid; decision_state: "canonical" | "excluded"; canonical_finance_row_id: Uuid | null;
-        decision_reason: string; decided_by: Uuid; created_at: Timestamp;
-      }>;
       b2c_payment_local_overrides: Table<{
         payment_id: Uuid; customer_name: string | null; customer_email: string | null; customer_phone: string | null;
         category_code: string | null; membership_tier: string | null; local_amount_usd: Decimal | null; local_occurred_on: string | null; created_by: Uuid; updated_by: Uuid;
@@ -344,24 +278,6 @@ export interface Database {
       report_delivery_attempts: Table<{ id: Uuid; report_id: Uuid; recipient_email: string; status: Database["public"]["Enums"]["integration_status"]; requested_at: Timestamp; sent_at: Timestamp | null; failed_at: Timestamp | null; safe_error_summary: string | null; created_at: Timestamp }>;
     };
     Views: {
-      b2c_finance_effective_rows: {
-        Row: {
-          id: Uuid; import_id: Uuid; source_tab: "B2C" | "B2C Cons"; source_row_number: number;
-          reported_date_raw: string; declared_month_raw: string | null; declared_year_raw: string | null;
-          amount_usd_raw: string | null; customer_name_raw: string | null; customer_email_raw: string | null;
-          customer_phone_raw: string | null; source_category_raw: string | null; category_raw: string | null; membership_type_raw: string | null;
-          payment_method_raw: string | null; payment_status_raw: string | null; note_raw: string | null;
-          source_occurred_on: string | null; source_amount_usd: Decimal | null;
-          source_row_quality: Database["public"]["Enums"]["b2c_finance_row_quality"]; quality_issues: Json;
-          override_occurred_on: string | null; override_amount_usd: Decimal | null;
-          override_customer_name: string | null; override_category_raw: string | null;
-          date_authority_confirmed_at: Timestamp | null; occurred_on: string | null; amount_usd: Decimal | null;
-          customer_name: string | null; effective_quality: Database["public"]["Enums"]["b2c_finance_row_quality"];
-        };
-        Insert: never;
-        Update: never;
-        Relationships: [];
-      };
       reportable_b2b_deals: {
         Row: B2bDealRow;
         Insert: never;
@@ -444,84 +360,6 @@ export interface Database {
         Args: { p_refund_id: Uuid; p_exchange_rate_to_usd: Decimal; p_conversion_source: string; p_effective_on: string; p_reason: string };
         Returns: Decimal;
       };
-      finalize_b2c_finance_import: {
-        Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
-        Returns: Uuid;
-      };
-      finalize_b2c_finance_import_version: {
-        Args: {
-          p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string;
-          p_supersedes_import_id: Uuid | null; p_rows: Json; p_unchanged: Json; p_candidates: Json;
-        };
-        Returns: Uuid;
-      };
-      apply_b2c_finance_row_correction: {
-        Args: { p_finance_row_id: Uuid; p_occurred_on: string | null; p_amount_usd: Decimal | null; p_customer_name: string | null; p_category_raw: string | null; p_reason: string };
-        Returns: undefined;
-      };
-      apply_b2c_finance_date_authority: {
-        Args: { p_finance_row_ids: Uuid[]; p_reason: string };
-        Returns: number;
-      };
-      apply_b2c_finance_posted_adjustment_with_expected_state: {
-        Args: {
-          p_finance_row_id: Uuid; p_occurred_on: string | null; p_amount_usd: Decimal | null;
-          p_customer_name: string | null; p_category_raw: string | null; p_adjustment_request_id: Uuid; p_reason: string;
-          p_expected_amount_usd: Decimal; p_expected_occurred_on: string;
-        };
-        Returns: number;
-      };
-      get_b2c_finance_posted_adjustments_page: {
-        Args: { p_limit?: number; p_offset?: number };
-        Returns: Array<{
-          id: Uuid; payment_id: Uuid; finance_row_id: Uuid; adjustment_request_id: Uuid; entry_index: number;
-          adjustment_kind: "amount_correction" | "date_reclassification" | "amount_and_date_correction";
-          amount_delta_usd: Decimal; occurred_on: string; reason: string; created_by: Uuid; created_at: Timestamp;
-        }>;
-      };
-      finalize_tap_statement_import: {
-        Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
-        Returns: Uuid;
-      };
-      finalize_stripe_charges_import: {
-        Args: { p_source_file_name: string; p_source_file_sha256: string; p_source_storage_bucket: string; p_source_storage_path: string; p_rows: Json };
-        Returns: Uuid;
-      };
-      post_approved_b2c_finance_payments: {
-        Args: Record<string, never>;
-        Returns: Array<{ posted_payments: number; already_posted_payments: number; skipped_rows: number }>;
-      };
-      get_b2c_finance_posting_readiness: {
-        Args: Record<string, never>;
-        Returns: Array<{
-          row_kind: "lineage" | "pending_candidate";
-          status: "ready" | "already_posted" | "represented" | "blocked" | null;
-          candidate_kind: "new" | "removed" | "ambiguous" | "existing_payment" | null;
-          finance_payment_method: "ios" | "bank_transfer" | null;
-          finance_row_count: number;
-        }>;
-      };
-      apply_b2c_finance_bulk_canonical_decision: {
-        Args: { p_group_ids: Uuid[]; p_source_tab: string; p_reason: string };
-        Returns: number;
-      };
-      apply_b2c_finance_selected_duplicate_decisions: {
-        Args: { p_decisions: Json; p_reason: string };
-        Returns: number;
-      };
-      create_b2c_exact_duplicate_groups: { Args: Record<string, never>; Returns: number };
-      get_b2c_reconciliation_safe_summary: { Args: Record<string, never>; Returns: Json };
-      get_b2c_tap_statement_unmatched_ledger_rows: {
-        Args: Record<string, never>;
-        Returns: Array<{
-          evidence_id: Uuid;
-          provider_payment_id: string;
-          description_raw: string | null;
-          occurred_at: Timestamp | null;
-          original_currency: string;
-          original_amount: Decimal;
-        }>;
-      };
       get_b2c_stripe_payment_contact_fallbacks: {
         Args: Record<string, never>;
         Returns: Array<{
@@ -575,11 +413,6 @@ export interface Database {
       integration_status: "pending" | "processing" | "completed" | "failed" | "cancelled";
       report_type: "monthly" | "quarterly" | "annual" | "ad_hoc";
       report_job_status: "pending" | "processing" | "completed" | "failed" | "cancelled";
-      b2c_finance_import_source_kind: "payment_tracker" | "tap_statement" | "stripe_charges";
-      b2c_finance_import_status: "pending" | "processing" | "completed" | "failed";
-      b2c_finance_row_quality: "valid" | "zero_value" | "needs_review" | "invalid";
-      b2c_reconciliation_state: "unmatched" | "exact_duplicate_candidate" | "possible_duplicate" | "conflict" | "canonical" | "excluded";
-      b2c_provider_evidence_kind: "sale" | "processing_fee" | "fee_vat" | "refund" | "transfer" | "opening_balance" | "needs_review";
     };
     CompositeTypes: Record<string, never>;
   };

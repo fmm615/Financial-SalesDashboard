@@ -50,7 +50,7 @@ Visible focus rings use the violet focus token. Controls have labels, tables hav
 
 ## B2C workspace pattern
 
-`/operations/b2c` is one page with `Work queue`, `Ledger`, and `Sources` tabs stored in the URL query string, not three separate pages. Each live B2C action renders in exactly one place: a Ledger or Work queue row opens the shared record drawer through one `Review`/next-action button rather than several row-level triggers, and Sources is the sole owner of provider sync, backfill, evidence upload, and Payment Tracker import. Dense filter sets follow a disclosure pattern -- a few primary filters stay visible, with the rest collapsed under `More filters` and a count badge -- rather than an always-expanded filter wall.
+`/operations/b2c` is one page with `Work queue`, `Ledger`, and `Sources` tabs stored in the URL query string, not three separate pages. Each live B2C action renders in exactly one place: a Ledger or Work queue row opens the shared record drawer through one `Review`/next-action button rather than several row-level triggers, and Sources is the sole owner of provider sync, backfill, and manual bank transfer intake. Dense filter sets follow a disclosure pattern -- a few primary filters stay visible, with the rest collapsed under `More filters` and a count badge -- rather than an always-expanded filter wall.
 
 ## Component use
 

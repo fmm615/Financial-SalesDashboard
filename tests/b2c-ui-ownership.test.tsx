@@ -36,14 +36,14 @@ describe("B2C UI ownership", () => {
     expect((caught as { digest?: string } | undefined)?.digest).toBe("NEXT_REDIRECT;replace;/operations/b2c?tab=sources;307;");
   });
 
-  it("redirects the retired B2C Finance URL into the Work queue's ready-to-post filter instead of serving a second live page", () => {
+  it("redirects the retired B2C Finance URL into the Work queue instead of serving a second live page", () => {
     let caught: unknown;
     try {
       B2cFinanceAdministrationPage();
     } catch (error) {
       caught = error;
     }
-    expect((caught as { digest?: string } | undefined)?.digest).toBe("NEXT_REDIRECT;replace;/operations/b2c?tab=work&queue=ready_to_post;307;");
+    expect((caught as { digest?: string } | undefined)?.digest).toBe("NEXT_REDIRECT;replace;/operations/b2c?tab=work;307;");
   });
 
   it("keeps Administration free of B2C correction, mapping, manual-payment, Stripe, and Tap controls", () => {

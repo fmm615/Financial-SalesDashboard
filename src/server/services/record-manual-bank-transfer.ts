@@ -33,7 +33,7 @@ export type ManualBankTransferMatch = {
   amountUsd: string;
 };
 
-export type ManualBankTransferExactMatchReason = "bank_reference" | "finance_lineage";
+export type ManualBankTransferExactMatchReason = "bank_reference";
 
 export type ManualBankTransferDuplicateAssessment = {
   inputSha256: string;
@@ -100,11 +100,10 @@ export async function previewManualBankTransfer(
 }
 
 /**
- * Records a genuinely new manual bank transfer. Exact bank-reference and
- * exact Finance-lineage matches are rejected outright with a specific
- * message; a possible (48-hour content) match is not rejected here -- the
- * repository/RPC retains the payment and opens a blocking review flag in the
- * same atomic write.
+ * Records a genuinely new manual bank transfer. An exact bank-reference
+ * match is rejected outright with a specific message; a possible (48-hour
+ * content) match is not rejected here -- the repository/RPC retains the
+ * payment and opens a blocking review flag in the same atomic write.
  */
 export async function recordManualBankTransfer(
   input: ManualBankTransferRequest & { expectedInputSha256: string },
@@ -118,11 +117,7 @@ export async function recordManualBankTransfer(
 
   const assessment = await repository.assessManualBankTransferDuplicates(prepared);
   if (assessment.matchState === "exact_existing") {
-    throw new Error(
-      assessment.exactMatchReason === "bank_reference"
-        ? "A manual bank transfer with this reference already exists."
-        : "This transfer already exists as a Payment Tracker record. Link the evidence instead of recording it again.",
-    );
+    throw new Error("A manual bank transfer with this reference already exists.");
   }
 
   return repository.createManualBankTransferAtomically({ ...prepared, expectedInputSha256: computedHash });

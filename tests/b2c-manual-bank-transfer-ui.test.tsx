@@ -89,7 +89,7 @@ describe("B2cManualBankTransfer", () => {
     fillStepOne();
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
 
-    await screen.findByText(/existing payment tracker\/payment found/i);
+    await screen.findByText(/a matching bank transfer already exists/i);
     expect(screen.queryByRole("button", { name: "Record bank transfer" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /review the existing record/i })).toHaveAttribute("href", "/operations/b2c?tab=work&record=existing-1");
   });

@@ -92,153 +92,34 @@ The Tap boundary lives in `src/lib/integrations/tap/`; the sync service writes o
 - Tap's signed webhook endpoint is `/api/webhooks/tap`. It validates Tap's `hashstring` before local processing. The webhook records the posted charge locally; it does not call Tap back.
 - A Tap payment keeps its original provider transaction ID, direct customer name/email/mobile when supplied, source product reference, provider status, and source references. Missing values remain `—` and are flagged; no Slack or profile fallback is used.
 - B2C Operations shows the retained provider description and original source currency for each ledger record. For Tap, the description comes from the saved Tap charge metadata; it remains `—` only when Tap did not supply one. These source fields are distinct from Tap's BHD settlement-statement evidence and do not require a re-import after a display-only change.
-- Every approved user can use the B2C ledger's read-only **Tap statement unmatched** filter. It shows a completed Tap-statement `sale` evidence row only when its provider payment ID has no locally imported Tap API payment. Those rows are statement evidence, not B2C payments: they have no USD reporting amount, cannot be corrected or included from the ledger, and never affect B2C or Finance totals. The safe projection exposes no raw provider payload; only Admins retain write actions elsewhere in PLAYBOOK.
-- After a Stripe Charges or Tap statement evidence import completes, `linkB2cProviderEvidenceExactMatches` (`src/server/services/b2c-provider-evidence-reconciliation.ts`) runs exact provider-transaction-ID reconciliation against the corresponding local API payments for that provider. Provider transaction ID is the only automatic link key -- amount, currency, date, and status are comparison facts, never used to guess a link. Only an exact agreement on every fact is persisted, immutably, into `b2c_provider_evidence_payment_links`; a same-ID disagreement becomes a work-queue mismatch instead, and evidence with no local payment remains the existing unmatched state above. This reconciliation never creates a B2C payment and never changes a financial total; a failure never blocks the evidence import itself.
-- If the completed Tap statement contains an unmatched sale without a usable business date, PLAYBOOK retains it as **Date unavailable** in the All time unmatched review. It is not assigned to any reporting month and never enters B2C or Finance totals.
 - Non-USD Tap charges/refunds retain their original amount and currency. They are excluded from USD financial totals until an Admin records a separate, Finance-approved local FX conversion with its rate, source, date, and reason. PLAYBOOK never silently converts Tap data.
 - Tap product mappings and one-payment local corrections use the same B2C controls as Stripe. They are source-system scoped, append-only/audited locally, and never change Tap. Finance exceptions never bypass failed/pending, duplicate, or unresolved blocking issues.
 - Combined B2C Finance totals are shown only after every active provider's historical import completes cleanly. This prevents a complete Stripe history plus a partial Tap history from being presented as a complete B2C total.
 
 Read [TAP_SETUP.md](TAP_SETUP.md) before adding a Tap key or webhook endpoint.
 
-## B2C Finance workbook reconciliation
+## B2C Finance workbook reconciliation (removed)
 
-The Finance Payment Tracker is not a provider integration and is not imported
-into `b2c_payments`. Its first supported workbook scope is exactly the `B2C`
-and `B2C Cons` tabs. These are USD Finance revenue candidates excluding customer
-VAT. They overlap, so they must never be added together as independent sources.
+The Finance Payment Tracker Excel-workbook system -- staging, provider-evidence
+matching against Stripe/Tap, exact `B2C`/`B2C Cons` cross-tab duplicate
+grouping, lineage/canonicalization, Finance staging-row corrections, and
+posting approved iOS/bank-transfer rows into real B2C payments -- has been
+removed entirely (`20260901100000_remove_payment_tracker_sheet_system.sql`).
+Stripe and Tap's own APIs are now the sole source of truth for those two
+providers; the sheet is no longer cross-referenced against either.
 
-- `20260812090000_b2c_finance_reconciliation_staging.sql` retains immutable
-  source-file provenance, Finance staging rows, provider evidence, typed
-  reconciliation groups, and append-only Finance decisions. Admin-only RLS
-  protects every raw table and no delete policy exists.
-- `20260812091000_finalize_b2c_finance_import.sql` stores one already-parsed
-  Payment Tracker import atomically. The current API never parses raw `.xlsx`
-  bytes or marks an upload successful without a dedicated, validated parser.
-- A file SHA-256 is unique. Finance rows are unique by import, tab, and
-  one-based row number. Bad, missing, and zero values are retained as source
-  history, never converted into `$0` revenue.
-- Duplicate matching proposes a decision only. E-mail is preferred; without it,
-  name, payment method, amount, and date evidence are required. A later recurring
-  payment is not treated as a duplicate merely because the name and amount match.
-- Date parsing never guesses a day/month order or repairs a contradictory month
-  label. Tap statement `Sale -`, processing-fee, fee-VAT, transfer, opening-balance,
-  refund, and unrecognised rows stay as original-currency evidence. Tap BHD is
-  never converted to USD without Finance-approved FX.
-- The `B2C reconciliation` Operations screen shows only safe source status and
-  counts. Its `Not fully loaded` gate remains until the Payment Tracker, Tap
-  statement, full Stripe Charges export, reconciliation, and Finance approval
-  are complete. It never publishes B2C Finance revenue or exposes raw evidence
-  to a Viewer.
+Historical `b2c_payments` rows with `source_system = 'finance_tracker'` remain
+untouched, immutable reportable ledger history (labelled Finance -- iOS /
+Finance -- Bank transfer); no new ones can be created. `record_b2c_manual_bank_transfer`
+(`src/server/services/record-manual-bank-transfer.ts`) continues to work for
+genuinely new bank transfers: it still rejects an exact bank-reference match
+outright and retains-with-a-flag a possible 48-hour content-duplicate match
+(now handled entirely by the general `b2c_payment_duplicate_groups` system);
+only its former check against Payment Tracker lineage was removed, since that
+lineage system no longer exists.
 
-The full Stripe Charges export is still required before any B2C Finance period
-can be verified. An Admin may securely stage an approved Payment Tracker
-`.xlsx`: the server accepts only `B2C` and `B2C Cons`, previews safe quality
-counts, requires explicit confirmation of the same SHA-256 file, and retains
-the original in the private Admin-only `b2c-finance-imports` bucket before its
-rows are atomically staged. This creates neither a provider payment nor a
-reportable total. Stripe export parsing/upload, automated group construction,
-and Finance period approval remain later work.
-
-An Admin may also stage one complete Tap statement CSV as original-currency
-evidence. The server retains sales, fees, fee VAT, refunds, transfers, opening
-balances, and unknown lines through a separate atomic function. Tap evidence
-does not create B2C Finance revenue or a USD conversion.
-
-Stripe Charges CSV evidence uses an analogous private, Admin-only source
-boundary. Each source row has a primary evidence entry, and a directly stated
-refund receives a separately linked refund entry. The source retains original
-currency only; Stripe export conversion columns are never treated as a USD
-rate. Typed name, email, and phone support Admin review, while card, address,
-fingerprint, IP, payment-method, and metadata values stay only in the private
-original CSV. No Stripe CSV upload creates B2C Finance revenue or a payment.
-
-Exact Payment Tracker duplicate grouping is internal Finance reconciliation,
-not a Stripe or Tap integration. It compares the fields shared consistently by
-the two Finance tabs: normalized customer name, business date, USD amount, and
-payment method. `B2C` type and `B2C Cons` category/membership fields are not
-treated as equivalent, and historical cross-tab e-mail coverage is absent.
-Provider evidence may support an Admin review but cannot automatically link or
-create Finance revenue.
-
-Every staged Finance row resolves to a stable, content-derived lineage
-identity from the same four fields used for exact duplicate grouping. The same
-real-world payment keeps the same lineage across every re-upload, so a
-replacement workbook can never repost a payment a prior import already staged.
-Once any Payment Tracker import has completed, a new import must declare which
-completed import it supersedes; the server rejects an import that omits this
-without ever touching Storage or the database. Rows unchanged from the
-declared prior import link straight to their existing lineage automatically.
-A genuinely new identity, a repeated identity shared by more than one row, or
-an identity that already matches an existing payment stays a non-postable
-candidate until an Admin records `confirm_new`, `link_revision`, or
-`link_existing_manual`; leaving a candidate undecided performs no write and it
-can never post.
-
-A manual bank transfer reserves its payment identity the moment it is
-recorded, independent of any workbook. If a later Payment Tracker upload
-contains that same transfer, preview and finalization surface it as an
-existing-payment candidate rather than a new lineage. An Admin's
-`link_existing_manual` decision attaches the workbook row to the reserved
-lineage as evidence only; it never creates a second payment and never changes
-the manual payment's amount, date, or source system.
-
-Approved Finance posting also resolves every confirmed lineage to its current
-linked row before checking eligibility, so a replacement workbook's unchanged
-row is recognized as already posted rather than creating a duplicate
-`finance_tracker` payment. A lineage represented by a manual bank transfer is
-excluded from posting entirely, for the same reason it is excluded from the
-version-diff candidates above.
-
-Live manual bank-transfer entry (`recordManualBankTransfer`/
-`previewManualBankTransfer`, `src/server/services/record-manual-bank-transfer.ts`)
-is the one path that creates the `manual_bank_transfer` payment this section
-describes. Preview is read-only and advisory: it reuses `createFinanceSourceIdentity`
-and `createB2cDuplicateFingerprint` directly, exactly the identity and content
-formulas the rest of B2C already relies on, so what an Admin reviews matches
-what confirmation will enforce. Confirmation is the sole write, through the
-`record_b2c_manual_bank_transfer` database RPC
-(`supabase/migrations/20260818113000_b2c_manual_bank_transfer_entry.sql`),
-which locks on the bank reference, independently rederives every check from
-the raw reviewed input, verifies the reviewed-input hash has not gone stale,
-and inserts at most one retained payment. An exact bank-reference or exact
-Finance-lineage match (posted or unposted, including one already represented
-by an earlier manual payment) is rejected outright; a possible 48-hour content
-match is retained with an open `possible_duplicate` review flag in the same
-transaction, not rejected. Task 1's `reserve_b2c_finance_manual_bank_transfer_lineage`
-trigger then reserves the new payment's own Finance source-identity
-automatically, on insert, exactly as it does for any other manual bank
-transfer row.
-
-Every reconciled B2C source record resolves to one accurate decision before it
-reaches an Admin's Work queue or a Viewer's Ledger. `resolveB2cPaymentDecision`
-always runs the existing `b2cPaymentExclusionReasons` gate first, then adds
-independent facts the gate does not compute: a missing business date, provider
-evidence reconciliation (`matched`/`unmatched`/`mismatch`), and Finance-lineage
-posting state (`not_ready`/`ready`/`posted`/`adjusted`) sourced from Task 2's
-`get_b2c_finance_posting_readiness` RPC. Statement/provider evidence is
-compared only at this layer, never passed through the financial gate, and a
-linked refund never overwrites its payment's own `succeeded`/`failed`/`pending`
-status. Unresolved blocking reasons become detailed `B2cWorkItem`s -- an
-unposted Finance Tracker row and a possible-duplicate manual bank transfer
-each surface their own queue item instead of either one becoming a second
-reportable payment -- and Ready-to-post always renders as the one aggregated
-item Task 2 already summarizes, never one Post button per lineage.
-
-Task 7's final ownership audit removed the write paths this section's exact
-grouping and lineage rules had already made redundant: the bulk
-canonical-decision and selected-duplicate-decision routes, and the
-data-quality/duplicate action components that only they served. The
-per-group `apply_b2c_finance_import_version_decision`/reconciliation-decision
-path above remains the sole duplicate write route. Read-only exact-duplicate
-listing (`GET /api/admin/b2c/reconciliation/exact-duplicates`) and its
-`b2c-exact-duplicate-review.tsx`/`b2c-exact-duplicate-review.ts` read model
-stayed live -- the shared record drawer still renders that component for its
-`choose_duplicate` action. The Date-authority and Finance-row correction
-routes also stayed: they still work against real data and are still tested,
-but nothing in the live workspace calls either of them since Task 5 left
-Date-authority "untouched" rather than wiring it into the drawer. Resolving
-that gap is future work, not something Task 7's cleanup pass performs.
+A new iOS/bank-transfer ingestion system is pending a separate design; there
+is an intentional functionality gap for that ingestion until it is built.
 
 ## HubSpot
 

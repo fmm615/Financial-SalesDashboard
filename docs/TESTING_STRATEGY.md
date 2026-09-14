@@ -21,9 +21,6 @@ Test:
   quantity-unit rules
 - target-management services: operational progress only for an active
   operational target, with a dated evidence note
-- B2C Finance staging: approved tab scope, Excel-date/month conflicts, zero and
-  invalid values, conservative duplicate candidates, recurring-payment safety,
-  and Tap statement classification without a BHD-to-USD conversion
 
 ### Integration tests
 
@@ -46,37 +43,15 @@ Test:
 - target UI: financial actuals remain explicitly unavailable while source
   history is incomplete, and operational revisions are submitted to the server
   before the UI refreshes
-- B2C Finance import/decision routes: Admin-only writes, strict pre-parsed rows,
-  atomic import RPC use, and no `b2c_payments` write
-- Payment Tracker upload: `.xlsx` tab/header/row-limit/formula validation,
-  memory-only preview, confirmation hash matching, private Storage cleanup on
-  failed finalization, and Admin-only controls with no displayed Finance total
-- Tap statement upload: full CSV line retention and classification, original
-  currency preservation, atomic evidence staging, private Storage cleanup, and
-  no BHD/USD conversion or `b2c_payments` write
 - B2C foreign-currency conversion: no USD amount at provider ingestion, an
   Admin-only append-only Finance conversion with source/rate/effective-date/
   reason, server-calculated USD amount, generic foreign-currency USD override
   rejection, and converted-refund total not exceeding the converted payment
-- Stripe Charges CSV upload: separate linked refund evidence, minimized stored
-  source fields, typed Admin-only contacts, original-currency retention,
-  source-hash confirmation, and no B2C payment/revenue creation
 - Stripe API enrichment: GET-only client requests, strict provider-object
   validation, fixed transaction-contact precedence, mutable fallback isolation,
   one Charge/one payment idempotency, partial lookup retention, settlement
   evidence separation, read-only selected dashboard evidence, and labelled
   dashboard contacts that do not change reportability or financial totals
-- B2C reconciliation coverage: safe approved-viewer summary, `Not fully loaded`
-  gate, source state display, and no claimed B2C Finance revenue total
-- exact B2C/B2C Cons duplicate grouping: exact normalized name/date/USD
-  amount/payment-method eligibility despite structurally different category
-  and contact fields, repeated-key ambiguity, idempotent Admin-only grouping,
-  reasoned one-time decisions, and no B2C payment or total creation
-- approved Finance ledger posting: Admin-only transaction, iOS/bank-transfer
-  method restriction, valid/positive/date/category eligibility, canonical
-  duplicate protection, one lineage/one ledger payment idempotency across
-  workbook versions, represented-payment exclusion, source amount basis,
-  missing-contact preservation, and no provider writes
 
 Use provider sample/test payloads where possible.
 
@@ -105,55 +80,27 @@ append-only operational evidence, and atomic operational revisions that archive
 the former active target before creating its replacement. The revision functions
 also require an authenticated Admin.
 
-B2C Finance database assertions cover immutable source-file hashes, allowed
-Payment Tracker tabs, protected RLS tables, and the fact that raw Finance rows
-remain outside `b2c_payments` until the dedicated approved-Finance posting
-transaction creates a provenance-linked iOS/bank-transfer ledger row. Run the pgTAP suite only after applying the
-reconciliation migrations to a local Supabase database; the local Supabase CLI
-is required for `npm run supabase:test`.
-
-They also cover the posted Finance adjustment stream: append-only mutation
-protection, linked source/payment IDs, amount and date reclassification
-arithmetic, idempotent request IDs, stale expected-state rejection, bounded
-Admin-only paging, and the effective ledger projection used by approved
-viewers.
-
-Posting idempotency and represented-payment exclusion are additionally
-covered by lineage-based pgTAP fixtures: a replacement workbook's row
-confirmed unchanged against a prior lineage is posted at most once, and a
-workbook row linked to an existing manual bank transfer's reserved lineage
-never creates a second Finance payment. They also cover Admin-only access to
-the posting-readiness read function.
+The Payment Tracker Excel-workbook system (staging, exact cross-tab duplicate
+grouping, lineage/canonicalization, Finance staging-row actions, posting into
+payments, and Stripe/Tap-vs-sheet provider-evidence reconciliation) has been
+removed entirely -- see `20260901100000_remove_payment_tracker_sheet_system.sql`.
+The pgTAP assertions and Vitest suites that only covered that removed system
+were deleted alongside it. A new iOS/bank-transfer ingestion system is pending
+a separate design, and its own test coverage will be added with it.
 
 Manual bank-transfer entry (`tests/b2c-manual-bank-transfer.test.ts`,
 `tests/b2c-manual-bank-transfer-api.test.ts`,
 `tests/b2c-manual-bank-transfer-ui.test.tsx`) is covered at every layer: the
 prepared-input and hash helpers, the repository's read-only duplicate
-assessment against each of exact bank reference, exact posted/unposted
-Finance lineage, an already-represented manual payment, and the standard
-48-hour content check, the route boundary's Admin-only access and stale-hash
-rejection, and the Step-1/Step-2 UI state machine including the
-blocked-from-totals possible-duplicate warning. pgTAP assertions in
-`database_foundation.test.sql` additionally cover the protected
-`record_b2c_manual_bank_transfer` RPC directly: a clean transfer creates
-exactly one payment and reserves its own Finance lineage, a reused bank
-reference or an existing Finance-lineage match (manual or posted-Tracker) is
-rejected outright, a possible content match is retained with one blocking
-review flag, a stale reviewed-input hash writes nothing, actor/reason
+assessment against exact bank reference and the standard 48-hour content
+check, the route boundary's Admin-only access and stale-hash rejection, and
+the Step-1/Step-2 UI state machine including the blocked-from-totals
+possible-duplicate warning. pgTAP assertions in `database_foundation.test.sql`
+additionally cover the protected `record_b2c_manual_bank_transfer` RPC
+directly: a clean transfer creates exactly one payment, a reused bank
+reference is rejected outright, a possible content match is retained with one
+blocking review flag, a stale reviewed-input hash writes nothing, actor/reason
 attribution is recorded, and a Viewer is denied at the database layer.
-
-Provider-evidence reconciliation (`tests/b2c-provider-evidence-reconciliation.test.ts`)
-covers `reconcileProviderEvidence`'s pure comparison -- exact Stripe/Tap ID
-matches, idempotent repeated evidence, an amount/currency/date/status
-mismatch on an otherwise-matching ID, and evidence with no local payment --
-plus the orchestration that persists only the exact matches. pgTAP
-assertions cover the immutable `b2c_provider_evidence_payment_links` table
-directly: one link per evidence row (repeated linking is a no-op, not a
-duplicate), no update or delete once written, the linking administrator
-recorded automatically, and Viewer denial. `tests/stripe-charges-upload-api.test.ts`
-and `tests/tap-statement-upload-api.test.ts` cover that a successful evidence
-import triggers this reconciliation and that a reconciliation failure never
-fails the import itself.
 
 ### End-to-end tests
 
@@ -166,21 +113,13 @@ Cover critical workflows such as:
 - review queue resolution
 - report generation/download
 
-`tests/e2e/b2c-workspace-flow.spec.ts` is the first Playwright spec in this
-repository. It covers the single-workspace B2C acceptance flow end to end:
-Payment Tracker import and different-hash replacement without a double
-post, automatic exact cross-tab duplicate grouping, one shared-drawer
-correction/FX/exception/duplicate-decision path, the one batch Ready-to-post
-action, manual bank-transfer entry (including exact-match rejection and a
-later workbook linking to an already-manual payment), a known-value dataset
-matching this file's known-value rule, a negative-flow pass over every
-excluded record type, and a Viewer read-only pass -- each at 375px, 768px,
-1024px, and 1440px. It is not runnable yet: Playwright is not installed in
-this repository (no `@playwright/test` dependency, no `playwright.config.ts`,
-no seeded test Supabase project or Google-OAuth `storageState` fixtures), so
-`tests/e2e/**` is excluded from `npm run typecheck`, `npm run lint`, and
-`npx vitest run`. The spec file's own header comment lists the setup steps a
-follow-up task must complete before it can run for real.
+No Playwright spec exists yet in this repository (no `@playwright/test`
+dependency, no `playwright.config.ts`, no seeded test Supabase project or
+Google-OAuth `storageState` fixtures); `tests/e2e/**` remains excluded from
+`npm run typecheck`, `npm run lint`, and `npx vitest run` until one is added.
+The previous spec was written against the since-removed Payment Tracker
+workflow and was deleted with it; a new acceptance spec should be written
+once the replacement iOS/bank-transfer ingestion system exists.
 
 ## Regression tests
 

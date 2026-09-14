@@ -71,17 +71,14 @@ function TabBar({ active, onSelect, showWork }: { active: WorkspaceTab; onSelect
 /**
  * The one B2C workspace: `Work queue`, `Ledger`, and `Sources` tabs stored in
  * the URL. Replaces the three former front doors (`/operations/b2c`,
- * `/operations/b2c/reconciliation`, `/admin/b2c-finance`). See "Final B2C UI
- * Inventory" in docs/superpowers/plans/2026-08-18-b2c-single-control-flow.md.
+ * `/operations/b2c/reconciliation`, `/admin/b2c-finance`).
  */
 export function B2cWorkspace({
   snapshot = null,
   loadError,
-  initialTapStatementUnmatchedOnly = false,
 }: {
   snapshot?: B2cDashboardSnapshot | null;
   loadError?: string;
-  initialTapStatementUnmatchedOnly?: boolean;
 }) {
   const role = useAppRole();
   const canManage = role === "admin";
@@ -93,9 +90,6 @@ export function B2cWorkspace({
   const activeTab: WorkspaceTab = requestedTab === "work" && !canManage ? "ledger" : (requestedTab ?? (canManage ? "work" : "ledger"));
   const activeQueue = (searchParams.get("queue") as B2cWorkQueueFilter | null) ?? "all";
   const recordParam = searchParams.get("record");
-  const candidateParam = searchParams.get("candidate");
-  const financeDuplicateParam = searchParams.get("financeDuplicate");
-  const dateAuthorityParam = searchParams.get("dateAuthority");
 
   function setQuery(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -114,7 +108,7 @@ export function B2cWorkspace({
   const [ledgerLoadError, setLedgerLoadError] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const [filters, setFilters] = useState<B2cLedgerFiltersState>(() => ({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: initialTapStatementUnmatchedOnly }));
+  const [filters, setFilters] = useState<B2cLedgerFiltersState>(initialB2cLedgerFilters);
   const [drawerTarget, setDrawerTarget] = useState<B2cPaymentReviewDrawerTarget | null>(null);
   const justResolvedPaymentIds = useRef(new Set<string>());
   const ledgerRequestGeneration = useRef(0);
@@ -129,9 +123,7 @@ export function B2cWorkspace({
     const search = filters.search.trim();
     const source = sourceQueryValue(filters.source);
     const sourceStatus = sourceStatusQueryValue(filters.status);
-    const issue = filters.tapStatementUnmatchedOnly
-      ? "Tap statement unmatched"
-      : filters.issue !== "all" ? filters.issue : null;
+    const issue = filters.issue !== "all" ? filters.issue : null;
     if (search) params.set("search", search);
     if (source) params.set("source", source);
     if (sourceStatus) params.set("sourceStatus", sourceStatus);
@@ -221,38 +213,11 @@ export function B2cWorkspace({
   const categories = useMemo(() => (ledgerFilterMetadata?.categories ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
   const issues = useMemo(() => (ledgerFilterMetadata?.issues ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
   const foreignCurrencyCount = ledgerFilterMetadata?.foreignCurrencyCount ?? 0;
-  // Undated Tap statement evidence falls outside every month-scoped period, so
-  // the retained global count comes from the snapshot rather than the current page.
-  const tapStatementUnmatchedCount = snapshot?.tapStatementUnmatchedCount ?? ledgerRows.filter((row) => row.tapStatementUnmatched).length;
-
-  function toggleTapStatementUnmatchedOnly() {
-    if (snapshot && !snapshot.period.isAllTime) {
-      handleFiltersChange({ ...initialB2cLedgerFilters, tapStatementUnmatchedOnly: true });
-      setQuery({ period: "all", tab: "ledger" });
-      return;
-    }
-    handleFiltersChange({ ...filters, tapStatementUnmatchedOnly: !filters.tapStatementUnmatchedOnly });
-  }
 
   // A record deep-linked from the Work queue or Review Queue opens the same shared drawer.
   useEffect(() => {
-    if (!recordParam) justResolvedPaymentIds.current.clear();
-    if (financeDuplicateParam) {
-      const group = workItems?.financeDuplicateGroups?.find((item) => item.groupId === financeDuplicateParam);
-      setDrawerTarget(group ? { kind: "financeDuplicate", group } : null);
-      return;
-    }
-    if (candidateParam) {
-      const candidate = workItems?.pendingCandidates?.find((item) => item.candidateId === candidateParam);
-      setDrawerTarget(candidate ? { kind: "candidate", candidate } : null);
-      return;
-    }
-    if (dateAuthorityParam) {
-      const row = workItems?.stagingDateAuthorityRows?.find((item) => item.financeRowId === dateAuthorityParam);
-      setDrawerTarget(row ? { kind: "stagingDateAuthority", row } : null);
-      return;
-    }
     if (!recordParam) {
+      justResolvedPaymentIds.current.clear();
       setDrawerTarget(null);
       return;
     }
@@ -262,13 +227,13 @@ export function B2cWorkspace({
     }
     const row = ledgerRows.find((candidate) => candidate.id === recordParam);
     if (row) { setDrawerTarget({ kind: "row", row }); return; }
-    const item = workItems?.items.find((candidate) => candidate.nextAction !== "choose_finance_duplicate" && candidate.recordId === recordParam);
+    const item = workItems?.items.find((candidate) => candidate.recordId === recordParam);
     setDrawerTarget(item ? { kind: "workItem", item } : null);
-  }, [candidateParam, dateAuthorityParam, financeDuplicateParam, recordParam, ledgerRows, workItems]);
+  }, [recordParam, ledgerRows, workItems]);
 
   function closeDrawer() {
     setDrawerTarget(null);
-    setQuery({ record: null, candidate: null, financeDuplicate: null, dateAuthority: null });
+    setQuery({ record: null });
   }
 
   function openRow(row: B2cSafeLedgerRow) {
@@ -283,20 +248,6 @@ export function B2cWorkspace({
     router.push(item.href);
   }
 
-  function handleCandidateResolved(candidateId: string) {
-    setWorkItems((current) => {
-      if (!current) return current;
-      const items = current.items.filter((item) => item.recordId !== candidateId);
-      return {
-        ...current,
-        items,
-        counts: summarizeB2cWorkItemCounts(items),
-        pendingCandidates: current.pendingCandidates?.filter((candidate) => candidate.candidateId !== candidateId),
-      };
-    });
-    void reload();
-  }
-
   function handlePaymentDuplicateResolved(resolvedPaymentIds: string[]) {
     const resolvedIds = new Set(resolvedPaymentIds);
     for (const paymentId of resolvedIds) justResolvedPaymentIds.current.add(paymentId);
@@ -307,34 +258,6 @@ export function B2cWorkspace({
     });
     setDrawerTarget(null);
     setQuery({ record: null });
-    void reload();
-  }
-
-  function handleFinanceDuplicateResolved(groupId: string) {
-    setWorkItems((current) => {
-      if (!current) return current;
-      const items = current.items.filter((item) => item.recordId !== groupId);
-      return {
-        ...current,
-        items,
-        counts: summarizeB2cWorkItemCounts(items),
-        financeDuplicateGroups: current.financeDuplicateGroups?.filter((group) => group.groupId !== groupId),
-      };
-    });
-    void reload();
-  }
-
-  function handleStagingDateAuthorityResolved(financeRowId: string) {
-    setWorkItems((current) => {
-      if (!current) return current;
-      const items = current.items.filter((item) => item.id !== `staging-date-authority:${financeRowId}`);
-      return {
-        ...current,
-        items,
-        counts: summarizeB2cWorkItemCounts(items),
-        stagingDateAuthorityRows: current.stagingDateAuthorityRows?.filter((row) => row.financeRowId !== financeRowId),
-      };
-    });
     void reload();
   }
 
@@ -373,11 +296,11 @@ export function B2cWorkspace({
 
     <div role="tabpanel" id={`b2c-panel-${activeTab}`} aria-labelledby={`b2c-tab-${activeTab}`} className="mt-4">
       {activeTab === "work" && canManage && (workItems
-        ? <B2cWorkQueue overview={workItems} activeQueue={activeQueue} onSelectQueue={(queue) => setQuery({ queue: queue === "all" ? null : queue })} onOpenItem={openWorkItem} onPosted={reload} />
+        ? <B2cWorkQueue overview={workItems} activeQueue={activeQueue} onSelectQueue={(queue) => setQuery({ queue: queue === "all" ? null : queue })} onOpenItem={openWorkItem} />
         : <EmptyState title="Loading the Work queue" description="Preparing prioritized B2C records." />)}
 
       {activeTab === "ledger" && <SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
-        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} onTapStatementUnmatchedToggle={toggleTapStatementUnmatchedOnly} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} tapStatementUnmatchedCount={tapStatementUnmatchedCount} />
+        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
         {visibleRows.length === 0 ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." /> : <B2cLedgerTable rows={visibleRows} onReview={openRow} />}
         {hasMore && <div className="mt-4 text-center"><button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="min-h-11 rounded-pill border border-border px-5 text-sm font-medium text-brand-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60">{loadingMore ? "Loading…" : "Load more"}</button></div>}
 
@@ -401,10 +324,7 @@ export function B2cWorkspace({
     <B2cPaymentReviewDrawer
       target={drawerTarget}
       onClose={closeDrawer}
-      onCandidateResolved={handleCandidateResolved}
       onPaymentDuplicateResolved={handlePaymentDuplicateResolved}
-      onFinanceDuplicateResolved={handleFinanceDuplicateResolved}
-      onStagingDateAuthorityResolved={handleStagingDateAuthorityResolved}
     />
   </AppShell>;
 }

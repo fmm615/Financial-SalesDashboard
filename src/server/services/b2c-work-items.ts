@@ -1,23 +1,21 @@
 import type { B2cBlockingReason, B2cPaymentDecision } from "@/lib/b2c/payment-decision";
-import type { FinancePostingReadiness } from "@/server/services/b2c-finance-action-center";
-import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
 /**
  * One accurate B2C work item. Internal `queue` values stay detailed so each
  * record keeps its precise reason; the workspace UI only ever renders the
- * four `visibleGroup` filters plus `All`.
+ * three `visibleGroup` filters plus `All`.
  */
 export type B2cWorkItem = {
   id: string;
   recordId: string;
-  recordKind: "provider_payment" | "provider_refund" | "finance_row" | "provider_evidence" | "source_run";
-  queue: "data_quality" | "duplicate" | "fx" | "mapping" | "reconciliation" | "ready_to_post" | "source_failure";
-  visibleGroup: "data" | "duplicates" | "reconciliation" | "ready_to_post";
+  recordKind: "provider_payment" | "provider_refund" | "finance_row" | "source_run";
+  queue: "data_quality" | "duplicate" | "fx" | "mapping" | "reconciliation" | "source_failure";
+  visibleGroup: "data" | "duplicates" | "reconciliation";
   financeMethod: "ios" | "bank_transfer" | null;
   title: string;
   explanation: string;
   financialImpactUsd: string | null;
-  nextAction: "correct" | "map" | "convert_fx" | "choose_payment_duplicate" | "choose_finance_duplicate" | "compare" | "post" | "retry_source" | "review_exception" | "review_import_version";
+  nextAction: "correct" | "map" | "convert_fx" | "choose_payment_duplicate" | "retry_source" | "review_exception";
   href: string;
 };
 
@@ -39,75 +37,6 @@ export type B2cSourceFailureRecord = {
   reason: string;
   href: string;
 };
-
-/** One unresolved Payment Tracker import-version candidate, with source-row context for an Admin. */
-export type B2cPendingCandidateRecord = {
-  candidateId: string;
-  importId: string;
-  candidateKind: "new" | "ambiguous" | "existing_payment";
-  sourceIdentity: string;
-  financeRowIds: string[];
-  priorLineageIds: string[];
-  priorPaymentIds: string[];
-  customerLabel: string;
-  amountUsd: string | null;
-  occurredOn: string | null;
-};
-
-/** A provider-ID-linked payment whose retained evidence disagrees on one or more comparison facts. */
-export type B2cProviderEvidenceMismatchRecord = {
-  evidenceId: string;
-  paymentId: string;
-  customerLabel: string;
-  amountUsd: string | null;
-  mismatchFields: Array<"amount" | "currency" | "date" | "status">;
-};
-
-function formatProviderEvidenceMismatchFields(fields: B2cProviderEvidenceMismatchRecord["mismatchFields"]): string {
-  if (fields.length === 1) return fields[0];
-  if (fields.length === 2) return `${fields[0]} and ${fields[1]}`;
-  return `${fields.slice(0, -1).join(", ")}, and ${fields.at(-1)}`;
-}
-
-/** A retained mismatch stays visible until an Admin compares the original payment and provider evidence. */
-export function buildB2cProviderEvidenceMismatchWorkItems(records: B2cProviderEvidenceMismatchRecord[]): B2cWorkItem[] {
-  return records.map((record) => ({
-    id: `provider-evidence-mismatch:${record.evidenceId}`,
-    recordId: record.paymentId,
-    recordKind: "provider_payment",
-    queue: "reconciliation",
-    visibleGroup: "reconciliation",
-    financeMethod: null,
-    title: `Compare provider evidence for ${record.customerLabel}`,
-    explanation: `The provider transaction ID matches, but the ${formatProviderEvidenceMismatchFields(record.mismatchFields)} differ${record.mismatchFields.length === 1 ? "s" : ""}.`,
-    financialImpactUsd: record.amountUsd,
-    nextAction: "compare",
-    href: `/operations/b2c?tab=work&record=${record.paymentId}`,
-  }));
-}
-
-const CANDIDATE_EXPLANATION: Record<B2cPendingCandidateRecord["candidateKind"], string> = {
-  new: "This replacement-workbook row has no prior Payment Tracker row or existing payment with the same identity. Confirm it as a genuinely new payment, or link it to the record it revises.",
-  ambiguous: "Several rows share this payment identity, so PLAYBOOK cannot resolve them automatically. Decide each one explicitly.",
-  existing_payment: "This workbook row matches an existing manual bank transfer. Link it as evidence — it must never become a second payment.",
-};
-
-/** An undecided import-version candidate blocks its rows from posting until an Admin resolves it. */
-export function buildB2cPendingCandidateWorkItems(records: B2cPendingCandidateRecord[]): B2cWorkItem[] {
-  return records.map((record) => ({
-    id: `candidate:${record.candidateId}`,
-    recordId: record.candidateId,
-    recordKind: "finance_row",
-    queue: "reconciliation",
-    visibleGroup: "reconciliation",
-    financeMethod: null,
-    title: `Resolve the Payment Tracker version decision for ${record.customerLabel}`,
-    explanation: CANDIDATE_EXPLANATION[record.candidateKind],
-    financialImpactUsd: record.amountUsd,
-    nextAction: "review_import_version",
-    href: `/operations/b2c?tab=work&candidate=${record.candidateId}`,
-  }));
-}
 
 type ReasonPlan = {
   queue: B2cWorkItem["queue"];
@@ -162,39 +91,11 @@ const REASON_PLAN: Partial<Record<B2cBlockingReason, ReasonPlan>> = {
     title: (name) => `Choose the duplicate for ${name}`,
     explanation: "This record has an unresolved possible duplicate. Review both records and record one decision.",
   },
-  unmatched_evidence: {
-    queue: "reconciliation", nextAction: "compare",
-    title: (name) => `Compare provider evidence for ${name}`,
-    explanation: "Retained provider evidence does not match this record. Compare and resolve the mismatch.",
-  },
-  ambiguous_finance_lineage: {
-    queue: "reconciliation", nextAction: "review_import_version",
-    title: (name) => `Review the Payment Tracker version decision for ${name}`,
-    explanation: "This Payment Tracker row needs an explicit new/revision/existing-payment decision.",
-  },
 };
-
-/** Finance exact groups are distinct from payment duplicate groups and open only their retained workbook pair. */
-export function buildB2cFinanceExactDuplicateWorkItems(groups: AdminExactDuplicateGroup[]): B2cWorkItem[] {
-  return groups.map((group) => ({
-    id: `finance-exact-duplicate:${group.groupId}`,
-    recordId: group.groupId,
-    recordKind: "finance_row",
-    queue: "duplicate",
-    visibleGroup: "duplicates",
-    financeMethod: null,
-    title: "Choose the canonical Payment Tracker row",
-    explanation: "Two retained Finance workbook rows are an unresolved exact cross-tab pair.",
-    financialImpactUsd: group.rows[0]?.amountUsd ?? null,
-    nextAction: "choose_finance_duplicate",
-    href: `/operations/b2c?tab=work&financeDuplicate=${group.groupId}`,
-  }));
-}
 
 export function visibleGroupForQueue(queue: B2cWorkItem["queue"]): B2cWorkItem["visibleGroup"] {
   if (queue === "duplicate") return "duplicates";
   if (queue === "reconciliation" || queue === "source_failure") return "reconciliation";
-  if (queue === "ready_to_post") return "ready_to_post";
   return "data";
 }
 
@@ -236,39 +137,13 @@ export function buildB2cSourceFailureWorkItems(runs: B2cSourceFailureRecord[]): 
   }));
 }
 
-/**
- * Builds the single aggregated Ready-to-post work item from Task 2's Finance
- * posting readiness summary. This never generates one item per lineage --
- * the workspace exposes exactly one `Post N Finance payments` action.
- */
-export function buildB2cReadyToPostWorkItem(readiness: FinancePostingReadiness, href: string): B2cWorkItem | null {
-  if (readiness.readyLineages === 0) return null;
-  return {
-    id: "ready-to-post",
-    recordId: "ready-to-post",
-    recordKind: "finance_row",
-    queue: "ready_to_post",
-    visibleGroup: "ready_to_post",
-    financeMethod: null,
-    title: `Post ${readiness.readyLineages} Finance payment${readiness.readyLineages === 1 ? "" : "s"}`,
-    explanation: `${readiness.readyIosLineages} iOS and ${readiness.readyBankTransferLineages} bank transfer Finance rows are ready to post.`,
-    financialImpactUsd: null,
-    nextAction: "post",
-    href,
-  };
-}
-
 /** Composes every granular work item into one list, grouped internally by domain, before UI filtering. */
 export function buildB2cWorkItems(input: {
   records: B2cWorkItemRecord[];
   sourceFailures?: B2cSourceFailureRecord[];
-  postingReadiness?: FinancePostingReadiness;
-  readyToPostHref?: string;
 }): B2cWorkItem[] {
-  const items = [
+  return [
     ...input.records.flatMap(buildB2cRecordWorkItems),
     ...buildB2cSourceFailureWorkItems(input.sourceFailures ?? []),
   ];
-  const readyToPost = input.postingReadiness ? buildB2cReadyToPostWorkItem(input.postingReadiness, input.readyToPostHref ?? "/operations/b2c?tab=work&queue=ready_to_post") : null;
-  return readyToPost ? [...items, readyToPost] : items;
 }

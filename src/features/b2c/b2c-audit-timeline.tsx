@@ -26,9 +26,9 @@ function formatTimestamp(value: string): string {
 
 /**
  * The drawer's "Audit history" section: every append-only correction,
- * exception, FX conversion, and posted-adjustment entry recorded against
- * this payment or refund, oldest information never overwritten -- only ever
- * added to. Both an Admin and a Viewer may read it.
+ * exception, and FX conversion entry recorded against this payment or
+ * refund, oldest information never overwritten -- only ever added to. Both
+ * an Admin and a Viewer may read it.
  */
 export function B2cAuditTimeline({ recordId }: { recordId: string }) {
   const [entries, setEntries] = useState<B2cAuditTimelineEntry[] | null>(null);

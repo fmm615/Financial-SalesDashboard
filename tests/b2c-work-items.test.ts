@@ -1,18 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { resolveB2cPaymentDecision } from "@/lib/b2c/payment-decision";
 import {
-  buildB2cReadyToPostWorkItem,
-  buildB2cFinanceExactDuplicateWorkItems,
-  buildB2cProviderEvidenceMismatchWorkItems,
   buildB2cRecordWorkItems,
-  buildB2cPendingCandidateWorkItems,
   buildB2cSourceFailureWorkItems,
   buildB2cWorkItems,
   visibleGroupForQueue,
   type B2cWorkItemRecord,
 } from "@/server/services/b2c-work-items";
 import { buildB2cWorkspaceOverview, chunkB2cWorkspaceQueryValues } from "@/server/repositories/b2c-workspace-repository";
-import type { AdminExactDuplicateGroup } from "@/server/services/b2c-exact-duplicate-review";
 
 const succeededBase = {
   sourceSystem: "stripe" as const,
@@ -37,22 +32,6 @@ function record(overrides: Partial<B2cWorkItemRecord> & { decision: B2cWorkItemR
   };
 }
 
-const financeRow = (
-  financeRowId: string,
-  sourceTab: "B2C" | "B2C Cons",
-): AdminExactDuplicateGroup["rows"][number] => ({
-  financeRowId,
-  sourceTab,
-  sourceRowNumber: sourceTab === "B2C" ? 12 : 33,
-  occurredOn: "2026-08-01",
-  amountUsd: "100.000000",
-  customerName: "Maya Al Khalifa",
-  customerEmail: "member@example.com",
-  customerPhone: null,
-  category: "membership",
-  paymentMethod: "Stripe",
-});
-
 describe("visibleGroupForQueue", () => {
   it("groups FX and mapping under data", () => {
     expect(visibleGroupForQueue("fx")).toBe("data");
@@ -60,14 +39,13 @@ describe("visibleGroupForQueue", () => {
     expect(visibleGroupForQueue("data_quality")).toBe("data");
   });
 
-  it("groups source failures and provider mismatches under reconciliation", () => {
+  it("groups source failures and reconciliation under reconciliation", () => {
     expect(visibleGroupForQueue("source_failure")).toBe("reconciliation");
     expect(visibleGroupForQueue("reconciliation")).toBe("reconciliation");
   });
 
-  it("keeps duplicates and ready-to-post as their own groups", () => {
+  it("keeps duplicates as their own group", () => {
     expect(visibleGroupForQueue("duplicate")).toBe("duplicates");
-    expect(visibleGroupForQueue("ready_to_post")).toBe("ready_to_post");
   });
 });
 
@@ -96,12 +74,12 @@ describe("buildB2cRecordWorkItems", () => {
     expect(buildB2cRecordWorkItems(record({ decision: resolveB2cPaymentDecision({ ...succeededBase, paymentStatus: "pending" }) }))).toEqual([]);
   });
 
-  it("produces no work item for an explicit manual exclusion -- the decision is already settled", () => {
-    const decision = resolveB2cPaymentDecision({ ...succeededBase, hasManualExclusion: true });
+  it("produces no work item for an audited duplicate exclusion -- the decision is already settled", () => {
+    const decision = resolveB2cPaymentDecision({ ...succeededBase, hasDuplicateExclusion: true });
     expect(buildB2cRecordWorkItems(record({ decision }))).toEqual([]);
   });
 
-  it("produces one data-quality item for an implausible future business date, even on an already-posted payment", () => {
+  it("produces one data-quality item for an implausible future business date, even on an already-posted Finance-tracker payment", () => {
     const decision = resolveB2cPaymentDecision({
       ...succeededBase, sourceSystem: "finance_tracker", occurredOn: "2026-11-01",
       isApprovedFinancePayment: true, financeLineageStatus: "posted",
@@ -125,143 +103,25 @@ describe("buildB2cRecordWorkItems", () => {
     expect(items[0]).toMatchObject({ queue: "mapping", visibleGroup: "data", nextAction: "map" });
   });
 
-  it("produces a reconciliation work item for unmatched provider evidence", () => {
-    const decision = resolveB2cPaymentDecision({ ...succeededBase, evidenceMatchState: "unmatched" });
-    const items = buildB2cRecordWorkItems(record({ decision }));
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ queue: "reconciliation", visibleGroup: "reconciliation", nextAction: "compare" });
-  });
-
-  it("produces a reconciliation work item for an ambiguous Finance lineage needing an import-version decision", () => {
-    const decision = resolveB2cPaymentDecision({ ...succeededBase, sourceSystem: "finance_tracker", financeLineageStatus: "ambiguous" });
-    const items = buildB2cRecordWorkItems(record({ decision, recordKind: "finance_row", financeMethod: "ios" }));
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ queue: "reconciliation", nextAction: "review_import_version", financeMethod: "ios" });
-  });
-
   it("produces multiple work items when several blocking reasons are open at once", () => {
     const decision = resolveB2cPaymentDecision({ ...succeededBase, customerEmail: null, categoryCode: "unmapped" });
     const items = buildB2cRecordWorkItems(record({ decision }));
     expect(items.map((item) => item.queue).sort()).toEqual(["data_quality", "mapping"]);
   });
 
-  it("gives an iOS tracker row and a bank-transfer tracker row their own distinct finance method label", () => {
-    const iosDecision = resolveB2cPaymentDecision({ ...succeededBase, sourceSystem: "finance_tracker", customerEmail: null, financeLineageStatus: "not_ready" });
-    const iosItems = buildB2cRecordWorkItems(record({ id: "finance-ios-1", decision: iosDecision, recordKind: "finance_row", financeMethod: "ios" }));
-    expect(iosItems[0]).toMatchObject({ financeMethod: "ios", recordId: "finance-ios-1" });
-
-    const bankDecision = resolveB2cPaymentDecision({ ...succeededBase, sourceSystem: "finance_tracker", customerEmail: null, financeLineageStatus: "not_ready" });
-    const bankItems = buildB2cRecordWorkItems(record({ id: "finance-bank-1", decision: bankDecision, recordKind: "finance_row", financeMethod: "bank_transfer" }));
-    expect(bankItems[0]).toMatchObject({ financeMethod: "bank_transfer", recordId: "finance-bank-1" });
-  });
-
-  it("produces a duplicate work item, not a second reportable payment, for a manual-bank candidate matching an existing tracker lineage", () => {
+  it("produces a duplicate work item, not a second reportable payment, for a manual-bank candidate with an open possible duplicate", () => {
     const decision = resolveB2cPaymentDecision({
       ...succeededBase, sourceSystem: "manual_bank_transfer",
-      openFlagTypes: new Set(["possible_duplicate"]), financeLineageStatus: "not_ready",
+      openFlagTypes: new Set(["possible_duplicate"]),
     });
     const items = buildB2cRecordWorkItems(record({ id: "manual-1", decision, financeMethod: "bank_transfer" }));
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ queue: "duplicate", nextAction: "choose_payment_duplicate", recordId: "manual-1" });
-    expect(items.some((item) => item.queue === "ready_to_post")).toBe(false);
-  });
-});
-
-describe("duplicate work-item targets", () => {
-  it("routes payment duplicate groups and Finance exact groups to different drawer targets", () => {
-    const financeGroup: AdminExactDuplicateGroup = {
-      groupId: "group-1",
-      state: "exact_duplicate_candidate",
-      rows: [
-        financeRow("finance-row-1", "B2C"),
-        financeRow("finance-row-2", "B2C Cons"),
-      ],
-    };
-    const paymentItems = buildB2cRecordWorkItems(record({
-      decision: resolveB2cPaymentDecision({ ...succeededBase, hasOpenPaymentDuplicate: true }),
-    }));
-    const financeItems = buildB2cFinanceExactDuplicateWorkItems([financeGroup]);
-
-    expect(paymentItems[0]).toMatchObject({
-      nextAction: "choose_payment_duplicate",
-      href: "/operations/b2c?tab=work&record=payment-1",
-    });
-    expect(financeItems[0]).toMatchObject({
-      nextAction: "choose_finance_duplicate",
-      href: "/operations/b2c?tab=work&financeDuplicate=group-1",
-    });
-  });
-});
-
-describe("buildB2cPendingCandidateWorkItems", () => {
-  it("turns an undecided import-version candidate into one reconciliation work item", () => {
-    const items = buildB2cPendingCandidateWorkItems([{
-      candidateId: "candidate-1",
-      importId: "import-1",
-      candidateKind: "new",
-      sourceIdentity: "a".repeat(64),
-      financeRowIds: ["row-1"],
-      priorLineageIds: [],
-      priorPaymentIds: [],
-      customerLabel: "Maya Al Khalifa",
-      amountUsd: "399.000000",
-      occurredOn: "2026-08-01",
-    }]);
-
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({
-      id: "candidate:candidate-1",
-      recordId: "candidate-1",
-      recordKind: "finance_row",
-      queue: "reconciliation",
-      visibleGroup: "reconciliation",
-      nextAction: "review_import_version",
-      href: "/operations/b2c?tab=work&candidate=candidate-1",
-    });
-  });
-
-  it("includes unresolved candidates in the workspace reconciliation count", () => {
-    const overview = buildB2cWorkspaceOverview({
-      ledgerRows: [],
-      pendingCandidates: [{
-        candidateId: "candidate-1", importId: "import-1", candidateKind: "ambiguous",
-        sourceIdentity: "b".repeat(64), financeRowIds: ["row-1"], priorLineageIds: [], priorPaymentIds: [],
-        customerLabel: "Hoor Alshubbar", amountUsd: "399.000000", occurredOn: "2026-08-01",
-      }],
-    });
-
-    expect(overview.counts).toMatchObject({ all: 1, reconciliation: 1 });
-    expect(overview.items[0]).toMatchObject({ recordId: "candidate-1", nextAction: "review_import_version" });
-  });
-});
-
-describe("buildB2cProviderEvidenceMismatchWorkItems", () => {
-  it("turns every recorded provider-evidence mismatch into one actionable reconciliation item", () => {
-    const items = buildB2cProviderEvidenceMismatchWorkItems([{
-      evidenceId: "evidence-1",
-      paymentId: "payment-1",
-      customerLabel: "Maya Al Khalifa",
-      amountUsd: "120.000000",
-      mismatchFields: ["amount", "currency"],
-    }]);
-
-    expect(items).toEqual([expect.objectContaining({
-      id: "provider-evidence-mismatch:evidence-1",
-      recordId: "payment-1",
-      recordKind: "provider_payment",
-      queue: "reconciliation",
-      visibleGroup: "reconciliation",
-      nextAction: "compare",
-      title: "Compare provider evidence for Maya Al Khalifa",
-      explanation: "The provider transaction ID matches, but the amount and currency differ.",
-      financialImpactUsd: "120.000000",
-      href: "/operations/b2c?tab=work&record=payment-1",
-    })]);
   });
 });
 
 describe("chunkB2cWorkspaceQueryValues", () => {
-  it("bounds large candidate source-row lookups below URL-size limits", () => {
+  it("bounds large lookups below URL-size limits", () => {
     const batches = chunkB2cWorkspaceQueryValues(Array.from({ length: 20_000 }, (_, index) => `row-${index}`));
     expect(batches).toHaveLength(200);
     expect(batches.every((batch) => batch.length <= 100)).toBe(true);
@@ -288,30 +148,30 @@ describe("buildB2cSourceFailureWorkItems", () => {
   });
 });
 
-describe("buildB2cReadyToPostWorkItem", () => {
-  it("returns null when nothing is ready to post", () => {
-    expect(buildB2cReadyToPostWorkItem({ readyLineages: 0, readyIosLineages: 0, readyBankTransferLineages: 0, alreadyPostedLineages: 3, blockedRows: 1, ambiguousRows: 0 }, "/href")).toBeNull();
-  });
-
-  it("aggregates ready lineages into exactly one item instead of one Post button per row", () => {
-    const item = buildB2cReadyToPostWorkItem({ readyLineages: 3, readyIosLineages: 2, readyBankTransferLineages: 1, alreadyPostedLineages: 0, blockedRows: 0, ambiguousRows: 0 }, "/operations/b2c?tab=work&queue=ready_to_post");
-    expect(item).toMatchObject({ queue: "ready_to_post", visibleGroup: "ready_to_post", nextAction: "post", title: "Post 3 Finance payments" });
-  });
-});
-
 describe("buildB2cWorkItems", () => {
-  it("composes record items, source failures, and the aggregate ready-to-post item together", () => {
+  it("composes record items and source failures together", () => {
     const decision = resolveB2cPaymentDecision({ ...succeededBase, customerEmail: null });
     const items = buildB2cWorkItems({
       records: [record({ decision })],
       sourceFailures: [{ id: "run-1", provider: "tap", reason: "The last Tap sync failed.", href: "/operations/b2c?tab=sources" }],
-      postingReadiness: { readyLineages: 1, readyIosLineages: 1, readyBankTransferLineages: 0, alreadyPostedLineages: 0, blockedRows: 0, ambiguousRows: 0 },
     });
-    expect(items.map((item) => item.queue).sort()).toEqual(["data_quality", "ready_to_post", "source_failure"]);
+    expect(items.map((item) => item.queue).sort()).toEqual(["data_quality", "source_failure"]);
   });
 
-  it("omits the ready-to-post item entirely when nothing is ready", () => {
-    const items = buildB2cWorkItems({ records: [], postingReadiness: { readyLineages: 0, readyIosLineages: 0, readyBankTransferLineages: 0, alreadyPostedLineages: 0, blockedRows: 0, ambiguousRows: 0 } });
-    expect(items).toEqual([]);
+  it("returns no items when nothing needs attention", () => {
+    expect(buildB2cWorkItems({ records: [] })).toEqual([]);
+  });
+});
+
+describe("buildB2cWorkspaceOverview", () => {
+  it("summarizes ledger rows into the visible Work queue counts", () => {
+    const decision = resolveB2cPaymentDecision({ ...succeededBase, customerEmail: null });
+    const overview = buildB2cWorkspaceOverview({
+      ledgerRows: [{
+        id: "payment-1", recordType: "Payment", sourceSystem: "stripe", source: "Stripe",
+        customerName: "Maya Al Khalifa", customerEmail: null, amountValueUsd: "100.00", decision,
+      } as never],
+    });
+    expect(overview.counts).toMatchObject({ all: 1, data: 1 });
   });
 });

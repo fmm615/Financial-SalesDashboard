@@ -10,11 +10,11 @@ export const b2cWorkspaceLedgerQuerySchema = z.object({
   period: z.union([z.literal("all"), z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Enter a valid reporting month.")]).optional(),
   source: z.enum(["stripe", "tap", "manual_bank_transfer", "finance_tracker"]).optional(),
   sourceStatus: z.enum(["succeeded", "failed", "pending"]).optional(),
-  paymentStatus: z.enum(["Completed", "Failed", "Pending", "Refunded", "Not matched"]).optional(),
+  paymentStatus: z.enum(["Completed", "Failed", "Pending", "Refunded"]).optional(),
   reportingDecision: z.enum(["reportable", "blocked", "excluded", "exception_included"]).optional(),
   issue: z.enum([
     "Possible duplicate", "Unmapped product", "Failed", "Missing customer email",
-    "Needs follow-up", "Needs FX review", "Refunded", "Tap statement unmatched", "none",
+    "Needs follow-up", "Needs FX review", "Refunded", "none",
   ]).optional(),
   dateFrom: calendarDate.optional(),
   dateTo: calendarDate.optional(),

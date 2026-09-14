@@ -141,12 +141,6 @@ describe("resolveB2cPaymentDecision", () => {
     expect(decision.reportingDecision).toBe("reportable");
   });
 
-  it("excludes a record through an explicit, separately audited manual exclusion", () => {
-    const decision = resolveB2cPaymentDecision({ ...base, hasManualExclusion: true });
-    expect(decision.reportingDecision).toBe("excluded");
-    expect(decision.blockingReasons).toContain("manual_exclusion");
-  });
-
   it("allows a missing email only for immutable approved Finance Tracker provenance", () => {
     const decision = resolveB2cPaymentDecision({
       ...base, sourceSystem: "finance_tracker", customerEmail: null, isApprovedFinancePayment: true,
@@ -163,43 +157,6 @@ describe("resolveB2cPaymentDecision", () => {
     expect(decision.reportingDecision).toBe("reportable");
   });
 
-  it("blocks unmatched provider evidence without passing statement evidence through the financial gate", () => {
-    const decision = resolveB2cPaymentDecision({ ...base, evidenceMatchState: "unmatched" });
-    expect(decision.reportingDecision).toBe("blocked");
-    expect(decision.blockingReasons).toEqual(["unmatched_evidence"]);
-    expect(decision.reconciliationStatus).toBe("unmatched");
-  });
-
-  it("blocks provider evidence that mismatches the locally recorded values", () => {
-    const decision = resolveB2cPaymentDecision({ ...base, evidenceMatchState: "mismatch" });
-    expect(decision.blockingReasons).toEqual(["unmatched_evidence"]);
-    expect(decision.reconciliationStatus).toBe("mismatch");
-  });
-
-  it("marks a matched provider evidence record as reconciled without any blocking reason", () => {
-    const decision = resolveB2cPaymentDecision({ ...base, evidenceMatchState: "matched" });
-    expect(decision.reconciliationStatus).toBe("matched");
-    expect(decision.blockingReasons).toEqual([]);
-    expect(decision.reportingDecision).toBe("reportable");
-  });
-
-  it("represents a Finance Tracker iOS row ready to post", () => {
-    const decision = resolveB2cPaymentDecision({
-      ...base, sourceSystem: "finance_tracker", isApprovedFinancePayment: false,
-      financeLineageStatus: "ready",
-    });
-    expect(decision.postingStatus).toBe("ready");
-    expect(decision.reportingDecision).toBe("reportable");
-  });
-
-  it("represents a Finance Tracker bank-transfer row ready to post", () => {
-    const decision = resolveB2cPaymentDecision({
-      ...base, sourceSystem: "finance_tracker", isApprovedFinancePayment: false,
-      financeLineageStatus: "ready",
-    });
-    expect(decision.postingStatus).toBe("ready");
-  });
-
   it("represents a new, clean manual bank transfer as not applicable to posting", () => {
     const decision = resolveB2cPaymentDecision({
       ...base, sourceSystem: "manual_bank_transfer", financeLineageStatus: "not_applicable",
@@ -208,36 +165,19 @@ describe("resolveB2cPaymentDecision", () => {
     expect(decision.reportingDecision).toBe("reportable");
   });
 
-  it("blocks a manual-bank candidate matching an existing tracker lineage as an unresolved duplicate, not a second reportable payment", () => {
+  it("blocks a manual-bank candidate with an open possible duplicate, not a second reportable payment", () => {
     const decision = resolveB2cPaymentDecision({
       ...base, sourceSystem: "manual_bank_transfer",
       openFlagTypes: new Set(["possible_duplicate"]),
-      financeLineageStatus: "not_ready",
+      financeLineageStatus: "not_applicable",
     });
     expect(decision.reportingDecision).toBe("blocked");
     expect(decision.blockingReasons).toContain("possible_duplicate");
-    expect(decision.postingStatus).toBe("not_ready");
-  });
-
-  it("marks an ambiguous Finance lineage as a distinct blocking reason and not-ready posting status", () => {
-    const decision = resolveB2cPaymentDecision({
-      ...base, sourceSystem: "finance_tracker", financeLineageStatus: "ambiguous",
-    });
-    expect(decision.blockingReasons).toContain("ambiguous_finance_lineage");
-    expect(decision.postingStatus).toBe("not_ready");
-    expect(decision.reportingDecision).toBe("blocked");
-  });
-
-  it("represents an already-posted Finance payment later corrected as adjusted", () => {
-    const decision = resolveB2cPaymentDecision({
-      ...base, sourceSystem: "finance_tracker", isApprovedFinancePayment: true,
-      financeLineageStatus: "adjusted",
-    });
-    expect(decision.postingStatus).toBe("adjusted");
+    expect(decision.postingStatus).toBe("not_applicable");
   });
 
   it("never applies Finance posting status to a Stripe or Tap payment", () => {
-    const decision = resolveB2cPaymentDecision({ ...base, sourceSystem: "tap", financeLineageStatus: "ready" });
+    const decision = resolveB2cPaymentDecision({ ...base, sourceSystem: "tap", financeLineageStatus: "posted" });
     expect(decision.postingStatus).toBe("not_applicable");
   });
 

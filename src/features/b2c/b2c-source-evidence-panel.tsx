@@ -50,7 +50,7 @@ export function B2cSourceEvidencePanel({
   date,
 }: {
   paymentId: string;
-  recordType: "Payment" | "Refund" | "Tap statement sale";
+  recordType: "Payment" | "Refund";
   source: string;
   sourceSystem: "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker";
   providerReference: string | null;

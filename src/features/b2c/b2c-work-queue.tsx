@@ -1,7 +1,6 @@
 "use client";
 
 import { EmptyState, SectionCard } from "@/components/ui";
-import { B2cApprovedFinancePosting } from "@/features/b2c/b2c-approved-finance-posting";
 import type { B2cWorkspaceCounts, B2cWorkspaceOverview } from "@/server/repositories/b2c-workspace-repository";
 import type { B2cWorkItem } from "@/server/services/b2c-work-items";
 
@@ -12,7 +11,6 @@ const QUEUE_CHIPS: Array<{ value: B2cWorkQueueFilter; label: string }> = [
   { value: "data", label: "Data" },
   { value: "duplicates", label: "Duplicates" },
   { value: "reconciliation", label: "Reconciliation" },
-  { value: "ready_to_post", label: "Ready to post" },
 ];
 
 const NEXT_ACTION_LABEL: Record<B2cWorkItem["nextAction"], string> = {
@@ -20,12 +18,8 @@ const NEXT_ACTION_LABEL: Record<B2cWorkItem["nextAction"], string> = {
   map: "Map product",
   convert_fx: "Convert FX",
   choose_payment_duplicate: "Choose duplicate",
-  choose_finance_duplicate: "Choose canonical row",
-  compare: "Compare evidence",
-  post: "Post",
   retry_source: "Open Sources",
   review_exception: "Review exception",
-  review_import_version: "Review import version",
 };
 
 function WorkItemRow({ item, onOpen }: { item: B2cWorkItem; onOpen: (item: B2cWorkItem) => void }) {
@@ -44,21 +38,16 @@ function WorkItemRow({ item, onOpen }: { item: B2cWorkItem; onOpen: (item: B2cWo
 
 /**
  * The Work queue is the sole owner of prioritizing exceptional B2C records.
- * Five visible filters map directly to Task 3's `visibleGroup`; each item
- * shows exactly one primary next action. The aggregated ready-to-post item
- * renders Task 2's one Ready-to-post container instead of a generic row, so
- * the posting panel is never nested inside another posting card.
+ * Three visible filters map directly to `visibleGroup`; each item shows
+ * exactly one primary next action.
  */
-export function B2cWorkQueue({ overview, activeQueue, onSelectQueue, onOpenItem, onPosted }: {
+export function B2cWorkQueue({ overview, activeQueue, onSelectQueue, onOpenItem }: {
   overview: B2cWorkspaceOverview;
   activeQueue: B2cWorkQueueFilter;
   onSelectQueue: (queue: B2cWorkQueueFilter) => void;
   onOpenItem: (item: B2cWorkItem) => void;
-  onPosted: () => Promise<void>;
 }) {
-  const items = overview.items.filter((item) => item.visibleGroup !== "ready_to_post" && (activeQueue === "all" || item.visibleGroup === activeQueue));
-  const readyToPostItem = overview.items.find((item) => item.nextAction === "post");
-  const showReadyToPostPanel = readyToPostItem && (activeQueue === "all" || activeQueue === "ready_to_post");
+  const items = overview.items.filter((item) => activeQueue === "all" || item.visibleGroup === activeQueue);
 
   return <SectionCard title="Work queue" description="Prioritized B2C records needing an Admin decision. Choose a filter, then take the one action shown for each item.">
     <div role="group" aria-label="Work queue filters" className="flex flex-wrap gap-2">
@@ -72,11 +61,7 @@ export function B2cWorkQueue({ overview, activeQueue, onSelectQueue, onOpenItem,
     </div>
 
     <div className="mt-5 space-y-3">
-      {showReadyToPostPanel && <div>
-        <p className="mb-2 text-sm leading-6 text-text-muted">{readyToPostItem.explanation}</p>
-        <B2cApprovedFinancePosting onPosted={onPosted} />
-      </div>}
-      {items.length === 0 && !showReadyToPostPanel && <EmptyState title="No work items in this filter" description="Nothing in this group needs an Admin decision right now." />}
+      {items.length === 0 && <EmptyState title="No work items in this filter" description="Nothing in this group needs an Admin decision right now." />}
       {items.length > 0 && <ul className="space-y-3">{items.map((item) => <WorkItemRow key={item.id} item={item} onOpen={onOpenItem} />)}</ul>}
     </div>
   </SectionCard>;

@@ -13,34 +13,31 @@ export type B2cLedgerFiltersState = {
   category: string;
   issue: string;
   foreignCurrencyOnly: boolean;
-  tapStatementUnmatchedOnly: boolean;
 };
 
 export const initialB2cLedgerFilters: B2cLedgerFiltersState = {
-  search: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "", status: "all", source: "all", category: "all", issue: "all", foreignCurrencyOnly: false, tapStatementUnmatchedOnly: false,
+  search: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "", status: "all", source: "all", category: "all", issue: "all", foreignCurrencyOnly: false,
 };
 
 type Option = { value: string; label: string };
 
 /** Display-only controls for narrowing the already-loaded B2C source ledger. */
-export function B2cLedgerFilters({ filters, onChange, onTapStatementUnmatchedToggle, sources, categories, issues, shownCount, totalCount, foreignCurrencyCount, tapStatementUnmatchedCount }: {
+export function B2cLedgerFilters({ filters, onChange, sources, categories, issues, shownCount, totalCount, foreignCurrencyCount }: {
   filters: B2cLedgerFiltersState;
   onChange: (filters: B2cLedgerFiltersState) => void;
-  onTapStatementUnmatchedToggle?: () => void;
   sources: Option[];
   categories: Option[];
   issues: Option[];
   shownCount: number;
   totalCount: number;
   foreignCurrencyCount: number;
-  tapStatementUnmatchedCount: number;
 }) {
   function update(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     onChange({ ...filters, [event.target.name]: event.target.value });
   }
   const inputClass = "mt-1 h-10 w-full rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
   const hasFilters = Object.entries(filters).some(([key, value]) => {
-    if (key === "foreignCurrencyOnly" || key === "tapStatementUnmatchedOnly") return value === true;
+    if (key === "foreignCurrencyOnly") return value === true;
     return key === "status" || key === "source" || key === "category" || key === "issue" ? value !== "all" : value !== "";
   });
   // Advanced filters live under "More filters"; the badge counts only those, so
@@ -52,7 +49,6 @@ export function B2cLedgerFilters({ filters, onChange, onTapStatementUnmatchedTog
     filters.maxAmount !== "",
     filters.category !== "all",
     filters.foreignCurrencyOnly,
-    filters.tapStatementUnmatchedOnly,
   ].filter(Boolean).length;
   return <div className="mb-5 rounded-input border border-border bg-surface-muted/30 p-4">
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -87,21 +83,6 @@ export function B2cLedgerFilters({ filters, onChange, onTapStatementUnmatchedTog
           className="rounded-input border border-warning/40 bg-warning/5 px-3 py-2 font-medium text-warning transition hover:bg-warning/10 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-text-muted"
         >
           {filters.foreignCurrencyOnly ? "Show all source records" : `Needs FX review (${foreignCurrencyCount.toLocaleString()})`}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (onTapStatementUnmatchedToggle) {
-              onTapStatementUnmatchedToggle();
-              return;
-            }
-            onChange({ ...filters, tapStatementUnmatchedOnly: !filters.tapStatementUnmatchedOnly });
-          }}
-          aria-pressed={filters.tapStatementUnmatchedOnly}
-          disabled={tapStatementUnmatchedCount === 0}
-          className={`rounded-input border px-3 py-2 font-medium transition ${filters.tapStatementUnmatchedOnly ? "border-warning/50 bg-warning/10 text-warning" : "border-warning/40 bg-warning/5 text-warning hover:bg-warning/10"} disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-text-muted`}
-        >
-          Tap statement unmatched ({tapStatementUnmatchedCount.toLocaleString()})
         </button>
         <button type="button" onClick={() => onChange(initialB2cLedgerFilters)} disabled={!hasFilters} className="font-medium text-brand-accent disabled:cursor-not-allowed disabled:text-text-muted">Clear filters</button>
       </div>

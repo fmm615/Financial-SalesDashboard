@@ -55,7 +55,7 @@ const OPEN_FLAG_LABEL_TO_TYPE: Partial<Record<NonNullable<B2cOpenReviewFlag["typ
 
 function paymentStatusForDecision(row: B2cLedgerRow): "succeeded" | "failed" | "pending" {
   if (row.paymentStatus === "Failed") return "failed";
-  if (row.paymentStatus === "Pending" || row.paymentStatus === "Not matched") return "pending";
+  if (row.paymentStatus === "Pending") return "pending";
   return "succeeded";
 }
 
@@ -83,7 +83,6 @@ export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2c
     isApprovedFinancePayment: row.sourceSystem === "finance_tracker",
     hasOpenPaymentDuplicate: row.hasOpenPaymentDuplicate,
     hasDuplicateExclusion: row.hasDuplicateExclusion,
-    evidenceMatchState: row.tapStatementUnmatched ? "unmatched" : "not_required",
     financeLineageStatus: row.sourceSystem === "finance_tracker" ? "posted" : "not_applicable",
   }, today);
   return { ...row, decision };

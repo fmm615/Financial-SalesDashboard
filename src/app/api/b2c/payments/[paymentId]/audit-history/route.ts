@@ -8,8 +8,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
  * Viewer may inspect audit history (see "One Owner Per Workflow" -- Ledger
  * inspection is not Admin-only), so this reads the already-approved-readable
  * `financial_corrections` table rather than the Admin-only `audit_events`
- * log. Every B2C correction/exception/FX/posted-adjustment write already
- * records itself here with the payment or refund id as `target_record_id`.
+ * log. Every B2C correction/exception/FX write already records itself here
+ * with the payment or refund id as `target_record_id`.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ paymentId: string }> }) {
   const client = await createServerSupabaseClient();

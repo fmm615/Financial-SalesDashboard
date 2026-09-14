@@ -39,7 +39,7 @@ const stripeEvidenceRow = {
 };
 
 const ledgerPage = { rows: [stripeEvidenceRow], nextCursor: null, hasMore: false, totalCount: 1, filterMetadata: { sources: ["Stripe", "Tap"], categories: ["membership"], issues: ["Needs follow-up"], foreignCurrencyCount: 2 } };
-const workspaceOverview = { items: [], counts: { all: 0, data: 0, duplicates: 0, reconciliation: 0, ready_to_post: 0 } };
+const workspaceOverview = { items: [], counts: { all: 0, data: 0, duplicates: 0, reconciliation: 0 } };
 
 describe("GET /api/b2c/workspace", () => {
   beforeEach(() => vi.resetAllMocks());

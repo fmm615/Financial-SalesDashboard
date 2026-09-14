@@ -167,54 +167,24 @@ describe("B2C payment review drawer", () => {
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/evidence"), expect.anything());
   });
 
-  describe("posted Finance Tracker adjustment (Hoor Alshubbar scenario)", () => {
-    function postedRow(): B2cReviewRow {
-      return baseRow({
-        id: "85edf4fe-346b-483a-8053-199e6b1e2961",
-        customerName: "Hoor Alshubbar",
-        source: "Finance — iOS",
-        sourceSystem: "finance_tracker",
-        providerReference: null,
-        productReference: null,
-        date: "Nov 1, 2026", dateValue: "2026-11-01", sourceDateValue: "2026-11-01",
-        amountUsd: "$48.45", amountValueUsd: "48.45", sourceAmountUsd: "$48.45",
-        decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "posted", blockingReasons: ["implausible_future_date"], explanation: "Blocked by a business date that has not happened yet." },
-      });
-    }
-
-    it("shows the calculated effect before confirmation and never lets the browser submit without the expected current values", async () => {
-      const fetchMock = stubFetchByUrl([
-        ["/finance-adjustments", () => ({ ok: true, json: async () => ({ context: { paymentId: "85edf4fe-346b-483a-8053-199e6b1e2961", currentAmountUsd: "48.450000", currentOccurredOn: "2026-11-01", history: [] } }) })],
-      ]);
-      renderDrawer({ kind: "row", row: postedRow() });
-      const dialog = screen.getByRole("dialog");
-
-      await screen.findByText(/already posted to Finance/);
-      // The Local values section explains the append-only path instead of offering a local overlay for a posted payment.
-      expect(within(dialog).getByText(/corrected only through the append-only Finance decision/)).toBeInTheDocument();
-      expect(within(dialog).getByText("Current posted amount")).toBeInTheDocument();
-      expect(within(dialog).getByText("48.450000 USD")).toBeInTheDocument();
-      expect(within(dialog).getByText("2026-11-01")).toBeInTheDocument();
-
-      fireEvent.change(within(dialog).getByLabelText("Corrected reporting date"), { target: { value: "2025-11-01" } });
-      fireEvent.change(within(dialog).getByLabelText(/Reason \/ evidence/), { target: { value: "Finance verified the true business date from the source statement." } });
-
-      await screen.findByText(/changing the effective posted balance from/);
-      fireEvent.click(within(dialog).getByRole("button", { name: "Record posted Finance adjustment" }));
-
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-        "/api/admin/b2c/payments/85edf4fe-346b-483a-8053-199e6b1e2961/finance-adjustments",
-        expect.objectContaining({ method: "POST" }),
-      ));
-      const postCall = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "POST");
-      const body = JSON.parse((postCall?.[1] as RequestInit).body as string);
-      expect(body).toEqual({
-        expectedOccurredOn: "2026-11-01",
-        expectedAmountUsd: "48.450000",
-        verifiedOccurredOn: "2025-11-01",
-        reason: "Finance verified the true business date from the source statement.",
-      });
-      expect(body.verifiedAmountUsd).toBeUndefined();
+  it("treats a historical Finance-Tracker row the same as any other payment for local correction (the posted-adjustment path was removed with Payment Tracker)", () => {
+    stubFetchByUrl([]);
+    const row = baseRow({
+      id: "85edf4fe-346b-483a-8053-199e6b1e2961",
+      customerName: "Hoor Alshubbar",
+      source: "Finance — iOS",
+      sourceSystem: "finance_tracker",
+      providerReference: null,
+      productReference: null,
+      date: "Nov 1, 2026", dateValue: "2026-11-01", sourceDateValue: "2026-11-01",
+      amountUsd: "$48.45", amountValueUsd: "48.45", sourceAmountUsd: "$48.45",
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "posted", blockingReasons: ["implausible_future_date"], explanation: "Blocked by a business date that has not happened yet." },
     });
+    renderDrawer({ kind: "row", row });
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).getByLabelText("Customer name")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/already posted to Finance/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Record posted Finance adjustment" })).not.toBeInTheDocument();
   });
 });

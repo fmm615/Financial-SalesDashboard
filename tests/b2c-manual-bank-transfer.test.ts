@@ -102,29 +102,6 @@ describe("recordManualBankTransfer", () => {
     expect(repository.createManualBankTransferAtomically).not.toHaveBeenCalled();
   });
 
-  it("rejects a new manual row that is already an unposted tracker lineage", async () => {
-    const repository = mockRepository();
-    repository.assessManualBankTransferDuplicates.mockResolvedValue({
-      inputSha256: hashPreparedManualBankTransfer(prepareManualBankTransfer(baseInput)),
-      matchState: "exact_existing", exactMatchReason: "finance_lineage", exactMatchHref: "/operations/b2c?tab=work&queue=reconciliation", possibleMatches: [],
-    } satisfies ManualBankTransferDuplicateAssessment);
-
-    const input = { ...baseInput, expectedInputSha256: hashPreparedManualBankTransfer(prepareManualBankTransfer(baseInput)) };
-    await expect(recordManualBankTransfer(input, repository)).rejects.toThrow("Payment Tracker");
-    expect(repository.createManualBankTransferAtomically).not.toHaveBeenCalled();
-  });
-
-  it("rejects a new manual row that already matches a posted tracker lineage", async () => {
-    const repository = mockRepository();
-    repository.assessManualBankTransferDuplicates.mockResolvedValue({
-      inputSha256: hashPreparedManualBankTransfer(prepareManualBankTransfer(baseInput)),
-      matchState: "exact_existing", exactMatchReason: "finance_lineage", exactMatchHref: "/operations/b2c?tab=work&record=posted-payment", possibleMatches: [],
-    } satisfies ManualBankTransferDuplicateAssessment);
-
-    const input = { ...baseInput, expectedInputSha256: hashPreparedManualBankTransfer(prepareManualBankTransfer(baseInput)) };
-    await expect(recordManualBankTransfer(input, repository)).rejects.toThrow("Payment Tracker");
-  });
-
   it("rejects stale review input that changed since preview without even rerunning the duplicate assessment", async () => {
     const repository = mockRepository();
     const input = { ...baseInput, expectedInputSha256: "f".repeat(64) };
@@ -188,92 +165,6 @@ describe("SupabaseB2cPaymentsRepository.assessManualBankTransferDuplicates", () 
     expect(result.exactMatchHref).toBe("/operations/b2c?tab=work&record=existing-payment");
   });
 
-  it("returns an exact Finance-lineage match already represented by an existing manual payment", async () => {
-    const client = {
-      from: vi.fn((table: string) => {
-        if (table === "b2c_payments") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_record_lineages") return chainable({ data: { id: "lineage-1", represented_payment_id: "manual-payment-1" }, error: null });
-        throw new Error(`Unexpected table ${table}`);
-      }),
-    };
-    const repository = new SupabaseB2cPaymentsRepository(client as never);
-
-    const result = await repository.assessManualBankTransferDuplicates(prepareManualBankTransfer(baseInput));
-
-    expect(result.matchState).toBe("exact_existing");
-    expect(result.exactMatchReason).toBe("finance_lineage");
-    expect(result.exactMatchHref).toBe("/operations/b2c?tab=work&record=manual-payment-1");
-  });
-
-  it("returns an exact Finance-lineage match against a posted tracker lineage, linking to the posted payment", async () => {
-    const client = {
-      from: vi.fn((table: string) => {
-        if (table === "b2c_payments") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_record_lineages") return chainable({ data: { id: "lineage-2", represented_payment_id: null }, error: null });
-        if (table === "b2c_finance_ledger_posts") return chainable({ data: { payment_id: "posted-payment-1" }, error: null });
-        throw new Error(`Unexpected table ${table}`);
-      }),
-    };
-    const repository = new SupabaseB2cPaymentsRepository(client as never);
-
-    const result = await repository.assessManualBankTransferDuplicates(prepareManualBankTransfer(baseInput));
-
-    expect(result.matchState).toBe("exact_existing");
-    expect(result.exactMatchHref).toBe("/operations/b2c?tab=work&record=posted-payment-1");
-  });
-
-  it("returns an exact Finance-lineage match against an unposted tracker lineage with a generic reconciliation link", async () => {
-    const client = {
-      from: vi.fn((table: string) => {
-        if (table === "b2c_payments") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_record_lineages") return chainable({ data: { id: "lineage-3", represented_payment_id: null }, error: null });
-        if (table === "b2c_finance_ledger_posts") return chainable({ data: null, error: null });
-        throw new Error(`Unexpected table ${table}`);
-      }),
-    };
-    const repository = new SupabaseB2cPaymentsRepository(client as never);
-
-    const result = await repository.assessManualBankTransferDuplicates(prepareManualBankTransfer(baseInput));
-
-    expect(result.matchState).toBe("exact_existing");
-    expect(result.exactMatchHref).toBe("/operations/b2c?tab=work&queue=reconciliation");
-  });
-
-  it("rejects when an unresolved import-version candidate shares the identity, without a decision", async () => {
-    const client = {
-      from: vi.fn((table: string) => {
-        if (table === "b2c_payments") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_record_lineages") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_import_version_candidates") return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockResolvedValue({ data: [{ id: "candidate-1" }], error: null }) };
-        if (table === "b2c_finance_import_version_decisions") return { select: vi.fn().mockReturnThis(), in: vi.fn().mockResolvedValue({ data: [], error: null }) };
-        throw new Error(`Unexpected table ${table}`);
-      }),
-    };
-    const repository = new SupabaseB2cPaymentsRepository(client as never);
-
-    const result = await repository.assessManualBankTransferDuplicates(prepareManualBankTransfer(baseInput));
-
-    expect(result.matchState).toBe("exact_existing");
-    expect(result.exactMatchHref).toBe("/operations/b2c?tab=work&queue=reconciliation");
-  });
-
-  it("falls through to the standard content check once every matching candidate already has a decision", async () => {
-    const client = {
-      from: vi.fn((table: string) => {
-        if (table === "b2c_payments") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_record_lineages") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_import_version_candidates") return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockResolvedValue({ data: [{ id: "candidate-1" }], error: null }) };
-        if (table === "b2c_finance_import_version_decisions") return { select: vi.fn().mockReturnThis(), in: vi.fn().mockResolvedValue({ data: [{ candidate_id: "candidate-1" }], error: null }) };
-        throw new Error(`Unexpected table ${table}`);
-      }),
-    };
-    const repository = new SupabaseB2cPaymentsRepository(client as never);
-
-    const result = await repository.assessManualBankTransferDuplicates(prepareManualBankTransfer(baseInput));
-
-    expect(result.matchState).toBe("clear");
-  });
-
   it("retains a possible match from the standard 48-hour content check", async () => {
     const client = {
       from: vi.fn((table: string) => {
@@ -283,8 +174,6 @@ describe("SupabaseB2cPaymentsRepository.assessManualBankTransferDuplicates", () 
           builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: [{ id: "stripe-1", source_system: "stripe", occurred_on: "2026-08-12", amount_usd: "266.000000" }], error: null });
           return builder;
         }
-        if (table === "b2c_finance_record_lineages") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_import_version_candidates") return chainable({ data: [], error: null });
         throw new Error(`Unexpected table ${table}`);
       }),
     };
@@ -304,8 +193,6 @@ describe("SupabaseB2cPaymentsRepository.assessManualBankTransferDuplicates", () 
           builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null });
           return builder;
         }
-        if (table === "b2c_finance_record_lineages") return chainable({ data: null, error: null });
-        if (table === "b2c_finance_import_version_candidates") return chainable({ data: [], error: null });
         throw new Error(`Unexpected table ${table}`);
       }),
     };

@@ -77,9 +77,9 @@ function isDraftComplete(draft: Draft): boolean {
  * (plus an optional membership tier), Step 2 shows the server's exact
  * reviewed values and duplicate assessment. The only final action is
  * `Record bank transfer`; `Back` preserves the draft. There is no `Add iOS
- * payment` action anywhere -- iOS is Payment Tracker-only.
+ * payment` action anywhere -- iOS manual entry has no implementation yet.
  */
-export function B2cManualBankTransfer({ onRecorded }: { onRecorded: () => void }) {
+export function B2cManualBankTransfer({ onRecorded }: { onRecorded?: () => void }) {
   const [stage, setStage] = useState<Stage>("closed");
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [assessment, setAssessment] = useState<ManualBankTransferDuplicateAssessment | null>(null);
@@ -141,7 +141,7 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded: () => void }
       const payload: unknown = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string" ? payload.error : "The manual bank transfer could not be recorded.");
       cancel();
-      onRecorded();
+      onRecorded?.();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The manual bank transfer could not be recorded.");
       setStage("reviewing");
@@ -171,7 +171,7 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded: () => void }
 
       {assessment.matchState === "clear" && <p role="status" className="rounded-md border border-success/30 bg-success/5 p-4 text-sm font-medium text-success">No existing match. This will be recorded as one new reportable bank transfer.</p>}
       {assessment.matchState === "exact_existing" && <div role="alert" className="rounded-md border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
-        <p className="font-medium">Existing Payment Tracker/payment found.</p>
+        <p className="font-medium">A matching bank transfer already exists.</p>
         <p className="mt-1">This transfer already exists. Recording it again is not possible.</p>
         {assessment.exactMatchHref && <a href={assessment.exactMatchHref} className="mt-2 inline-block font-medium text-brand-accent underline">Review the existing record</a>}
       </div>}

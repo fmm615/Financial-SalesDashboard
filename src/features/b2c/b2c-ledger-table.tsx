@@ -10,7 +10,7 @@ export type B2cSafeLedgerRow = Omit<B2cDecoratedLedgerRow, "stripeEvidence">;
  * description (with a provider decline/seller message where one exists),
  * status, and next action. Provider IDs, plan, full evidence, and audit
  * history still live in the shared drawer, opened by the row's one `Review`
- * action. Mobile uses compact record cards instead of the fourteen-column table.
+ * action. Mobile uses compact record cards instead of the desktop table.
  */
 export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; onReview: (row: B2cSafeLedgerRow) => void }) {
   return <>
@@ -41,14 +41,12 @@ export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; o
             </TableCell>
             <TableCell>
               <div className="flex flex-col items-start gap-1">
-                {row.tapStatementUnmatched ? <span className="text-sm text-warning">Not matched to Tap API</span> : <StatusBadge status={row.paymentStatus} />}
+                <StatusBadge status={row.paymentStatus} />
                 {row.issue && <StatusBadge status={row.issue} />}
               </div>
             </TableCell>
             <TableCell>
-              {row.recordType === "Tap statement sale"
-                ? <span className="text-xs text-text-muted">Statement evidence only</span>
-                : <button type="button" onClick={() => onReview(row)} className="min-h-11 rounded-pill border border-border px-3 text-sm font-medium text-brand-accent hover:bg-surface-muted">Review</button>}
+              <button type="button" onClick={() => onReview(row)} className="min-h-11 rounded-pill border border-border px-3 text-sm font-medium text-brand-accent hover:bg-surface-muted">Review</button>
             </TableCell>
           </tr>)}
         </tbody>
@@ -72,10 +70,10 @@ export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; o
         </div>}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            {row.tapStatementUnmatched ? <span className="text-sm text-warning">Not matched</span> : <StatusBadge status={row.paymentStatus} />}
+            <StatusBadge status={row.paymentStatus} />
             {row.issue && <StatusBadge status={row.issue} />}
           </div>
-          {row.recordType !== "Tap statement sale" && <button type="button" onClick={() => onReview(row)} className="min-h-11 min-w-11 rounded-pill border border-border px-3 text-sm font-medium text-brand-accent hover:bg-surface-muted">Review</button>}
+          <button type="button" onClick={() => onReview(row)} className="min-h-11 min-w-11 rounded-pill border border-border px-3 text-sm font-medium text-brand-accent hover:bg-surface-muted">Review</button>
         </div>
       </li>)}
     </ul>
