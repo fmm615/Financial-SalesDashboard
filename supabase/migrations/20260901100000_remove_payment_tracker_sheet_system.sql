@@ -219,7 +219,11 @@ drop type if exists public.b2c_provider_evidence_kind;
 
 -- 7. Retire the private Payment Tracker workbook storage bucket. Only the
 --    Payment Tracker upload/finalize services (already removed) ever wrote
---    to or read from it.
+--    to or read from it. storage.objects/storage.buckets block direct
+--    deletes by default (`storage.protect_delete()`); this is the documented
+--    escape hatch for an administrative migration, scoped to this
+--    transaction only via `set local`.
+set local storage.allow_delete_query = 'true';
 delete from storage.objects where bucket_id = 'b2c-finance-imports';
 drop policy if exists "admins can read B2C Finance import sources" on storage.objects;
 drop policy if exists "admins can store B2C Finance import sources" on storage.objects;
