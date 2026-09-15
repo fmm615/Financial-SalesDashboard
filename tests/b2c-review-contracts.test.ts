@@ -15,8 +15,8 @@ describe("B2C local correction contract", () => {
 
   it("rejects placeholder values so unavailable data is never saved as a correction", () => {
     expect(b2cPaymentLocalCorrectionSchema.safeParse({ customerName: "-", reason: "Finance verified the record." }).success).toBe(false);
-    expect(b2cPaymentLocalCorrectionSchema.safeParse({ categoryCode: "unmapped", reason: "Finance verified the record." }).success).toBe(false);
-    expect(b2cPaymentLocalCorrectionSchema.safeParse({ categoryCode: "membership", reason: "---" }).success).toBe(false);
+    expect(b2cPaymentLocalCorrectionSchema.safeParse({ reason: "Finance verified the record." }).success).toBe(false);
+    expect(b2cPaymentLocalCorrectionSchema.safeParse({ reason: "---" }).success).toBe(false);
   });
 });
 

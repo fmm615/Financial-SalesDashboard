@@ -32,13 +32,6 @@ insert into public.products (id, internal_code, name) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', 'membership_annual', 'PLAYBOOK Annual Membership')
 on conflict do nothing;
 
-insert into public.product_mappings (
-  id, source_system, external_product_id, product_id, category_code, membership_tier, created_by, updated_by
-) values
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', 'stripe', 'price_monthly_test', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', 'membership', 'monthly', '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', 'tap', 'tap_annual_test', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', 'membership', 'annual', '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111')
-on conflict do nothing;
-
 insert into public.customers (id, email, full_name) values
   ('cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'member.one@playbook.test', 'Member One'),
   ('cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'member.two@playbook.test', 'Member Two')
@@ -46,12 +39,12 @@ on conflict do nothing;
 
 insert into public.b2c_payments (
   id, source_system, provider_transaction_id, provider_event_id, customer_id, customer_email,
-  product_mapping_id, category_code, membership_tier, payment_status, original_amount,
+  membership_tier, payment_status, original_amount,
   original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, tax_amount_usd,
   net_amount_usd, occurred_at, occurred_on, duplicate_fingerprint, reconciliation_source
 ) values
-  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'stripe', 'pi_test_001', 'evt_test_001', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'member.one@playbook.test', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1', 'membership', 'monthly', 'succeeded', 100.000000, 'USD', 1.0000000000, 100.000000, 100.000000, 0.000000, 100.000000, '2026-08-01 08:00:00+00', '2026-08-01', repeat('a', 64), 'seed'),
-  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'tap', 'tap_test_002', 'evt_test_002', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'member.two@playbook.test', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', 'membership', 'annual', 'failed', 50.000000, 'USD', 1.0000000000, 50.000000, 50.000000, 0.000000, 50.000000, '2026-08-02 08:00:00+00', '2026-08-02', repeat('b', 64), 'seed')
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'stripe', 'pi_test_001', 'evt_test_001', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1', 'member.one@playbook.test', 'monthly', 'succeeded', 100.000000, 'USD', 1.0000000000, 100.000000, 100.000000, 0.000000, 100.000000, '2026-08-01 08:00:00+00', '2026-08-01', repeat('a', 64), 'seed'),
+  ('dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'tap', 'tap_test_002', 'evt_test_002', 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2', 'member.two@playbook.test', 'annual', 'failed', 50.000000, 'USD', 1.0000000000, 50.000000, 50.000000, 0.000000, 50.000000, '2026-08-02 08:00:00+00', '2026-08-02', repeat('b', 64), 'seed')
 on conflict do nothing;
 
 insert into public.b2c_refunds (
@@ -83,8 +76,7 @@ insert into public.review_flags (id, source_area, source_record_id, flag_type, p
 values
   ('17171717-1717-4717-8717-171717171717', 'b2c_refund', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1', 'refunded', 2, 'Confirm fake refund reason is recorded', '11111111-1111-4111-8111-111111111111'),
   ('18181818-1818-4818-8818-181818181818', 'b2c_payment', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'failed', 3, 'Follow up on fake failed payment', '11111111-1111-4111-8111-111111111111'),
-  ('19191919-1919-4919-8919-191919191919', 'b2c_payment', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'possible_duplicate', 1, 'Fake fingerprint match requires a decision', '11111111-1111-4111-8111-111111111111'),
-  ('20202020-2020-4020-8020-202020202020', 'product_mapping', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2', 'unmapped_product', 4, 'Fake unmapped product workflow example', '11111111-1111-4111-8111-111111111111')
+  ('19191919-1919-4919-8919-191919191919', 'b2c_payment', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'possible_duplicate', 1, 'Fake fingerprint match requires a decision', '11111111-1111-4111-8111-111111111111')
 on conflict do nothing;
 
 insert into public.review_flag_resolutions (flag_id, resolution_status, resolution_note, created_by)
@@ -94,8 +86,8 @@ on conflict do nothing;
 insert into public.financial_corrections (
   id, target_area, target_record_id, correction_type, before_value, after_value, reason, effective_on, created_by
 ) values (
-  '23232323-2323-4232-8232-232323232323', 'b2c_payment', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'category',
-  '{"category_code":"unmapped"}', '{"category_code":"membership"}',
+  '23232323-2323-4232-8232-232323232323', 'b2c_payment', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2', 'classification',
+  '{"membership_tier":null}', '{"membership_tier":"annual"}',
   'Fake append-only correction for development', '2026-08-02', '11111111-1111-4111-8111-111111111111'
 )
 on conflict do nothing;

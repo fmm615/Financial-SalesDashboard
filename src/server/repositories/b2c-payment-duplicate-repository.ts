@@ -11,14 +11,12 @@ export type B2cPaymentDuplicatePaymentRow = {
   original_amount: string;
   original_currency: string;
   amount_usd: string | null;
-  category_code: string | null;
   occurred_on: string | null;
   payment_status: "succeeded" | "failed" | "pending";
   local_override: {
     customer_name: string | null;
     customer_email: string | null;
     local_amount_usd: string | null;
-    category_code: string | null;
     local_occurred_on: string | null;
   } | null;
 };
@@ -51,14 +49,12 @@ const openGroupSelection = `
       original_amount,
       original_currency,
       amount_usd,
-      category_code,
       occurred_on,
       payment_status,
       local_override:b2c_payment_local_overrides(
         customer_name,
         customer_email,
         local_amount_usd,
-        category_code,
         local_occurred_on
       )
     )

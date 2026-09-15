@@ -14,7 +14,6 @@ const baseInput: ManualBankTransferRequest = {
   bankReference: "IBAN-2026-0912",
   customerEmail: "MEMBER@Playbook.test",
   customerName: "Ada Founder",
-  categoryCode: "membership",
   amountUsd: "266",
   receivedAt: "2026-08-12T08:00:00+03:00",
   reason: "New bank transfer received after the latest workbook.",

@@ -25,11 +25,6 @@ function editableValue(value: string | null | undefined): string {
   return trimmed === "-" || trimmed === "—" ? "" : trimmed;
 }
 
-function editableCategory(value: string | null | undefined): string {
-  const normalised = editableValue(value).toLowerCase();
-  return normalised === "unmapped" ? "" : normalised;
-}
-
 function hasMeaningfulAuditReason(value: string): boolean {
   const trimmed = value.trim();
   return trimmed.length >= 3 && !/^(?:-+|—+|n\/?a)$/i.test(trimmed);
@@ -39,7 +34,6 @@ type CorrectionDraft = {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-  categoryCode: string;
   membershipTier: string;
   amountUsd: string;
   occurredOn: string;
@@ -56,7 +50,6 @@ function draftFromRow(row: B2cLedgerRow): CorrectionDraft {
     customerName: editableValue(row.customerName),
     customerEmail: editableValue(row.customerEmail),
     customerPhone: editableValue(row.customerPhone),
-    categoryCode: editableCategory(row.category),
     membershipTier: editableValue(row.membershipTier),
     // Numeric PostgreSQL values can be serialised as numbers by a Supabase
     // client even though the UI domain formats money as text. Form state must
@@ -93,7 +86,6 @@ export function B2cPaymentLocalValuesFragment({ row, onSaved }: { row: B2cReview
     customerName: isChanged(draft.customerName, current.customerName, editableValue) ? editableValue(draft.customerName) || undefined : undefined,
     customerEmail: isChanged(draft.customerEmail, current.customerEmail, (value) => editableValue(value).toLowerCase()) ? editableValue(draft.customerEmail).toLowerCase() || undefined : undefined,
     customerPhone: isChanged(draft.customerPhone, current.customerPhone, editableValue) ? editableValue(draft.customerPhone) || undefined : undefined,
-    categoryCode: isChanged(draft.categoryCode, current.categoryCode, editableCategory) ? editableCategory(draft.categoryCode) || undefined : undefined,
     membershipTier: isChanged(draft.membershipTier, current.membershipTier, editableValue) ? editableValue(draft.membershipTier) || undefined : undefined,
     amountUsd: isChanged(draft.amountUsd, current.amountUsd) ? draft.amountUsd.trim() : undefined,
     occurredOn: isChanged(draft.occurredOn, current.occurredOn) ? draft.occurredOn : undefined,
@@ -129,7 +121,6 @@ export function B2cPaymentLocalValuesFragment({ row, onSaved }: { row: B2cReview
     <div className="mt-5 border-t border-border pt-5">
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">PLAYBOOK reporting</p>
       <div className="mt-3 grid gap-x-5 gap-y-4 md:grid-cols-2">
-        <label className={fieldClass}>PLAYBOOK reporting category <span className="font-normal text-text-muted">(optional local metadata)</span><input className={inputClass} value={draft.categoryCode} onChange={(event) => setDraft((current) => ({ ...current, categoryCode: event.target.value }))} placeholder="e.g. membership" /><span className="mt-1 block text-xs font-normal text-text-muted">Enter a verified category when available; do not use a dash.</span></label>
         <label className={fieldClass}>Plan / tier<input className={inputClass} value={draft.membershipTier} onChange={(event) => setDraft((current) => ({ ...current, membershipTier: event.target.value }))} placeholder="Unavailable from Stripe" /></label>
         <label className={fieldClass}>Local B2C amount (USD)<input className={inputClass} type="number" min="0.000001" step="0.000001" value={draft.amountUsd} onChange={(event) => setDraft((current) => ({ ...current, amountUsd: event.target.value }))} disabled={row.isForeignCurrency} /><span className="mt-1 block text-xs font-normal text-text-muted">{row.isForeignCurrency ? "Foreign-currency USD amounts are created only through the Finance conversion in Finance decision." : "Use only a Finance-verified USD amount."}</span></label>
         <label className={fieldClass}>Local business date<input className={inputClass} type="date" value={draft.occurredOn} onChange={(event) => setDraft((current) => ({ ...current, occurredOn: event.target.value }))} /></label>
@@ -223,7 +214,7 @@ export function B2cPaymentFinanceDecisionFragment({ row, primary, onSaved }: { r
 
   const exceptionBlock = showFinanceException && <details key="exception" className="group rounded-input border border-brand-accent/25 bg-brand-accent/5" open={primary === "review_exception"}>
     <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none"><span>{row.hasFinanceException ? "Finance inclusion exception" : "Count in Finance despite missing source details"}</span><span className="text-xs font-normal text-text-muted group-open:hidden">View</span><span className="hidden text-xs font-normal text-text-muted group-open:inline">Hide</span></summary>
-    <div className="border-t border-brand-accent/15 px-4 py-4">{row.hasFinanceException ? <p className={`${copyClass} text-sm leading-6 text-success`}>This payment is included in PLAYBOOK Finance through an audited exception. The original missing {row.source} source details remain visible in its history.</p> : <><p className={`${copyClass} text-sm leading-6 text-text-secondary`}>This payment is currently excluded because {row.source} did not provide: <strong className="font-semibold text-text-primary">{financeExceptionSourceGaps.join(" and ")}</strong>.</p><p className={`${copyClass} mt-2 text-sm leading-6 text-text-secondary`}>First, save verified local values in Local values when available. Category and tier are optional local metadata; use this only when the source email is genuinely unavailable but Finance has verified the amount and business date.</p><label className="mt-4 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedProviderTransaction} onChange={(event) => setConfirmedProviderTransaction(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I confirm this is the exact provider payment ID shown in Summary.</label><label className="mt-3 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedNoKnownDuplicate} onChange={(event) => setConfirmedNoKnownDuplicate(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I reviewed the available evidence and found no known duplicate.</label><div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void saveFinanceException()} disabled={saving || !canUseFinanceException || !confirmedProviderTransaction || !confirmedNoKnownDuplicate || !hasMeaningfulAuditReason(reason)}>{saving ? "Saving…" : "Include in PLAYBOOK Finance"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Requires the reason below and both confirmations. {row.source} is never changed.</p></div></>}</div>
+    <div className="border-t border-brand-accent/15 px-4 py-4">{row.hasFinanceException ? <p className={`${copyClass} text-sm leading-6 text-success`}>This payment is included in PLAYBOOK Finance through an audited exception. The original missing {row.source} source details remain visible in its history.</p> : <><p className={`${copyClass} text-sm leading-6 text-text-secondary`}>This payment is currently excluded because {row.source} did not provide: <strong className="font-semibold text-text-primary">{financeExceptionSourceGaps.join(" and ")}</strong>.</p><p className={`${copyClass} mt-2 text-sm leading-6 text-text-secondary`}>First, save verified local values in Local values when available. Plan or tier is optional local metadata; use this only when the source email is genuinely unavailable but Finance has verified the amount and business date.</p><label className="mt-4 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedProviderTransaction} onChange={(event) => setConfirmedProviderTransaction(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I confirm this is the exact provider payment ID shown in Summary.</label><label className="mt-3 flex items-start gap-3 text-sm leading-5 text-text-secondary"><input type="checkbox" checked={confirmedNoKnownDuplicate} onChange={(event) => setConfirmedNoKnownDuplicate(event.target.checked)} className="mt-0.5 size-4 shrink-0 rounded border-border text-brand-accent" />I reviewed the available evidence and found no known duplicate.</label><div className="mt-4 flex flex-wrap items-center gap-3"><PrimaryButton onClick={() => void saveFinanceException()} disabled={saving || !canUseFinanceException || !confirmedProviderTransaction || !confirmedNoKnownDuplicate || !hasMeaningfulAuditReason(reason)}>{saving ? "Saving…" : "Include in PLAYBOOK Finance"}</PrimaryButton><p className="text-xs leading-5 text-text-muted">Requires the reason below and both confirmations. {row.source} is never changed.</p></div></>}</div>
   </details>;
 
   const blocks = [fxBlock, exceptionBlock].filter(Boolean);

@@ -18,7 +18,6 @@ export const b2cWorkspaceLedgerQuerySchema = z.object({
   ]).optional(),
   dateFrom: calendarDate.optional(),
   dateTo: calendarDate.optional(),
-  category: z.string().trim().min(1).max(100).optional(),
   foreignCurrencyOnly: z.literal("true").transform(() => true).optional(),
   currency: z.string().trim().length(3, "Enter a valid 3-letter currency code.").optional(),
   minAmountUsd: decimalAmount.optional(),

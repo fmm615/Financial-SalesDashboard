@@ -17,7 +17,7 @@ function baseRow(overrides: Partial<B2cReviewRow> = {}): B2cReviewRow {
     id: "payment-1", recordType: "Payment", customerName: "Maya Al Khalifa", customerEmail: "maya@example.com", customerPhone: null,
     customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
     date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$100.00", amountValueUsd: "100", sourceAmountUsd: "$100.00", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2026-08-09",
-    category: "membership", membershipTier: "Monthly", billingInterval: "Monthly", source: "Stripe", paymentStatus: "Completed",
+    membershipTier: "Monthly", billingInterval: "Monthly", source: "Stripe", paymentStatus: "Completed",
     providerReference: "ch_123", sourceSystem: "stripe", productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
     openReviewFlags: [], issue: null,
     decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "reportable", postingStatus: "not_applicable", blockingReasons: [], explanation: "Every approved reporting rule passed, so this record is reportable." },
@@ -110,7 +110,6 @@ describe("B2C payment review drawer", () => {
   it("uses the FX conversion action when that remains the unresolved financial blocker", () => {
     stubFetchByUrl([]);
     const row = baseRow({
-      category: "Unmapped",
       isForeignCurrency: true,
       foreignCurrencyReview: false,
       hasFxConversion: true,
@@ -133,7 +132,6 @@ describe("B2C payment review drawer", () => {
     }) })]]);
     const row = baseRow({
       customerEmail: null,
-      category: "Unmapped",
       sourceDescription: "Founding Membership",
       openReviewFlags: [
         { id: "missing-email", type: "Missing customer email", reason: "Stripe did not provide a customer email." },
@@ -145,7 +143,6 @@ describe("B2C payment review drawer", () => {
     const dialog = screen.getByRole("dialog");
 
     await screen.findByText("Founding Membership");
-    expect(within(dialog).getByLabelText(/PLAYBOOK reporting category/)).toBeInTheDocument();
     expect(within(dialog).getByText("Count in Finance despite missing source details")).toBeInTheDocument();
     expect(within(dialog).queryByText("Create reusable product mapping")).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Internal product code")).not.toBeInTheDocument();

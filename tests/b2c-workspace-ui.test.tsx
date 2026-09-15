@@ -32,7 +32,7 @@ const ledgerRow: B2cSafeLedgerRow = {
   id: "payment-1", recordType: "Payment" as const, customerName: "Maya Al Khalifa", customerEmail: "maya@example.com", customerPhone: null,
   customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
   date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$100.00", amountValueUsd: "100", sourceAmountUsd: "$100.00", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2026-08-09",
-  category: "membership", membershipTier: "Monthly", billingInterval: "Monthly", source: "Stripe", paymentStatus: "Completed" as const,
+  membershipTier: "Monthly", billingInterval: "Monthly", source: "Stripe", paymentStatus: "Completed" as const,
   providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
   hasOpenPaymentDuplicate: false, hasDuplicateExclusion: false,
   openReviewFlags: [], issue: null,
@@ -56,7 +56,6 @@ const emptyWorkItems = {
 function filterMetadataForRows(rows: B2cSafeLedgerRow[]) {
   return {
     sources: [...new Set(rows.map((row) => row.source))].sort(),
-    categories: [...new Set(rows.map((row) => row.category))].sort(),
     issues: [...new Set(rows.flatMap((row) => row.issue ? [row.issue] : []))].sort(),
     foreignCurrencyCount: rows.filter((row) => row.foreignCurrencyReview).length,
   };
@@ -171,8 +170,8 @@ describe("Work queue", () => {
       }
       if (url.endsWith("/payments/payment-3/duplicate-group")) return { ok: true, json: async () => ({ kind: "group", group: {
         groupId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", detectionReason: "Matching payment facts within the approved window.", members: [
-          { paymentId: "payment-3", sourceSystem: "stripe", providerReference: "ch_3", customerName: "Noor", sourceCustomerEmail: "noor@example.com", effectiveCustomerEmail: "noor@example.com", sourceAmount: "40", sourceCurrency: "USD", effectiveAmountUsd: "40", sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2026-08-09", effectiveOccurredOn: "2026-08-09" },
-          { paymentId: "payment-4", sourceSystem: "tap", providerReference: "tap_4", customerName: "Noor", sourceCustomerEmail: "noor@example.com", effectiveCustomerEmail: "noor@example.com", sourceAmount: "40", sourceCurrency: "USD", effectiveAmountUsd: "40", sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2026-08-09", effectiveOccurredOn: "2026-08-09" },
+          { paymentId: "payment-3", sourceSystem: "stripe", providerReference: "ch_3", customerName: "Noor", sourceCustomerEmail: "noor@example.com", effectiveCustomerEmail: "noor@example.com", sourceAmount: "40", sourceCurrency: "USD", effectiveAmountUsd: "40", sourceOccurredOn: "2026-08-09", effectiveOccurredOn: "2026-08-09" },
+          { paymentId: "payment-4", sourceSystem: "tap", providerReference: "tap_4", customerName: "Noor", sourceCustomerEmail: "noor@example.com", effectiveCustomerEmail: "noor@example.com", sourceAmount: "40", sourceCurrency: "USD", effectiveAmountUsd: "40", sourceOccurredOn: "2026-08-09", effectiveOccurredOn: "2026-08-09" },
         ],
       } }) };
       if (url.includes("/payment-duplicate-groups/") && url.endsWith("/decision") && init?.method === "POST") {
@@ -254,7 +253,6 @@ describe("Ledger", () => {
     await waitFor(() => expect(vi.mocked(global.fetch).mock.calls.length).toBeGreaterThan(1));
     expect(screen.getByRole("option", { name: "Tap" })).toBeInTheDocument();
     fireEvent.click(screen.getByText("More filters"));
-    expect(screen.getByRole("option", { name: "course" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Needs follow-up" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Needs FX review (3)" })).toBeEnabled();
   });
@@ -290,8 +288,6 @@ describe("Ledger", () => {
     await expectQuery("minAmountUsd", "10");
     fireEvent.change(screen.getByLabelText("Maximum USD"), { target: { value: "100" } });
     await expectQuery("maxAmountUsd", "100");
-    fireEvent.change(screen.getByLabelText("PLAYBOOK category"), { target: { value: "membership" } });
-    await expectQuery("category", "membership");
     fireEvent.click(screen.getByRole("button", { name: "Needs FX review (1)" }));
     await expectQuery("foreignCurrencyOnly", "true");
   });

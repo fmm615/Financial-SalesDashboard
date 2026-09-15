@@ -84,7 +84,7 @@ describe("B2C provider payment persistence", () => {
   it.each([
     ["Stripe", SupabaseStripeSyncRepository, "stripe"],
     ["Tap", SupabaseTapSyncRepository, "tap"],
-  ] as const)("persists a new %s charge without consulting or flagging product mappings", async (_label, Repository, provider) => {
+  ] as const)("persists a new %s charge with no product mapping or category concept", async (_label, Repository, provider) => {
     const fake = createProviderClient();
 
     await new Repository(fake.client).persistCharge(providerCharge(provider));
@@ -92,8 +92,6 @@ describe("B2C provider payment persistence", () => {
     expect(fake.tableNames).not.toContain("product_mappings");
     expect(fake.paymentInserts).toEqual([
       expect.objectContaining({
-        product_mapping_id: null,
-        category_code: "unmapped",
         membership_tier: "Founding Membership",
         source_metadata: expect.objectContaining({
           description: `${provider} founding membership`,
@@ -104,7 +102,7 @@ describe("B2C provider payment persistence", () => {
     expect(fake.reviewFlagInserts.map((flag) => flag.flag_type)).not.toContain("unmapped_product");
   });
 
-  it("preserves a mapped provider payment classification on redelivery", async () => {
+  it("preserves a provider payment plan or tier on redelivery", async () => {
     const fake = createProviderClient({
       existingPayment: {
         id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
@@ -112,8 +110,6 @@ describe("B2C provider payment persistence", () => {
         customer_email: "member@example.com",
         customer_name: "Member Name",
         customer_phone: "+97317000000",
-        product_mapping_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        category_code: "membership",
         membership_tier: "annual",
         source_metadata: { customer_email_source: "charge_receipt" },
       },
@@ -123,14 +119,13 @@ describe("B2C provider payment persistence", () => {
 
     expect(fake.selections).toContainEqual(expect.objectContaining({
       table: "b2c_payments",
-      columns: expect.stringContaining("product_mapping_id,category_code,membership_tier"),
+      columns: expect.stringContaining("customer_phone,membership_tier"),
     }));
     expect(fake.paymentUpdates).toEqual([
-      expect.objectContaining({
-        product_mapping_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        category_code: "membership",
-        membership_tier: "annual",
-      }),
+      expect.objectContaining({ membership_tier: "annual" }),
     ]);
+    // The retired mapping table and the removed category are never touched.
+    expect(fake.paymentUpdates[0]).not.toHaveProperty("product_mapping_id");
+    expect(fake.paymentUpdates[0]).not.toHaveProperty("category_code");
   });
 });

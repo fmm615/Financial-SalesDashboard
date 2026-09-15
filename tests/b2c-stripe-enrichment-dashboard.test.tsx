@@ -39,7 +39,7 @@ function dashboardClientForUnmappedProviderPayment(sourceSystem: "stripe" | "tap
   const payment = {
     id: `${sourceSystem}-unmapped-payment`, source_system: sourceSystem, provider_transaction_id: `${sourceSystem}_provider_1`,
     customer_name: "Provider customer", customer_email: "customer@example.com", customer_phone: null,
-    category_code: "unmapped", membership_tier: null, payment_status: "succeeded",
+    membership_tier: null, payment_status: "succeeded",
     original_amount: "120.000000", original_currency: "USD", amount_usd: "120.000000", occurred_on: "2026-08-09",
     source_metadata: description ? { description } : {},
   };
@@ -78,7 +78,7 @@ describe("B2C Stripe enrichment presentation", () => {
     expect(snapshot.reviewItems).toBe(0);
     expect(snapshot.rows).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        category: "Unmapped", sourceDescription: "Provider renewal", issue: null, openReviewFlags: [],
+        sourceDescription: "Provider renewal", issue: null, openReviewFlags: [],
       }),
     ]));
   });
@@ -107,7 +107,7 @@ describe("B2C Stripe enrichment presentation", () => {
       customerName: display.customerName, customerEmail: display.customerEmail, customerPhone: display.customerPhone,
       customerNameEvidenceLabel: display.customerNameLabel, customerEmailEvidenceLabel: display.customerEmailLabel, customerPhoneEvidenceLabel: display.customerPhoneLabel,
       date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2026-08-09",
-      category: "membership", membershipTier: "Monthly", billingInterval: "Monthly", source: "Stripe", paymentStatus: "Completed" as const,
+      membershipTier: "Monthly", billingInterval: "Monthly", source: "Stripe", paymentStatus: "Completed" as const,
       providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
       hasOpenPaymentDuplicate: false, hasDuplicateExclusion: false,
       openReviewFlags: [], issue: "Missing customer email" as const,
@@ -156,7 +156,7 @@ describe("B2C Stripe enrichment presentation", () => {
       customerName: "Stripe customer", customerEmail: "customer@example.com", customerPhone: null,
       customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
       date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$50.42", amountValueUsd: "50.42", sourceAmountUsd: "$50.42", sourceOriginalCurrency: "USD", sourceDescription: "Founding Membership renewal", sourceDateValue: "2026-08-09",
-      category: "membership", membershipTier: "Founding Membership", billingInterval: "Annual", source: "Stripe", paymentStatus: "Completed" as const,
+      membershipTier: "Founding Membership", billingInterval: "Annual", source: "Stripe", paymentStatus: "Completed" as const,
       providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
       hasOpenPaymentDuplicate: false, hasDuplicateExclusion: false,
       openReviewFlags: [], issue: null,

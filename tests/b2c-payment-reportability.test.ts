@@ -8,16 +8,15 @@ describe("B2C payment reportability", () => {
     openFlagTypes: new Set<string>(),
   };
 
-  it("counts a completed, non-reviewable source payment regardless of category metadata", () => {
+  it("counts a completed, non-reviewable source payment regardless of optional classification metadata", () => {
     expect(isReportableB2cPayment(completePayment)).toBe(true);
     expect(b2cPaymentExclusionReasons(completePayment)).toEqual([]);
   });
 
-  it("does not block a provider payment on optional category metadata", () => {
+  it("does not block a provider payment on optional classification metadata", () => {
     const input = {
       paymentStatus: "succeeded" as const,
       customerEmail: "member@example.com",
-      categoryCode: "unmapped",
       openFlagTypes: new Set(["unmapped_product"]),
       originalCurrency: "USD",
       amountUsd: "120.000000",

@@ -6,7 +6,6 @@ describe("effective B2C payment values", () => {
     customerName: null,
     customerEmail: "member@example.com",
     customerPhone: null,
-    categoryCode: "membership",
     membershipTier: null,
     amountUsd: null,
     occurredOn: "2026-08-13",

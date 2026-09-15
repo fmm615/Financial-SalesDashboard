@@ -10,23 +10,21 @@ export type B2cLedgerFiltersState = {
   maxAmount: string;
   status: string;
   source: string;
-  category: string;
   issue: string;
   foreignCurrencyOnly: boolean;
 };
 
 export const initialB2cLedgerFilters: B2cLedgerFiltersState = {
-  search: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "", status: "all", source: "all", category: "all", issue: "all", foreignCurrencyOnly: false,
+  search: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "", status: "all", source: "all", issue: "all", foreignCurrencyOnly: false,
 };
 
 type Option = { value: string; label: string };
 
 /** Display-only controls for narrowing the already-loaded B2C source ledger. */
-export function B2cLedgerFilters({ filters, onChange, sources, categories, issues, shownCount, totalCount, foreignCurrencyCount }: {
+export function B2cLedgerFilters({ filters, onChange, sources, issues, shownCount, totalCount, foreignCurrencyCount }: {
   filters: B2cLedgerFiltersState;
   onChange: (filters: B2cLedgerFiltersState) => void;
   sources: Option[];
-  categories: Option[];
   issues: Option[];
   shownCount: number;
   totalCount: number;
@@ -38,7 +36,7 @@ export function B2cLedgerFilters({ filters, onChange, sources, categories, issue
   const inputClass = "mt-1 h-10 w-full rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
   const hasFilters = Object.entries(filters).some(([key, value]) => {
     if (key === "foreignCurrencyOnly") return value === true;
-    return key === "status" || key === "source" || key === "category" || key === "issue" ? value !== "all" : value !== "";
+    return key === "status" || key === "source" || key === "issue" ? value !== "all" : value !== "";
   });
   // Advanced filters live under "More filters"; the badge counts only those, so
   // an Admin can tell at a glance whether a hidden filter is narrowing the ledger.
@@ -47,7 +45,6 @@ export function B2cLedgerFilters({ filters, onChange, sources, categories, issue
     filters.dateTo !== "",
     filters.minAmount !== "",
     filters.maxAmount !== "",
-    filters.category !== "all",
     filters.foreignCurrencyOnly,
   ].filter(Boolean).length;
   return <div className="mb-5 rounded-input border border-border bg-surface-muted/30 p-4">
@@ -69,7 +66,6 @@ export function B2cLedgerFilters({ filters, onChange, sources, categories, issue
         <label>Date to<input name="dateTo" type="date" value={filters.dateTo} onChange={update} className={inputClass} /></label>
         <label>Minimum USD<input name="minAmount" type="number" min="0" step="0.01" value={filters.minAmount} onChange={update} className={inputClass} placeholder="0.00" /></label>
         <label>Maximum USD<input name="maxAmount" type="number" min="0" step="0.01" value={filters.maxAmount} onChange={update} className={inputClass} placeholder="0.00" /></label>
-        <label>PLAYBOOK category<select name="category" value={filters.category} onChange={update} className={inputClass}><option value="all">All categories</option>{categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
       </div>
     </details>
     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">

@@ -57,7 +57,6 @@ describe("Phase 2 validation contracts", () => {
       bankReference: "IBAN-2026-0912",
       customerEmail: " MEMBER@PLAYBOOK.TEST ",
       customerName: "Ada Member",
-      categoryCode: "membership",
       amountUsd: "266.000000",
       receivedAt: "2026-08-02T08:00:00.000Z",
       reason: "Approved IBAN transfer",
@@ -66,12 +65,12 @@ describe("Phase 2 validation contracts", () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.customerEmail).toBe("member@playbook.test");
     expect(manualBankTransferSchema.safeParse({
-      customerEmail: "member@playbook.test", categoryCode: "membership", amountUsd: 100,
+      customerEmail: "member@playbook.test", amountUsd: 100,
     }).success).toBe(false);
     // USD-only in B2C v1: the browser may never supply currency, rate, or gross/net values.
     expect(manualBankTransferSchema.safeParse({
       bankReference: "IBAN-2026-0912", customerEmail: "member@playbook.test", customerName: "Ada Member",
-      categoryCode: "membership", amountUsd: "266.000000", receivedAt: "2026-08-02T08:00:00.000Z",
+      amountUsd: "266.000000", receivedAt: "2026-08-02T08:00:00.000Z",
       reason: "Approved IBAN transfer", originalCurrency: "BHD", exchangeRateToUsd: "2.6595744681",
     }).success).toBe(false);
   });
@@ -294,5 +293,61 @@ describe("Phase 2 database migration contracts", () => {
     expect(fn).toContain("when unique_violation then");
     expect(fn).not.toContain("p_source_system");
     expect(fn).not.toContain("p_original_currency");
+  });
+
+  // 20270101000500 recreates three of the writers asserted above, so the two
+  // tests before this one now describe superseded bodies. These assertions
+  // re-establish the same invariants against the definitions that are actually
+  // live, and pin the category removal itself.
+  it("keeps the mutex-before-row-lock order in every writer the category removal recreates", () => {
+    const sql = migration("20270101000500_remove_b2c_category.sql");
+    for (const [writer, nextWriter] of [
+      ["create or replace function public.apply_b2c_payment_local_correction", "create or replace function public.include_b2c_payment_with_finance_exception"],
+      ["create or replace function public.open_b2c_payment_duplicate_group", "revoke all on function public.open_b2c_payment_duplicate_group"],
+    ]) {
+      const writerBody = sql.slice(sql.indexOf(writer), sql.indexOf(nextWriter));
+      expect(writerBody).toContain("pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'))");
+      expect(writerBody.indexOf("pg_advisory_xact_lock")).toBeLessThan(writerBody.indexOf("for update"));
+    }
+  });
+
+  it("removes the B2C category concept while preserving membership_tier", () => {
+    const sql = migration("20270101000500_remove_b2c_category.sql");
+    expect(sql).toContain("alter table public.b2c_payments drop column category_code;");
+    expect(sql).toContain("alter table public.b2c_payments drop column product_mapping_id;");
+    expect(sql).toContain("alter table public.b2c_payment_local_overrides drop column category_code;");
+    expect(sql).toContain("drop table public.product_mappings;");
+    expect(sql).toContain("drop function if exists public.apply_stripe_product_mapping");
+    expect(sql).toContain("drop function if exists public.apply_b2c_product_mapping");
+
+    // membership_tier is a separate concept that shared the same statements.
+    // It must survive in both recreated RPC signatures and in the re-added
+    // "at least one correction" constraint.
+    expect(sql).toContain("p_membership_tier text");
+    expect(sql).toContain("or membership_tier is not null");
+    expect(sql).not.toContain("p_category_code");
+
+    // The duplicate fingerprint keeps only email, USD amount, and business
+    // date. createB2cDuplicateFingerprint must stay byte-identical to this.
+    expect(sql).toContain("lower(trim(p_customer_email)) || '|USD|' || p_amount_usd_text || '|' ||");
+    expect(sql).not.toContain("candidate.category_code = target.category_code");
+  });
+
+  it("keeps the recreated manual bank transfer RPC locked and re-validating", () => {
+    const sql = migration("20270101000500_remove_b2c_category.sql");
+    const fn = sql.slice(
+      sql.indexOf("create or replace function public.record_b2c_manual_bank_transfer("),
+      sql.indexOf("create or replace function public.apply_b2c_payment_local_correction"),
+    );
+    expect(fn).toContain("pg_advisory_xact_lock(hashtext('b2c_manual_bank_transfer:'");
+    expect(fn).toContain("A manual bank transfer with this reference already exists");
+    expect(fn).toContain("The reviewed bank transfer details changed since preview");
+    expect(fn).toContain("at time zone 'Asia/Bahrain'");
+    expect(fn).toContain("when unique_violation then");
+    // Category was the only required field removed; every other guard stays.
+    expect(fn).toContain("A verified customer email is required");
+    expect(fn).toContain("A customer name is required");
+    expect(fn).toContain("A bank reference between 1 and 200 characters is required");
+    expect(fn).not.toContain("A category is required");
   });
 });

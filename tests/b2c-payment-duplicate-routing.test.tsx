@@ -15,10 +15,10 @@ function duplicatePayment(): B2cReviewRow {
     id: paymentId, recordType: "Payment", customerName: "Reham Al Garash", customerEmail: "rgarash@example.com", customerPhone: null,
     customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
     date: "Oct 5, 2025", dateValue: "2025-10-05", amountUsd: "$475.00", amountValueUsd: "475", sourceAmountUsd: "$475.00", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2025-10-05",
-    category: "membership", membershipTier: "Annual", billingInterval: "Annual", source: "Manual bank transfer", paymentStatus: "Completed",
+    membershipTier: "Annual", billingInterval: "Annual", source: "Manual bank transfer", paymentStatus: "Completed",
     providerReference: "bank-ref-1", sourceSystem: "manual_bank_transfer", productReference: null, hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
     hasOpenPaymentDuplicate: true, hasDuplicateExclusion: false,
-    openReviewFlags: [{ id: "flag-dup-1", type: "Possible duplicate", reason: "A verified local correction matches another completed B2C payment by customer, amount, category, and date within 48 hours." }],
+    openReviewFlags: [{ id: "flag-dup-1", type: "Possible duplicate", reason: "A verified local correction matches another completed B2C payment by customer, amount, and date within 48 hours." }],
     issue: "Possible duplicate",
     decision: {
       sourceStatus: "succeeded", reconciliationStatus: "duplicate_pending", reportingDecision: "blocked", postingStatus: "not_applicable",
@@ -34,11 +34,11 @@ function stubFetch() {
         kind: "group",
         group: {
           groupId: "11111111-1111-4111-8111-111111111111",
-          detectionReason: "Matching email, USD amount, category, and business date within 48 hours.",
+          detectionReason: "Matching email, USD amount, and business date within 48 hours.",
           members: [{
             paymentId, sourceSystem: "manual_bank_transfer", providerReference: "bank-ref-1", customerName: "Reham Al Garash",
             sourceCustomerEmail: "rgarash@example.com", effectiveCustomerEmail: "rgarash@example.com", sourceAmount: "475", sourceCurrency: "USD", effectiveAmountUsd: "475",
-            sourceCategoryCode: "membership", effectiveCategoryCode: "membership", sourceOccurredOn: "2025-10-05", effectiveOccurredOn: "2025-10-05",
+            sourceOccurredOn: "2025-10-05", effectiveOccurredOn: "2025-10-05",
           }],
         },
       }) });

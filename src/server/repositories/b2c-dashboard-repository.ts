@@ -48,7 +48,6 @@ export type B2cLedgerRow = {
   fxConversionSource?: string | null;
   fxConversionEffectiveOn?: string | null;
   sourceDateValue: string;
-  category: string;
   membershipTier: string | null;
   billingInterval: string | null;
   source: string;
@@ -130,7 +129,6 @@ type LocalPaymentOverride = {
   customer_name: string | null;
   customer_email: string | null;
   customer_phone: string | null;
-  category_code: string | null;
   membership_tier: string | null;
   local_amount_usd: string | null;
   local_occurred_on: string | null;
@@ -327,11 +325,11 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  */
 function loadB2cSnapshotResults(client: DatabaseClient) {
   return Promise.all([
-    client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,original_amount,original_currency,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
+    client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,membership_tier,payment_status,original_amount,original_currency,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,original_amount,original_currency,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_refund").eq("status", "open"),
-    client.from("b2c_payment_local_overrides").select("payment_id,customer_name,customer_email,customer_phone,category_code,membership_tier,local_amount_usd,local_occurred_on"),
+    client.from("b2c_payment_local_overrides").select("payment_id,customer_name,customer_email,customer_phone,membership_tier,local_amount_usd,local_occurred_on"),
     client.from("b2c_payment_fx_conversions").select("id,payment_id,amount_usd,exchange_rate_to_usd,effective_on,conversion_source,created_at").order("created_at", { ascending: false }),
     client.from("b2c_refund_fx_conversions").select("id,refund_id,amount_usd,exchange_rate_to_usd,effective_on,conversion_source,created_at").order("created_at", { ascending: false }),
     client.from("b2c_payment_finance_exception_decisions").select("id,payment_id,decision,created_at").order("created_at", { ascending: false }),
@@ -433,7 +431,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       customerName: payment.customer_name,
       customerEmail: payment.customer_email,
       customerPhone: payment.customer_phone,
-      categoryCode: payment.category_code,
       membershipTier: payment.membership_tier,
       amountUsd: payment.amount_usd,
       originalCurrency: payment.original_currency,
@@ -442,7 +439,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       customerName: override.customer_name,
       customerEmail: override.customer_email,
       customerPhone: override.customer_phone,
-      categoryCode: override.category_code,
       membershipTier: override.membership_tier,
       // A provider's foreign-currency amount can never be bypassed with the
       // generic local-USD overlay. Only the append-only Finance conversion
@@ -587,7 +583,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       fxConversionSource: conversion?.conversion_source ?? null,
       fxConversionEffectiveOn: conversion?.effective_on ?? null,
       sourceDateValue: payment.occurred_on,
-      category: !effective.categoryCode || effective.categoryCode === "unmapped" ? "Unmapped" : effective.categoryCode,
       membershipTier: effective.membershipTier,
       billingInterval: billingIntervalLabel(payment.source_metadata),
       source: resolveB2cLedgerSourceLabel(payment.source_system, payment.source_metadata),
@@ -640,7 +635,6 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         fxConversionSource: conversion?.conversion_source ?? null,
         fxConversionEffectiveOn: conversion?.effective_on ?? null,
         sourceDateValue: refund.occurred_at.slice(0, 10),
-        category: effective?.categoryCode === "unmapped" ? "Unmapped" : effective?.categoryCode ?? "Unavailable",
         membershipTier: effective?.membershipTier ?? null,
         billingInterval: null,
         source: refund.source_system === "stripe" ? "Stripe" : refund.source_system === "tap" ? "Tap" : "Manual bank transfer",
