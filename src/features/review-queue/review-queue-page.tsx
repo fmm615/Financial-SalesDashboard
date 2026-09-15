@@ -11,7 +11,7 @@ import { cardReveal, staggerContainer } from "@/lib/motion";
 import type {
   ReviewQueueDetail,
   ReviewQueueFilters,
-  ReviewQueueFlagType,
+  ReviewQueueLiveFlagType,
   ReviewQueueItem,
   ReviewQueueMetrics,
 } from "@/server/services/review-queue";
@@ -20,12 +20,11 @@ type ReviewQueueListPayload = { items: ReviewQueueItem[]; metrics: ReviewQueueMe
 type ReviewQueueDetailPayload = { item: ReviewQueueDetail };
 type LoadState = "loading" | "ready" | "error";
 
-const flagTypeOptions: Array<{ value: "all" | ReviewQueueFlagType; label: string }> = [
+const flagTypeOptions: Array<{ value: "all" | ReviewQueueLiveFlagType; label: string }> = [
   { value: "all", label: "All flag types" },
   { value: "refunded", label: "Refunded" },
   { value: "failed", label: "Failed" },
   { value: "possible_duplicate", label: "Possible duplicate" },
-  { value: "unmapped_product", label: "Unmapped product" },
   { value: "needs_follow_up", label: "Needs follow-up" },
   { value: "needs_fx_review", label: "Needs FX review" },
 ];
@@ -51,7 +50,7 @@ function QueueToolbar({ filters, onChange }: { filters: ReviewQueueFilters; onCh
       <input aria-label="Search review queue" value={filters.query ?? ""} onChange={(event) => onChange({ ...filters, query: event.target.value || undefined })} placeholder="Search flagged records" className="h-11 w-full rounded-md border border-border bg-surface pl-9 pr-3 text-sm text-text-primary placeholder:text-text-muted sm:w-52" />
     </label>
     <label className="sr-only" htmlFor="review-flag-type">Filter queue by flag type</label>
-    <select id="review-flag-type" aria-label="Filter queue by flag type" value={filters.flagType ?? "all"} onChange={(event) => onChange({ ...filters, flagType: event.target.value === "all" ? undefined : event.target.value as ReviewQueueFlagType })} className="h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-text-secondary">
+    <select id="review-flag-type" aria-label="Filter queue by flag type" value={filters.flagType ?? "all"} onChange={(event) => onChange({ ...filters, flagType: event.target.value === "all" ? undefined : event.target.value as ReviewQueueLiveFlagType })} className="h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-text-secondary">
       {flagTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
     <label className="sr-only" htmlFor="review-priority">Filter queue by priority</label>

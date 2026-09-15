@@ -91,3 +91,20 @@ approved reporting consumers receive only safe per-payment state booleans.
 Historical backfill is guarded:
 unprovable flags remain open, while only a stale orphaned duplicate flag with
 no current candidate can be dismissed by the protected Admin function.
+
+## Retired provider product mappings
+
+`product_mappings`, their historical mapping functions, classifications,
+corrections, and review flags are retained as read-only audit history. Forward
+migration `20260824150000_retire_b2c_product_mapping_requirement.sql` revokes
+authenticated execution of the mapping functions and authenticated
+`INSERT`/`UPDATE` on `product_mappings`, while preserving approved read access.
+
+For Stripe and Tap provider payments, `category_code = 'unmapped'` remains the
+stable internal duplicate-fingerprint input, not a reportability constraint.
+The provider description remains source evidence and the visible product label;
+it is never turned into a normalized category. The protected Finance exception
+no longer requires category, but retains its Admin authorization, succeeded
+status, provider-ID and no-known-duplicate confirmations, USD/date, reason,
+audit, and other blocking-rule checks. Manual bank transfers and Finance
+Tracker rows still require their explicit categories.

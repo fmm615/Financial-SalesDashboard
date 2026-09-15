@@ -9,13 +9,13 @@ export type B2cWorkItem = {
   id: string;
   recordId: string;
   recordKind: "provider_payment" | "provider_refund" | "finance_row" | "source_run";
-  queue: "data_quality" | "duplicate" | "fx" | "mapping" | "reconciliation" | "source_failure";
+  queue: "data_quality" | "duplicate" | "fx" | "reconciliation" | "source_failure";
   visibleGroup: "data" | "duplicates" | "reconciliation";
   financeMethod: "ios" | "bank_transfer" | null;
   title: string;
   explanation: string;
   financialImpactUsd: string | null;
-  nextAction: "correct" | "map" | "convert_fx" | "choose_payment_duplicate" | "retry_source" | "review_exception";
+  nextAction: "correct" | "convert_fx" | "choose_payment_duplicate" | "retry_source" | "review_exception";
   href: string;
 };
 
@@ -75,11 +75,6 @@ const REASON_PLAN: Partial<Record<B2cBlockingReason, ReasonPlan>> = {
     queue: "data_quality", nextAction: "correct",
     title: (name) => `Resolve the open review item for ${name}`,
     explanation: "This record has an open follow-up review item.",
-  },
-  unmapped_category: {
-    queue: "mapping", nextAction: "map",
-    title: (name) => `Map the product for ${name}`,
-    explanation: "This record has no verified PLAYBOOK category. Map it to a category.",
   },
   missing_fx: {
     queue: "fx", nextAction: "convert_fx",

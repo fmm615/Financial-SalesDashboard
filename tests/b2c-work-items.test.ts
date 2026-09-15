@@ -13,7 +13,6 @@ const succeededBase = {
   sourceSystem: "stripe" as const,
   paymentStatus: "succeeded" as const,
   customerEmail: "member@example.com",
-  categoryCode: "membership",
   occurredOn: "2026-08-01",
   openFlagTypes: new Set<string>(),
   amountUsd: "100",
@@ -33,9 +32,8 @@ function record(overrides: Partial<B2cWorkItemRecord> & { decision: B2cWorkItemR
 }
 
 describe("visibleGroupForQueue", () => {
-  it("groups FX and mapping under data", () => {
+  it("groups FX and data-quality items under data", () => {
     expect(visibleGroupForQueue("fx")).toBe("data");
-    expect(visibleGroupForQueue("mapping")).toBe("data");
     expect(visibleGroupForQueue("data_quality")).toBe("data");
   });
 
@@ -96,17 +94,18 @@ describe("buildB2cRecordWorkItems", () => {
     expect(items[0]).toMatchObject({ queue: "fx", visibleGroup: "data", nextAction: "convert_fx" });
   });
 
-  it("produces a mapping work item for an unmapped category", () => {
-    const decision = resolveB2cPaymentDecision({ ...succeededBase, categoryCode: "unmapped" });
+  it("produces no work item for a retired unmapped-product flag -- category mapping no longer gates reportability", () => {
+    const input = { ...succeededBase, openFlagTypes: new Set(["unmapped_product"]) };
+    const decision = resolveB2cPaymentDecision(input);
     const items = buildB2cRecordWorkItems(record({ decision }));
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ queue: "mapping", visibleGroup: "data", nextAction: "map" });
+    expect(decision.reportingDecision).toBe("reportable");
+    expect(items).toEqual([]);
   });
 
-  it("produces multiple work items when several blocking reasons are open at once", () => {
-    const decision = resolveB2cPaymentDecision({ ...succeededBase, customerEmail: null, categoryCode: "unmapped" });
+  it("produces multiple work items when several valid blocking reasons are open at once", () => {
+    const decision = resolveB2cPaymentDecision({ ...succeededBase, customerEmail: null, originalCurrency: "BHD", amountUsd: null });
     const items = buildB2cRecordWorkItems(record({ decision }));
-    expect(items.map((item) => item.queue).sort()).toEqual(["data_quality", "mapping"]);
+    expect(items.map((item) => item.queue).sort()).toEqual(["data_quality", "fx"]);
   });
 
   it("produces a duplicate work item, not a second reportable payment, for a manual-bank candidate with an open possible duplicate", () => {

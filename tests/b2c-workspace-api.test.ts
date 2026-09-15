@@ -83,6 +83,20 @@ describe("GET /api/b2c/workspace", () => {
     expect(response.status).toBe(422);
   });
 
+  it("rejects the retired unmapped-product issue filter while accepting every live issue filter", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.getApprovedRole.mockResolvedValue("viewer");
+    mocks.page.mockResolvedValue(ledgerPage);
+
+    const retiredResponse = await GET(new NextRequest("http://localhost/api/b2c/workspace?issue=Unmapped%20product"));
+
+    expect(retiredResponse.status).toBe(422);
+    for (const issue of ["Possible duplicate", "Failed", "Missing customer email", "Needs follow-up", "Needs FX review", "Refunded", "Tap statement unmatched", "none"]) {
+      const response = await GET(new NextRequest(`http://localhost/api/b2c/workspace?issue=${encodeURIComponent(issue)}`));
+      expect(response.status).toBe(200);
+    }
+  });
+
   it("gives a Viewer the safe ledger page without Stripe evidence and without any work item", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
     mocks.getApprovedRole.mockResolvedValue("viewer");

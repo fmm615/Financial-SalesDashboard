@@ -24,7 +24,7 @@ const snapshot: B2cDashboardSnapshot = {
   period: { month: "2026-08", monthLabel: "August 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31" },
   sourceCoverage: { reportingTotalsReady: true, state: "ready", dataAsOf: "2026-08-19T12:00:00.000Z", title: "B2C financial totals are ready", description: "Source history is complete." },
   hasSourceRecords: true, eligiblePaymentsUsd: "$150.00", refundsUsd: "$10.00", netPaymentsUsd: "$140.00", completedSourcePaymentsUsd: "$160.00", sourceRefundsUsd: "$10.00",
-  calculation: { completedSourcePaymentCount: 2, reportablePaymentCount: 2, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 1, eligibleRefundCount: 1, missingCustomerEmailCount: 0, unmappedProductCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
+  calculation: { completedSourcePaymentCount: 2, reportablePaymentCount: 2, excludedCompletedPaymentCount: 0, excludedCompletedPaymentsUsd: "$0.00", sourceRefundCount: 1, eligibleRefundCount: 1, missingCustomerEmailCount: 0, possibleDuplicateCount: 0, otherReviewCount: 0, nonSucceededPaymentCount: 0, financeExceptionPaymentCount: 0 },
   reviewItems: 2, rows: [],
 };
 
@@ -193,6 +193,19 @@ describe("Work queue", () => {
 });
 
 describe("Ledger", () => {
+  it("does not present retired unmapped-product exclusions or a Ledger filter", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin", ledgerRows: [{ ...ledgerRow, issue: "Needs follow-up" }] });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    fireEvent.click(screen.getByText("Why totals differ"));
+
+    const totalsExplanation = screen.getByText("Why totals differ").parentElement as HTMLElement;
+    expect(within(totalsExplanation).queryByText(/unmapped product/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Unmapped product" })).not.toBeInTheDocument();
+  });
+
   it("asks the server to apply a Source filter and renders the returned ledger page unchanged", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
     const workspaceUrls: string[] = [];
@@ -315,6 +328,29 @@ describe("Ledger", () => {
     const table = await screen.findByRole("table", { name: "B2C ledger" });
     expect(within(table).getByText("Subscription update")).toBeInTheDocument();
     expect(within(table).getByText("Your card was declined: insufficient funds.")).toBeInTheDocument();
+  });
+
+  it("renders an unavailable provider description as a dash", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin", ledgerRows: [{ ...ledgerRow, sourceDescription: null }] });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const table = await screen.findByRole("table", { name: "B2C ledger" });
+    const row = within(table).getByText("Maya Al Khalifa").closest("tr") as HTMLElement;
+
+    expect(within(row).getAllByRole("cell")[6]).toHaveTextContent("—");
+  });
+
+  it("renders an unavailable provider description in the compact mobile card", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin", ledgerRows: [{ ...ledgerRow, sourceDescription: null }] });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    const compactCards = document.querySelector('ul[class~="sm:hidden"]') as HTMLElement;
+
+    expect(compactCards).toBeInTheDocument();
+    expect(within(compactCards).getByText("—")).toBeInTheDocument();
   });
 
   it("shows Search, Source, Status, and Issue as primary filters and hides the rest behind More filters", async () => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const reviewFlagTypes = ["refunded", "failed", "possible_duplicate", "unmapped_product", "needs_follow_up"] as const;
+const reviewFlagTypes = ["refunded", "failed", "possible_duplicate", "needs_follow_up"] as const;
 const reviewFlagStatuses = ["open", "resolved", "dismissed", "all"] as const;
 const isPlaceholder = (value: string) => /^(?:-+|—+|n\/?a)$/i.test(value.trim());
 

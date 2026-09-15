@@ -22,7 +22,7 @@ export type B2cPaymentReviewDrawerTarget =
  * Everything else available renders under "More actions".
  */
 type DrawerPrimaryAction =
-  | "correct" | "map" | "convert_fx" | "review_exception"
+  | "correct" | "convert_fx" | "review_exception"
   | "choose_payment_duplicate" | "retry_source"
   | null;
 
@@ -33,7 +33,6 @@ const REASON_TO_ACTION: Partial<Record<B2cBlockingReason, DrawerPrimaryAction>> 
   implausible_future_date: "correct",
   missing_customer_email: "correct",
   other_open_review: "correct",
-  unmapped_category: "map",
   missing_fx: "convert_fx",
   possible_duplicate: "choose_payment_duplicate",
 };
@@ -56,7 +55,7 @@ function ActionSlot({ row, primary, onSaved, onPaymentDuplicateSaved }: { row: B
   }
   if (primary === "choose_payment_duplicate") return <B2cPaymentDuplicateReview paymentId={row.id} onSaved={onPaymentDuplicateSaved} />;
   if (primary === "retry_source") return <p className="text-sm leading-6 text-text-muted">Retry the failed provider sync from Sources.</p>;
-  const financeDecisionPrimary = primary === "map" || primary === "convert_fx" || primary === "review_exception" ? primary : null;
+  const financeDecisionPrimary = primary === "convert_fx" || primary === "review_exception" ? primary : null;
   return <B2cPaymentFinanceDecisionFragment row={row} primary={financeDecisionPrimary} onSaved={onSaved} />;
 }
 
@@ -73,10 +72,10 @@ function ViewerReadOnlyNote() {
 
 /**
  * The one shared record drawer. Work queue and Ledger both open this same
- * shell. Every correction, mapping, FX conversion, Finance exception, refund
- * FX, and duplicate decision action lives here, converted to dialog-free
- * fragments this drawer owns directly -- there is no separate evidence
- * dialog, edit modal, or refund-FX modal at the row level.
+ * shell. Every correction, FX conversion, Finance exception, refund FX, and
+ * duplicate decision action lives here, converted to dialog-free fragments
+ * this drawer owns directly -- there is no separate evidence dialog, edit
+ * modal, or refund-FX modal at the row level.
  */
 export function B2cPaymentReviewDrawer({ target, onClose, onPaymentDuplicateResolved }: {
   target: B2cPaymentReviewDrawerTarget | null;

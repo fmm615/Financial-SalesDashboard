@@ -95,8 +95,8 @@ async function persistCharge(input: { charge: unknown; source?: Pick<StripeSourc
       if (plan) charge = addStripeCheckoutPlan(charge, plan);
     } catch {
       // The Charge remains a valid source record if it was not created through
-      // Checkout or the optional plan lookup is unavailable. An unmapped flag
-      // keeps it out of financial totals until a verified local mapping exists.
+      // Checkout or the optional plan lookup is unavailable. The persisted
+      // Charge remains eligible for the normal reportability checks.
     }
     }
   }

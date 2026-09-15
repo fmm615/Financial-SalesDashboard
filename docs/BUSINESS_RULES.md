@@ -47,7 +47,22 @@ A manual bank transfer is for a genuinely new B2C bank transfer. It is USD-only:
 
 ### Controlled B2C Finance exception
 
-If essential B2C provider source details are genuinely unavailable, an Admin may include one **succeeded** B2C payment by a documented Finance exception. This is permitted only after confirming the exact unique provider transaction ID, confirming no known duplicate from available evidence, saving a verified local PLAYBOOK category/amount/date, and recording a reason. The exception is append-only and audited. It never overrides a failed/pending payment, an identified possible duplicate, or another unresolved source issue; it never changes Stripe or Tap.
+If essential B2C provider source details are genuinely unavailable, an Admin may include one **succeeded** B2C payment by a documented Finance exception. This is permitted only after confirming the exact unique provider transaction ID, confirming no known duplicate from available evidence, saving verified local amount/date values, and recording a reason. Provider category/tier are optional local metadata for Stripe and Tap payments and are not a Finance-exception prerequisite. The exception is append-only and audited. It never overrides a failed/pending payment, an identified possible duplicate, a missing USD/FX value, or another unresolved source issue; it never changes Stripe or Tap. Manual bank transfers and Finance Tracker rows retain their explicit category requirements.
+
+### Provider product metadata
+
+Stripe and Tap descriptions are retained source evidence and are the visible
+product label. A provider category/tier is optional local metadata: a valid
+succeeded USD provider payment with `category_code = 'unmapped'` can be
+reportable when every other approved rule passes. `unmapped` remains the stable
+internal category value in the duplicate fingerprint; free-text descriptions
+are never substituted into that fingerprint or normalized into a category.
+
+Historical product mappings, classifications, corrections, and
+`unmapped_product` flags remain retained for audit. Mapping is not a live
+reportability gate or Admin workflow, and it does not appear as B2C Work-queue
+work, a Ledger issue, a generic Review Queue item/filter, or a shared-drawer
+action.
 
 ## Refunds
 
@@ -84,15 +99,17 @@ The system must be able to answer: "Who changed this and when?"
 
 ## Review queue
 
-Support at minimum these flags:
+Support at minimum these live flags:
 
 - Refunded
 - Failed
 - Possible duplicate
-- Unmapped product
 - Needs follow-up
 
 Cleared items remain in history and are not deleted.
+
+`Unmapped product` remains a retained historical flag type for exact audit
+inspection only; it is not live work and cannot block reportability.
 
 ## Reports
 

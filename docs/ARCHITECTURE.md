@@ -196,7 +196,7 @@ can ever produce any other `financeLineageStatus`. A refund's own decision
 never overwrites its linked payment's `sourceStatus`.
 `src/server/services/b2c-work-items.ts` turns unresolved blocking reasons into
 detailed internal `B2cWorkItem` queues (`data_quality`, `duplicate`, `fx`,
-`mapping`, `reconciliation`, `source_failure`), which `b2c-workspace-repository.ts`
+`reconciliation`, `source_failure`), which `b2c-workspace-repository.ts`
 groups into the three visible Work queue filters (`data`, `duplicates`,
 `reconciliation`). `b2c-ledger-repository.ts` adds the paged, filtered, sorted
 ledger read the workspace needs, decorating rows from the existing dashboard
@@ -204,8 +204,8 @@ snapshot rather than re-querying B2C sources. `b2c-dashboard-repository.ts`
 remains the one compatibility facade underneath both.
 
 The shared record drawer (`b2c-payment-review-drawer.tsx`) is the one place
-every B2C correction, mapping, FX conversion, Finance exception, refund FX,
-and payment-duplicate decision is reachable from -- Work queue and Ledger both
+every B2C correction, FX conversion, Finance exception, refund FX, and
+payment-duplicate decision is reachable from -- Work queue and Ledger both
 open it, and it owns opening, closing, focus, errors, and refresh; there is no
 separate per-row dialog. It picks one primary action from a work item's
 `nextAction` (or, for a full ledger row, the same reason-to-action mapping
@@ -214,7 +214,11 @@ under "More actions". Because `/api/b2c/workspace` never carries
 `stripeEvidence`, the drawer's Source evidence panel reads full Stripe
 evidence itself, only for an Admin, through a dedicated
 `/api/admin/b2c/payments/[paymentId]/evidence` route built on the same
-dashboard snapshot.
+dashboard snapshot. Provider descriptions are source evidence and the visible
+product label; optional local category/tier metadata does not enter the
+reportability decision. The retained `unmapped` value stays inside the
+duplicate fingerprint only, never as a Work-queue, Ledger-issue, Review-Queue,
+or drawer mapping action.
 
 ## Authentication boundary
 

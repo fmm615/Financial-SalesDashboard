@@ -145,7 +145,7 @@ export class SupabaseB2cProviderSyncRepository {
 
   async persistCharge(input: NormalisedB2cProviderCharge & { providerEventId?: string; reconciliationSource?: string }): Promise<{ paymentId: string; inserted: boolean }> {
     const { data: existing, error: existingError } = await this.client.from("b2c_payments")
-      .select("id,provider_event_id,customer_email,customer_name,customer_phone,source_metadata").eq("source_system", this.provider).eq("provider_transaction_id", input.chargeId).maybeSingle();
+      .select("id,provider_event_id,customer_email,customer_name,customer_phone,product_mapping_id,category_code,membership_tier,source_metadata").eq("source_system", this.provider).eq("provider_transaction_id", input.chargeId).maybeSingle();
     if (existingError) throw new Error(`Could not check existing ${this.providerLabel} charge: ${existingError.message}`);
 
     const existingMetadata = existing?.source_metadata && typeof existing.source_metadata === "object" && !Array.isArray(existing.source_metadata) ? existing.source_metadata as Record<string, unknown> : {};
@@ -164,15 +164,14 @@ export class SupabaseB2cProviderSyncRepository {
     const mergedEmail = mergeContact(existing?.customer_email, input.customerEmail, existingMetadata.customer_email_source, input.sourceMetadata.customer_email_source);
     const mergedPhone = mergeContact(existing?.customer_phone, input.customerPhone, existingMetadata.customer_phone_source, input.sourceMetadata.customer_phone_source);
     const customerId = mergedEmail.value ? await this.upsertCustomer(mergedEmail.value, mergedName.value) : null;
-    const mapping = await this.findProductMapping(input.productReference);
-    const categoryCode = mapping?.categoryCode ?? "unmapped";
+    // Provider product references are source context. Retain a local Admin
+    // classification on redelivery, but do not infer one from provider text.
+    const categoryCode = existing?.category_code ?? "unmapped";
     const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: mergedEmail.value, amountUsd: input.amountUsd ?? input.originalAmount, originalCurrency: input.originalCurrency, categoryCode, occurredOn: input.occurredOn, providerTransactionId: input.chargeId });
     const values = {
       source_system: this.provider, provider_transaction_id: input.chargeId, provider_event_id: input.providerEventId ?? existing?.provider_event_id ?? null,
-      customer_id: customerId, customer_email: mergedEmail.value, customer_name: mergedName.value, customer_phone: mergedPhone.value, product_mapping_id: mapping?.id ?? null, category_code: categoryCode,
-      // A verified local mapping remains the reporting classification. When no
-      // mapping exists, show the direct provider plan name for traceability only.
-      membership_tier: mapping?.membershipTier ?? input.sourceMetadata.provider_plan_name ?? null, payment_status: input.paymentStatus, original_amount: input.originalAmount,
+      customer_id: customerId, customer_email: mergedEmail.value, customer_name: mergedName.value, customer_phone: mergedPhone.value, product_mapping_id: existing?.product_mapping_id ?? null, category_code: categoryCode,
+      membership_tier: existing?.membership_tier ?? input.sourceMetadata.provider_plan_name ?? null, payment_status: input.paymentStatus, original_amount: input.originalAmount,
       original_currency: input.originalCurrency, exchange_rate_to_usd: input.exchangeRateToUsd, amount_usd: input.amountUsd, gross_amount_usd: input.amountUsd,
       tax_amount_usd: null, net_amount_usd: null, occurred_at: input.occurredAt, occurred_on: input.occurredOn, duplicate_fingerprint: duplicateFingerprint,
       reconciliation_source: input.reconciliationSource ?? null, source_metadata: {
@@ -190,7 +189,6 @@ export class SupabaseB2cProviderSyncRepository {
     if (!mergedEmail.value) await this.openFlag(payment.id, "needs_follow_up", `${this.providerLabel} payment is missing a valid customer email. It is retained for traceability and excluded from financial totals until an Admin records a verified local correction.`);
     if (input.originalCurrency !== "USD" || input.amountUsd === null) await this.openFlag(payment.id, "needs_fx_review", `${this.providerLabel} source payment is in ${input.originalCurrency}. Its source amount is retained, but a Finance-approved USD conversion is required before it can enter USD financial totals.`);
     if (mergedName.conflict || mergedEmail.conflict || mergedPhone.conflict) await this.openFlag(payment.id, "needs_follow_up", `${this.providerLabel} returned conflicting transaction contact evidence. The higher-priority retained value remains in use pending Admin review.`);
-    if (!mapping) await this.openFlag(payment.id, "unmapped_product", `${this.providerLabel} payment has no approved product mapping. It is retained for traceability and excluded from financial totals until an Admin maps the product.`);
     if (input.paymentStatus === "failed") await this.openFlag(payment.id, "failed", `${this.providerLabel} payment failed. It is retained for follow-up and excluded from financial totals.`);
     return { paymentId: payment.id, inserted: existing === null };
   }
@@ -303,15 +301,7 @@ export class SupabaseB2cProviderSyncRepository {
     return data.id;
   }
 
-  private async findProductMapping(productReference: string | null): Promise<{ id: string; categoryCode: string; membershipTier: string | null } | null> {
-    if (!productReference) return null;
-    const { data, error } = await this.client.from("product_mappings").select("id,category_code,membership_tier")
-      .eq("source_system", this.provider).eq("external_product_id", productReference).maybeSingle();
-    if (error) throw new Error(`Could not load ${this.providerLabel} product mapping: ${error.message}`);
-    return data ? { id: data.id, categoryCode: data.category_code, membershipTier: data.membership_tier } : null;
-  }
-
-  private async openFlag(recordId: string, flagType: "unmapped_product" | "failed" | "possible_duplicate" | "refunded" | "needs_follow_up" | "needs_fx_review", reason: string, sourceArea: "b2c_payment" | "b2c_refund" = "b2c_payment"): Promise<void> {
+  private async openFlag(recordId: string, flagType: "failed" | "possible_duplicate" | "refunded" | "needs_follow_up" | "needs_fx_review", reason: string, sourceArea: "b2c_payment" | "b2c_refund" = "b2c_payment"): Promise<void> {
     const { error } = await this.client.from("review_flags").upsert({ source_area: sourceArea, source_record_id: recordId, flag_type: flagType, status: "open", priority: 2, reason }, { onConflict: "source_area,source_record_id,flag_type,status", ignoreDuplicates: true });
     if (error) throw new Error(`Could not open Stripe review flag: ${error.message}`);
   }
