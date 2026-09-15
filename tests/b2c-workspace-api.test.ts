@@ -31,7 +31,7 @@ const stripeEvidenceRow = {
   customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
   date: "Aug 1, 2026", dateValue: "2026-08-01", amountUsd: "$100.00", amountValueUsd: "100", sourceAmountUsd: "$100.00",
   sourceOriginalAmount: "100", sourceOriginalCurrency: "USD", sourceDescription: null, sourceDateValue: "2026-08-01",
-  category: "membership", membershipTier: null, billingInterval: null, source: "Stripe", paymentStatus: "Completed",
+  membershipTier: null, billingInterval: null, source: "Stripe", paymentStatus: "Completed",
   providerReference: "ch_1", sourceSystem: "stripe", productReference: null, hasLocalCorrection: false, localCorrectionFields: [],
   hasFinanceException: false, openReviewFlags: [], issue: null,
   stripeEvidence: { originalAmount: "100", originalCurrency: "USD", amountRefunded: null, description: null, sellerMessage: "Confidential seller note", cardholderName: "Maya Al Khalifa", settlementGrossAmount: null, settlementFeeAmount: null, settlementFeeTaxAmount: null, settlementNetAmount: null, settlementCurrency: null, settlementExchangeRate: null, refunds: [] },
@@ -136,13 +136,12 @@ describe("GET /api/b2c/workspace", () => {
     mocks.getApprovedRole.mockResolvedValue("viewer");
     mocks.page.mockResolvedValue(ledgerPage);
 
-    const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?dateFrom=2026-08-01&dateTo=2026-08-31&category=membership&foreignCurrencyOnly=true&issue=none&paymentStatus=Refunded"));
+    const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?dateFrom=2026-08-01&dateTo=2026-08-31&foreignCurrencyOnly=true&issue=none&paymentStatus=Refunded"));
 
     expect(response.status).toBe(200);
     expect(mocks.page).toHaveBeenCalledWith({
       dateFrom: "2026-08-01",
       dateTo: "2026-08-31",
-      category: "membership",
       foreignCurrencyOnly: true,
       issue: "none",
       paymentStatus: "Refunded",

@@ -180,8 +180,8 @@ describe("resolveB2cPaymentDecision", () => {
     expect(decision.postingStatus).toBe("not_applicable");
   });
 
-  it("keeps an unmapped provider category reportable", () => {
-    const input = { ...base, categoryCode: "unmapped", openFlagTypes: new Set(["unmapped_product"]) };
+  it("keeps a provider payment without local classification metadata reportable", () => {
+    const input = { ...base, openFlagTypes: new Set(["unmapped_product"]) };
     const decision = resolveB2cPaymentDecision(input);
     expect(decision.blockingReasons).toEqual([]);
     expect(decision.reportingDecision).toBe("reportable");

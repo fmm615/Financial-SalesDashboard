@@ -18,7 +18,6 @@ const baseRow: B2cLedgerRow = {
   sourceAmountUsd: "$48.45",
   sourceDescription: null,
   sourceDateValue: "2026-08-13",
-  category: "membership",
   membershipTier: null,
   billingInterval: null,
   source: "Stripe",
@@ -62,11 +61,11 @@ describe("B2C ledger repository", () => {
       decorateB2cLedgerRow({ ...baseRow, id: "completed", customerPhone: "+973 1700 0000" }),
       decorateB2cLedgerRow({ ...baseRow, id: "refunded", dateValue: "2026-08-12", paymentStatus: "Refunded", amountValueUsd: "-48.450000", amountUsd: "-$48.45" }),
       decorateB2cLedgerRow({ ...baseRow, id: "fx-review", dateValue: "2026-08-11", amountValueUsd: null, amountUsd: "18.00 BHD", sourceOriginalCurrency: "BHD", foreignCurrencyReview: true, paymentStatus: "Pending", issue: "Needs FX review" }),
-      decorateB2cLedgerRow({ ...baseRow, id: "outside-date", dateValue: "2026-07-31", amountValueUsd: "5.000000", amountUsd: "$5.00", category: "other", issue: "Needs follow-up" }),
+      decorateB2cLedgerRow({ ...baseRow, id: "outside-date", dateValue: "2026-07-31", amountValueUsd: "5.000000", amountUsd: "$5.00", issue: "Needs follow-up" }),
     ];
 
     expect(pageB2cLedgerRows(rows, {
-      dateFrom: "2026-08-01", dateTo: "2026-08-31", category: "membership",
+      dateFrom: "2026-08-01", dateTo: "2026-08-31",
     } as unknown as B2cLedgerQuery).rows.map((row) => row.id)).toEqual(["completed", "refunded", "fx-review"]);
     expect(pageB2cLedgerRows(rows, { foreignCurrencyOnly: true } as unknown as B2cLedgerQuery).rows.map((row) => row.id)).toEqual(["fx-review"]);
     expect(pageB2cLedgerRows(rows, { issue: "none" } as unknown as B2cLedgerQuery).rows.map((row) => row.id)).toEqual(["completed", "refunded"]);
@@ -79,12 +78,11 @@ describe("B2C ledger repository", () => {
   it("returns safe filter metadata from the full period before applying the current page query", () => {
     const page = pageB2cLedgerRows([
       decorateB2cLedgerRow({ ...baseRow, id: "stripe-row" }),
-      decorateB2cLedgerRow({ ...baseRow, id: "tap-row", source: "Tap", sourceSystem: "tap", category: "course", issue: "Needs follow-up", foreignCurrencyReview: true }),
+      decorateB2cLedgerRow({ ...baseRow, id: "tap-row", source: "Tap", sourceSystem: "tap", issue: "Needs follow-up", foreignCurrencyReview: true }),
     ], { source: "stripe", limit: 1 });
 
     expect((page as unknown as { filterMetadata?: unknown }).filterMetadata).toEqual({
       sources: ["Stripe", "Tap"],
-      categories: ["course", "membership"],
       issues: ["Needs follow-up"],
       foreignCurrencyCount: 1,
     });

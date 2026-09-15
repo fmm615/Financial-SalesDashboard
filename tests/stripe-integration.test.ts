@@ -38,7 +38,7 @@ describe("Stripe normalisation and webhook security", () => {
   });
 
   it("uses a canonical six-decimal amount in content fingerprints", () => {
-    const baseline = { customerEmail: "member@example.com", categoryCode: "membership", occurredOn: "2026-08-04", providerTransactionId: "ch_123" };
+    const baseline = { customerEmail: "member@example.com", occurredOn: "2026-08-04", providerTransactionId: "ch_123" };
     expect(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.9" })).toBe(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.900000" }));
     expect(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.90", originalCurrency: "USD" })).not.toBe(createB2cDuplicateFingerprint({ ...baseline, amountUsd: "273.90", originalCurrency: "BHD" }));
   });
@@ -46,7 +46,6 @@ describe("Stripe normalisation and webhook security", () => {
   it("requires an audited, verified local B2C correction", () => {
     expect(b2cPaymentLocalCorrectionSchema.safeParse({
       customerEmail: "verified.member@example.com",
-      categoryCode: "membership",
       reason: "Verified against the approved payment evidence.",
     }).success).toBe(true);
     expect(b2cPaymentLocalCorrectionSchema.safeParse({

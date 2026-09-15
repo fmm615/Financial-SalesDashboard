@@ -14,7 +14,7 @@ function unmappedProviderRow(): B2cReviewRow {
     id: "payment-unmapped", recordType: "Payment", customerName: "Maya Al Khalifa", customerEmail: "maya@example.com", customerPhone: null,
     customerNameEvidenceLabel: null, customerEmailEvidenceLabel: null, customerPhoneEvidenceLabel: null,
     date: "Aug 9, 2026", dateValue: "2026-08-09", amountUsd: "$100.00", amountValueUsd: "100", sourceAmountUsd: "$100.00", sourceOriginalCurrency: "USD", sourceDescription: "Provider Annual Plan", sourceDateValue: "2026-08-09",
-    category: "Unmapped", membershipTier: null, billingInterval: null, source: "Stripe", paymentStatus: "Completed",
+    membershipTier: null, billingInterval: null, source: "Stripe", paymentStatus: "Completed",
     providerReference: "ch_unmapped", sourceSystem: "stripe", productReference: "price_annual", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
     openReviewFlags: [{ id: "historic-unmapped", type: "Unmapped product" as never, reason: "Retained for audit history." }], issue: null,
     decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "reportable", postingStatus: "not_applicable", blockingReasons: [], explanation: "Every approved reporting rule passed, so this record is reportable." },

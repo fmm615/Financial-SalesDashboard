@@ -10,7 +10,6 @@ function fillStepOne() {
   fireEvent.change(screen.getByLabelText("Customer email"), { target: { value: "ada@example.com" } });
   fireEvent.change(screen.getByLabelText(/Bank transfer date\/time/i), { target: { value: "2026-08-12T08:00" } });
   fireEvent.change(screen.getByLabelText("Amount (USD)"), { target: { value: "266" } });
-  fireEvent.change(screen.getByLabelText("Category"), { target: { value: "membership" } });
   fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "New bank transfer received after the latest workbook." } });
 }
 
@@ -25,7 +24,7 @@ describe("B2cManualBankTransfer", () => {
     render(<B2cManualBankTransfer onRecorded={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "Add bank transfer" }));
 
-    for (const label of ["Bank reference", "Customer name", "Customer email", /Bank transfer date\/time \(your browser time zone:/i, "Amount (USD)", "Category", "Reason"]) {
+    for (const label of ["Bank reference", "Customer name", "Customer email", /Bank transfer date\/time \(your browser time zone:/i, "Amount (USD)", "Reason"]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
     expect(screen.getByLabelText("Membership tier (optional)")).toBeInTheDocument();
