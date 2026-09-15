@@ -17,7 +17,8 @@ export default async function B2cPage({ searchParams }: { searchParams: Promise<
     // Admin-only evidence out of that payload for every role, matching the
     // shared drawer's own dedicated Admin-only evidence read.
     return <B2cOperations snapshot={{ ...snapshot, rows: [] }} />;
-  } catch {
+  } catch (error) {
+    console.error("B2C dashboard snapshot failed to load:", error);
     return <B2cOperations snapshot={null} loadError="B2C source records could not be loaded. Check that the required database migration has been applied." />;
   }
 }

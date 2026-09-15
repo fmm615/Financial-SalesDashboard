@@ -9,6 +9,7 @@
 -- the baseline schema-usage/anon-revoke safety net.
 
 grant usage on schema public to authenticated;
+grant select on all tables in schema public to authenticated;
 revoke all on all tables in schema public from anon;
 
 do $$
