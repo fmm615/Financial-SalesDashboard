@@ -8,6 +8,19 @@
 -- audit-trigger attachment on the tables not owned by the finance domain, and
 -- the baseline schema-usage/anon-revoke safety net.
 
+-- A brand-new `create schema public` (as this clean-slate rebuild does, once,
+-- on the very first foundation migration) starts completely bare: nothing,
+-- not even `service_role`, has any privilege on it until granted here. Every
+-- trusted server job in this app (src/lib/supabase/server.ts's
+-- createServiceDatabaseClient) depends on service_role having full access.
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+grant all on all functions in schema public to service_role;
+alter default privileges in schema public grant all on tables to service_role;
+alter default privileges in schema public grant all on sequences to service_role;
+alter default privileges in schema public grant all on functions to service_role;
+
 grant usage on schema public to authenticated;
 grant select on all tables in schema public to authenticated;
 revoke all on all tables in schema public from anon;
