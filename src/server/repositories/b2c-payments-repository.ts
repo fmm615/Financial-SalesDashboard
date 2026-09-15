@@ -26,8 +26,7 @@ const recordHref = (paymentId: string) => `/operations/b2c?tab=work&record=${pay
 
 /**
  * The database RPC (record_b2c_manual_bank_transfer,
- * supabase/migrations/20260818113000_b2c_manual_bank_transfer_entry.sql, as
- * trimmed by the removal-of-Payment-Tracker migration) is the sole authority
+ * supabase/migrations/20270101000200_b2c_foundation.sql) is the sole authority
  * for the write -- it independently rederives every check. This repository's
  * assessment path is advisory only, but it reuses the exact same fingerprint
  * function the rest of B2C relies on (createB2cDuplicateFingerprint) so the

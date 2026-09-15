@@ -82,8 +82,9 @@ also require an authenticated Admin.
 
 The Payment Tracker Excel-workbook system (staging, exact cross-tab duplicate
 grouping, lineage/canonicalization, Finance staging-row actions, posting into
-payments, and Stripe/Tap-vs-sheet provider-evidence reconciliation) has been
-removed entirely -- see `20260901100000_remove_payment_tracker_sheet_system.sql`.
+payments, and Stripe/Tap-vs-sheet provider-evidence reconciliation) is not
+part of the schema -- `20270101000200_b2c_foundation.sql`, the B2C domain
+migration, deliberately excludes it entirely.
 The pgTAP assertions and Vitest suites that only covered that removed system
 were deleted alongside it. A new iOS/bank-transfer ingestion system is pending
 a separate design, and its own test coverage will be added with it.

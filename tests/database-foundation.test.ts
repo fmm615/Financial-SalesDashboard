@@ -119,220 +119,8 @@ describe("Phase 2 validation contracts", () => {
 });
 
 describe("Phase 2 database migration contracts", () => {
-  it("creates auditable B2C Finance staging with protected source boundaries", () => {
-    const stagingMigration = () => migration("20260812090000_b2c_finance_reconciliation_staging.sql");
-
-    expect(stagingMigration).not.toThrow();
-
-    const staging = stagingMigration();
-    expect(staging).toContain("create table public.b2c_finance_imports");
-    expect(staging).toContain("create table public.b2c_finance_staging_rows");
-    expect(staging).toContain("create table public.b2c_provider_evidence");
-    expect(staging).toContain("unique (source_file_sha256)");
-    expect(staging).toContain("source_tab in ('B2C', 'B2C Cons')");
-    expect(staging).toContain("transaction_kind in ('sale', 'processing_fee', 'fee_vat', 'refund', 'transfer', 'opening_balance', 'needs_review')");
-    expect(staging).toContain("enable row level security");
-    expect(staging).toContain("public.is_admin()");
-  });
-
-  it("creates protected, idempotent groups for exact B2C Finance duplicates", () => {
-    const exactDuplicateGroups = () => migration("20260812103000_b2c_exact_duplicate_groups.sql");
-
-    expect(exactDuplicateGroups).not.toThrow();
-
-    const exactGroups = exactDuplicateGroups();
-    expect(exactGroups).toContain("add column grouping_key text");
-    expect(exactGroups).toContain("create unique index b2c_reconciliation_groups_grouping_key_unique");
-    expect(exactGroups).toContain("create or replace function public.create_b2c_exact_duplicate_groups()");
-    expect(exactGroups).toContain("security definer");
-    expect(exactGroups).toContain("not public.is_admin()");
-    expect(exactGroups).toContain("count(*) filter (where source_tab = 'B2C') = 1");
-    expect(exactGroups).toContain("count(*) filter (where source_tab = 'B2C Cons') = 1");
-    expect(exactGroups).not.toContain("insert into public.b2c_payments");
-  });
-
-  it("aligns cross-tab duplicate grouping with the shared Finance source fields", () => {
-    const adjustment = () => migration("20260812104000_adjust_b2c_cross_tab_duplicate_grouping.sql");
-
-    expect(adjustment).not.toThrow();
-
-    const adjustedGroups = adjustment();
-    expect(adjustedGroups).toContain("create or replace function public.create_b2c_exact_duplicate_groups()");
-    expect(adjustedGroups).toContain("rows.normalized_customer_name as customer_name_key");
-    expect(adjustedGroups).toContain("count(*) filter (where source_tab = 'B2C') = 1");
-    expect(adjustedGroups).toContain("count(*) filter (where source_tab = 'B2C Cons') = 1");
-    expect(adjustedGroups).not.toContain("category_key");
-    expect(adjustedGroups).not.toContain("customer_email_key");
-    expect(adjustedGroups).not.toContain("insert into public.b2c_payments");
-  });
-
-  it("posts approved iOS and bank-transfer Finance rows through an auditable ledger path", () => {
-    const approvedFinancePosting = () => migration("20260817100000_post_approved_b2c_finance_payments.sql");
-
-    expect(approvedFinancePosting).not.toThrow();
-
-    const sql = approvedFinancePosting();
-    expect(sql).toContain("'finance_tracker'");
-    expect(sql).toContain("create table public.b2c_finance_ledger_posts");
-    expect(sql).toContain("finance_row_id uuid not null unique");
-    expect(sql).toContain("payment_id uuid not null unique");
-    expect(sql).toContain("create or replace function public.post_approved_b2c_finance_payments()");
-    expect(sql).toContain("Only an authenticated administrator can post approved B2C Finance payments");
-    expect(sql).toContain("groups.reconciliation_state <> 'canonical' or groups.canonical_finance_row_id <> rows.id");
-    expect(sql).toContain("drop constraint if exists b2c_payments_source_system_check");
-    expect(sql).toContain("replace(lower(pg_get_constraintdef(oid)), '\"', '')");
-    expect(sql).toContain("set search_path = public, extensions");
-    expect(sql).toContain("trim(regexp_replace(lower(coalesce(rows.payment_method_raw, '')), '[^a-z0-9]+', ' ', 'g'))");
-    expect(sql).not.toContain("lower(regexp_replace(trim(coalesce(rows.payment_method_raw, ''))");
-    expect(sql).not.toContain("https://");
-    expect(sql).not.toContain("stripe.com");
-    expect(sql).not.toContain("tap.company");
-  });
-
-  it("repairs the deployed Finance-posting function's extension search path", () => {
-    const repair = () => migration("20260817103000_fix_finance_posting_extension_search_path.sql");
-
-    expect(repair).not.toThrow();
-    expect(repair()).toContain("alter function public.post_approved_b2c_finance_payments()");
-    expect(repair()).toContain("set search_path = public, extensions");
-  });
-
-  it("repairs deployed Finance posting for mixed-case workbook payment methods", () => {
-    const repair = () => migration("20260817104000_fix_finance_payment_method_normalization.sql");
-
-    expect(repair).not.toThrow();
-    const sql = repair();
-    expect(sql).toContain("create or replace function public.post_approved_b2c_finance_payments()");
-    expect(sql).toContain("trim(regexp_replace(lower(coalesce(rows.payment_method_raw, '')), '[^a-z0-9]+', ' ', 'g'))");
-    expect(sql).not.toContain("lower(regexp_replace(trim(coalesce(rows.payment_method_raw, ''))");
-  });
-
-  it("keeps Finance source rows immutable while allowing audited effective overrides", () => {
-    const resolutionMigration = () => migration("20260817110000_b2c_finance_action_resolutions.sql");
-
-    expect(resolutionMigration).not.toThrow();
-    const sql = resolutionMigration();
-    expect(sql).toContain("create table public.b2c_finance_row_overrides");
-    expect(sql).toContain("create view public.b2c_finance_effective_rows");
-    expect(sql).toContain("create or replace function public.apply_b2c_finance_row_correction(");
-    expect(sql).toContain("insert into public.financial_corrections");
-    expect(sql).toContain("Only an authenticated administrator can correct a staged B2C Finance row");
-    expect(sql).not.toMatch(/update public\.b2c_finance_staging_rows\s+set/i);
-  });
-
-  it("extends the audit correction rule without rejecting existing Finance correction areas", () => {
-    const sql = migration("20260817110000_b2c_finance_action_resolutions.sql");
-
-    expect(sql).toContain("'b2c_finance_row'");
-    expect(sql).toContain("'b2b_deal'");
-    expect(sql).toContain("'b2c_refund'");
-    expect(sql).toContain("'product_mapping'");
-  });
-
-  it("names the raw and effective Finance categories separately in the effective-row view", () => {
-    const sql = migration("20260817110000_b2c_finance_action_resolutions.sql");
-
-    expect(sql).toContain("rows.category_raw as source_category_raw");
-    expect(sql).toContain("coalesce(overrides.category_raw, rows.category_raw) as category_raw");
-    expect(sql).toContain("'raw_category', rows.source_category_raw");
-    expect(sql).toContain("'effective_category', rows.category_raw");
-  });
-
-  it("adds an all-or-nothing B2C Finance duplicate-decision function for selected rows", () => {
-    const sql = migration("20260817113000_b2c_finance_selected_duplicate_decisions.sql");
-
-    expect(sql).toContain("create or replace function public.apply_b2c_finance_selected_duplicate_decisions");
-    expect(sql).toContain("for update");
-    expect(sql).toContain("The selected Finance row must belong to the duplicate group");
-    expect(sql).toContain("insert into public.b2c_reconciliation_decisions");
-  });
-
-  it("prevents a replacement Payment Tracker workbook from reposting a lineaged payment", () => {
-    const sql = migration("20260818100000_b2c_finance_import_lineages.sql");
-
-    expect(sql).toContain("create extension if not exists unaccent");
-    expect(sql).toContain("supersedes_import_id uuid references public.b2c_finance_imports(id)");
-    expect(sql).toContain("create table public.b2c_finance_record_lineages");
-    expect(sql).toContain("create table public.b2c_finance_row_lineage_links");
-    expect(sql).toContain("create table public.b2c_finance_import_version_candidates");
-    expect(sql).toContain("create table public.b2c_finance_import_version_decisions");
-    expect(sql).toContain("create or replace function public.reserve_b2c_finance_manual_bank_transfer_lineage");
-    expect(sql).toContain("create or replace function public.finalize_b2c_finance_import_version");
-    expect(sql).toContain("create or replace function public.apply_b2c_finance_import_version_decision");
-    expect(sql).toContain("is immutable");
-    expect(sql).toContain("A replacement Payment Tracker import must declare the completed import it supersedes");
-  });
-
-  it("posts approved B2C Finance payments idempotently per lineage instead of per staging row", () => {
-    const sql = migration("20260818103000_b2c_finance_lineage_posting.sql");
-
-    expect(sql).toContain("add column lineage_id");
-    expect(sql).toContain("alter column lineage_id set not null");
-    expect(sql).toContain("add constraint b2c_finance_ledger_posts_lineage_id_unique unique (lineage_id)");
-    expect(sql).toContain("disable trigger assign_b2c_finance_record_lineage_actor");
-    expect(sql).toContain("create or replace function public.post_approved_b2c_finance_payments");
-    expect(sql).toContain("represented_payment_id is not null");
-    expect(sql).toContain("create or replace function public.get_b2c_finance_posting_readiness");
-  });
-
-  it("keeps posted Finance corrections append-only and exposes protected effective facts", () => {
-    const sql = migration("20260817120000_b2c_finance_posted_ledger_adjustments.sql");
-
-    expect(sql).toContain("create table public.b2c_finance_ledger_adjustments");
-    expect(sql).toContain("prevent_b2c_finance_ledger_adjustment_mutation");
-    expect(sql).toContain("create or replace function public.apply_b2c_finance_posted_adjustment(");
-    expect(sql).toContain("create view public.b2c_finance_effective_ledger_entries");
-    expect(sql).toContain("grant select on public.b2c_finance_effective_ledger_entries to authenticated");
-    expect(sql).toContain("Only a complete USD Payment Tracker ledger payment can be adjusted");
-    expect(sql).toContain("unique (payment_id, adjustment_request_id, entry_index)");
-    expect(sql).not.toMatch(/update public\.b2c_payments\s+set/i);
-  });
-
-  it("resolves effective Finance quality issues only through audited local overrides", () => {
-    const sql = migration("20260817121000_b2c_finance_effective_resolution_status.sql");
-
-    expect(sql).toContain("create or replace function public.b2c_finance_unresolved_quality_issues(");
-    expect(sql).toContain("create or replace function public.apply_b2c_finance_row_resolution(");
-    expect(sql).toContain("insert into public.financial_corrections");
-    expect(sql).toContain("payment_method_raw");
-    expect(sql).not.toMatch(/update public\.b2c_finance_staging_rows\s+set/i);
-  });
-
-  it("enforces optimistic concurrency and bounded paging for posted Finance adjustments", () => {
-    const sql = migration("20260817122000_b2c_finance_adjustment_concurrency_and_paging.sql");
-
-    expect(sql).toContain("create or replace function public.apply_b2c_finance_posted_adjustment_with_expected_state(");
-    expect(sql).toContain("This B2C Finance payment changed after it was opened. Reload it before saving another adjustment");
-    expect(sql).toContain("create or replace function public.get_b2c_finance_posted_adjustments_page(");
-    expect(sql).toContain("p_limit not between 1 and 1000");
-    expect(sql).toContain("revoke execute on function public.apply_b2c_finance_posted_adjustment");
-  });
-
-  it("posts only valid effective Finance rows while retaining duplicate controls", () => {
-    const resolutionMigration = () => migration("20260817110000_b2c_finance_action_resolutions.sql");
-
-    expect(resolutionMigration).not.toThrow();
-    const sql = resolutionMigration();
-    expect(sql).toContain("from public.b2c_finance_effective_rows rows");
-    expect(sql).toContain("rows.effective_quality = 'valid'");
-    expect(sql).toContain("groups.reconciliation_state <> 'canonical' or groups.canonical_finance_row_id <> rows.id");
-    expect(sql).toContain("effective_occurred_on");
-    expect(sql).toContain("effective_amount_usd");
-  });
-
-  it("retains genuinely missing customer emails from both Finance and provider evidence", () => {
-    const missingFinanceEmail = () => migration("20260817101000_allow_missing_finance_tracker_email.sql");
-
-    expect(missingFinanceEmail).not.toThrow();
-
-    const sql = missingFinanceEmail();
-    expect(sql).toContain("alter column customer_email drop not null");
-    expect(sql).toContain("drop constraint if exists b2c_payments_customer_email_requirement_check");
-    expect(sql).not.toContain("add constraint b2c_payments_customer_email_requirement_check");
-  });
-
   it("stores typed Stripe enrichment behind an Admin-only evidence boundary", () => {
-    const sql = migration("20260812105000_stripe_read_only_payment_enrichment.sql");
+    const sql = migration("20270101000200_b2c_foundation.sql");
 
     expect(sql).toContain("create table public.b2c_stripe_payment_details");
     expect(sql).toContain("payment_id uuid primary key");
@@ -349,8 +137,8 @@ describe("Phase 2 database migration contracts", () => {
   });
 
   it("enforces provider identity, Stripe=B2C, separate refunds, and refund overage protection", () => {
-    const b2c = migration("20260802100200_b2c_foundation.sql");
-    const b2b = migration("20260802100300_b2b_foundation.sql");
+    const b2c = migration("20270101000200_b2c_foundation.sql");
+    const b2b = migration("20270101000100_b2b_foundation.sql");
 
     expect(b2c).toContain("b2c_payments_provider_transaction_unique");
     expect(b2c).toContain("prevent_refund_overage");
@@ -359,15 +147,15 @@ describe("Phase 2 database migration contracts", () => {
   });
 
   it("keeps booking and recognised-sales storage separate and makes recognition manual", () => {
-    const b2b = migration("20260802100300_b2b_foundation.sql");
+    const b2b = migration("20270101000100_b2b_foundation.sql");
     expect(b2b).toContain("create table public.b2b_bookings");
     expect(b2b).toContain("create table public.b2b_recognised_sales");
-    expect(b2b).toContain("or HubSpot trigger is permitted to manufacture recognised sales.");
+    expect(b2b).toContain("is permitted to manufacture one.");
     expect(b2b).toContain("validate_recognised_sale");
   });
 
   it("prevents recognised-sales entries from exceeding the linked deal total", () => {
-    const overageGuard = migration("20260804100000_prevent_b2b_recognised_sales_overage.sql");
+    const overageGuard = migration("20270101000100_b2b_foundation.sql");
 
     expect(overageGuard).toContain("for update");
     expect(overageGuard).toContain("sum(recognised_amount_usd)");
@@ -376,45 +164,47 @@ describe("Phase 2 database migration contracts", () => {
   });
 
   it("derives recognised USD amounts from the retained amount and exchange rate", () => {
-    const usdCalculation = migration("20260804110000_calculate_b2b_recognised_sales_usd.sql");
+    const usdCalculation = migration("20270101000100_b2b_foundation.sql");
 
     expect(usdCalculation).toContain("new.recognised_amount_usd := round(new.recognised_amount * new.exchange_rate_to_usd, 6)");
     expect(usdCalculation).toContain("USD recognised sales require an exchange rate of 1");
   });
 
   it("enables RLS without a permissive public read policy", () => {
-    const rls = migration("20260802100900_indexes_and_rls.sql");
-    expect(rls).toContain("enable row level security");
-    expect(rls).toContain("public.is_approved_user()");
-    expect(rls).toContain("public.is_admin()");
-    expect(rls).toContain("revoke all on all tables in schema public from anon");
-    expect(rls).not.toContain("using (true)");
+    // RLS/policy definitions live in each domain migration; the blanket
+    // anon-revoke safety net is asserted last in the cross-domain sweep.
+    const domain = migration("20270101000100_b2b_foundation.sql");
+    const sweep = migration("20270101000400_cross_domain_sweep.sql");
+    expect(domain).toContain("enable row level security");
+    expect(domain).toContain("public.is_approved_user()");
+    expect(domain).toContain("public.is_admin()");
+    expect(sweep).toContain("revoke all on all tables in schema public from anon");
+    expect(domain).not.toContain("using (true)");
+    expect(sweep).not.toContain("using (true)");
   });
 
   it("records database-triggered before/after audit history and report failure state", () => {
-    const audit = migration("20260802100600_audit_log.sql");
-    const reports = migration("20260802100800_reports.sql");
-    expect(audit).toContain("before_value jsonb");
-    expect(audit).toContain("after_value jsonb");
-    expect(audit).toContain("auth.uid()");
-    expect(reports).toContain("status <> 'failed'");
-    expect(reports).toContain("safe_error_summary is not null");
+    const sql = migration("20270101000300_finance_targets_reports.sql");
+    expect(sql).toContain("before_value jsonb");
+    expect(sql).toContain("after_value jsonb");
+    expect(sql).toContain("auth.uid()");
+    expect(sql).toContain("status <> 'failed'");
+    expect(sql).toContain("safe_error_summary is not null");
   });
 
   it("keeps uncorrected B2B source records out of reportable views and preserves local date corrections", () => {
-    const reportableDeals = migration("20260803120000_reportable_b2b_deals.sql");
-    const preserveLocalDate = migration("20260803123000_preserve_local_hubspot_close_date_corrections.sql");
+    const sql = migration("20270101000100_b2b_foundation.sql");
 
-    expect(reportableDeals).toContain("create or replace view public.reportable_b2b_deals");
-    expect(reportableDeals).toContain("d.financial_status = 'complete'");
-    expect(reportableDeals).toContain("d.duplicate_review_status in ('clear', 'include')");
-    expect(reportableDeals).toContain("d.hubspot_close_date is not null");
-    expect(preserveLocalDate).toContain("old.source_metadata ? 'local_close_date_correction_at'");
-    expect(preserveLocalDate).toContain("new.hubspot_close_date := old.hubspot_close_date");
+    expect(sql).toContain("create or replace view public.reportable_b2b_deals");
+    expect(sql).toContain("d.financial_status = 'complete'");
+    expect(sql).toContain("d.duplicate_review_status in ('clear', 'include')");
+    expect(sql).toContain("d.hubspot_close_date is not null");
+    expect(sql).toContain("old.source_metadata ? 'local_close_date_correction_at'");
+    expect(sql).toContain("new.hubspot_close_date := old.hubspot_close_date");
   });
 
   it("keeps HubSpot source history while allowing only audited local overrides or exclusions", () => {
-    const inlineWorkflow = migration("20260803130000_b2b_inline_admin_workflow.sql");
+    const inlineWorkflow = migration("20270101000100_b2b_foundation.sql");
     expect(inlineWorkflow).toContain("local_record_status in ('active', 'excluded')");
     expect(inlineWorkflow).toContain("create or replace function public.apply_hubspot_deal_local_override");
     expect(inlineWorkflow).toContain("create or replace function public.exclude_hubspot_deal_locally");
@@ -426,7 +216,7 @@ describe("Phase 2 database migration contracts", () => {
   });
 
   it("creates manual Finance B2B deals locally with separate bookings and no recognised-sales creation", () => {
-    const manualEntry = migration("20260803140000_manual_b2b_deal_entry.sql");
+    const manualEntry = migration("20270101000100_b2b_foundation.sql");
     expect(manualEntry).toContain("create or replace function public.create_manual_b2b_deal");
     expect(manualEntry).toContain("not public.is_admin()");
     expect(manualEntry).toContain("insert into public.b2b_bookings");
@@ -436,7 +226,7 @@ describe("Phase 2 database migration contracts", () => {
   });
 
   it("keeps possible B2C duplicates outside the generic flag-resolution path", () => {
-    const reviewQueueSafety = migration("20260810120000_review_queue_duplicate_safety.sql");
+    const reviewQueueSafety = migration("20270101000300_finance_targets_reports.sql");
 
     expect(reviewQueueSafety).toContain("flag_type = 'possible_duplicate'");
     expect(reviewQueueSafety).toContain("Possible duplicates must be decided through the dedicated duplicate workflow");
@@ -444,7 +234,7 @@ describe("Phase 2 database migration contracts", () => {
   });
 
   it("creates an Admin-only, atomic B2C payment duplicate-group workflow", () => {
-    const sql = migration("20260820111000_b2c_payment_duplicate_groups.sql");
+    const sql = migration("20270101000200_b2c_foundation.sql");
     expect(sql).toContain("create table public.b2c_payment_duplicate_groups");
     expect(sql).toContain("create table public.b2c_payment_duplicate_group_members");
     expect(sql).toContain("create or replace function public.open_b2c_payment_duplicate_group");
@@ -470,55 +260,39 @@ describe("Phase 2 database migration contracts", () => {
     expect(firstRowLock).toBeGreaterThan(-1);
     expect(advisoryLock).toBeLessThan(firstRowLock);
 
+    // Writer order was rebuilt in a single clean-slate file (previously each
+    // writer's mutex-before-lock fix landed in its own incremental
+    // migration); the ordering below reflects the current file's actual
+    // function order, not the old migration history.
     for (const [writer, nextWriter] of [
       ["create or replace function public.apply_stripe_product_mapping", "create or replace function public.apply_b2c_product_mapping"],
-      ["create or replace function public.apply_b2c_product_mapping", "create or replace function public.record_b2c_manual_bank_transfer"],
-      ["create or replace function public.apply_b2c_payment_local_correction", "-- Fail closed: historical flags"],
+      ["create or replace function public.apply_b2c_product_mapping", "create or replace function public.apply_b2c_payment_local_correction"],
+      ["create or replace function public.apply_b2c_payment_local_correction", "create or replace function public.include_b2c_payment_with_finance_exception"],
     ]) {
       const writerBody = sql.slice(sql.indexOf(writer), sql.indexOf(nextWriter));
       expect(writerBody.indexOf("pg_advisory_xact_lock(hashtext('b2c_payment_duplicate_workflow'))")).toBeGreaterThan(-1);
       expect(writerBody.indexOf("pg_advisory_xact_lock")).toBeLessThan(writerBody.indexOf("for update"));
     }
-
-    const paymentTrigger = sql.indexOf("create trigger open_b2c_payment_duplicate_group_after_payment_write");
-    expect(sql.lastIndexOf("create or replace function public.record_b2c_manual_bank_transfer")).toBeGreaterThan(paymentTrigger);
-    expect(sql.lastIndexOf("create or replace function public.apply_b2c_payment_local_correction")).toBeGreaterThan(paymentTrigger);
-  });
-
-  it("persists only exact provider-evidence links, immutably and Admin-only", () => {
-    const sql = migration("20260818110000_b2c_provider_evidence_links.sql");
-
-    expect(sql).toContain("create table public.b2c_provider_evidence_payment_links");
-    expect(sql).toContain("provider_evidence_id uuid not null unique references public.b2c_provider_evidence(id)");
-    expect(sql).toContain("match_state text not null default 'exact_match' check (match_state = 'exact_match')");
-    expect(sql).toContain("execute procedure public.prevent_b2c_finance_lineage_mutation()");
-    expect(sql).toContain("create policy admin_insert on public.b2c_provider_evidence_payment_links");
-    expect(sql).toContain("public.is_admin()");
-  });
-
-  it("permits immutable provider-evidence mismatches only with named comparison fields", () => {
-    const sql = migration("20260820110000_b2c_provider_evidence_mismatches.sql");
-
-    expect(sql).toContain("check (match_state in ('exact_match', 'mismatch'))");
-    expect(sql).toContain("add column if not exists mismatch_fields text[] not null default '{}'");
-    expect(sql).toContain("cardinality(mismatch_fields) > 0");
-    expect(sql).toContain("array['amount', 'currency', 'date', 'status']::text[]");
   });
 
   it("records a manual bank transfer only through one locked, re-validating RPC", () => {
-    const sql = migration("20260818113000_b2c_manual_bank_transfer_entry.sql");
+    const sql = migration("20270101000200_b2c_foundation.sql");
+    // Scope to the function body: the merged domain file also defines other
+    // RPCs (e.g. apply_b2c_product_mapping) that legitimately use a
+    // `p_source_system` parameter, which would otherwise collide with the
+    // "not present" assertions below.
+    const fn = sql.slice(
+      sql.indexOf("create or replace function public.record_b2c_manual_bank_transfer("),
+      sql.indexOf("create or replace function public.apply_stripe_product_mapping"),
+    );
 
-    expect(sql).toContain("create or replace function public.record_b2c_manual_bank_transfer");
-    expect(sql).toContain("pg_advisory_xact_lock(hashtext('b2c_manual_bank_transfer:'");
-    expect(sql).toContain("A manual bank transfer with this reference already exists");
-    expect(sql).toContain("This transfer matches an existing Payment Tracker bank-transfer record");
-    expect(sql).toContain("This transfer matches an unresolved Payment Tracker row awaiting review");
-    expect(sql).toContain("The reviewed bank transfer details changed since preview");
-    expect(sql).toContain("insert into public.review_flags");
-    expect(sql).toContain("'possible_duplicate'");
-    expect(sql).toContain("at time zone 'Asia/Bahrain'");
-    expect(sql).toContain("when unique_violation then");
-    expect(sql).not.toContain("p_source_system");
-    expect(sql).not.toContain("p_original_currency");
+    expect(fn).toContain("create or replace function public.record_b2c_manual_bank_transfer");
+    expect(fn).toContain("pg_advisory_xact_lock(hashtext('b2c_manual_bank_transfer:'");
+    expect(fn).toContain("A manual bank transfer with this reference already exists");
+    expect(fn).toContain("The reviewed bank transfer details changed since preview");
+    expect(fn).toContain("at time zone 'Asia/Bahrain'");
+    expect(fn).toContain("when unique_violation then");
+    expect(fn).not.toContain("p_source_system");
+    expect(fn).not.toContain("p_original_currency");
   });
 });

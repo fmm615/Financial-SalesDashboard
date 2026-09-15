@@ -93,7 +93,7 @@ generic review-flag resolution cannot make an open group reportable.
 
 ## B2C payment duplicate boundary
 
-`20260820111000_b2c_payment_duplicate_groups.sql` makes B2C content-duplicate
+`20270101000200_b2c_foundation.sql` makes B2C content-duplicate
 construction SQL-authoritative. A succeeded payment write (including a verified
 local correction) can open or extend one immutable payment duplicate group from
 effective e-mail, USD amount, category, business date, and the approved 48-hour
@@ -144,10 +144,10 @@ approved iOS/bank-transfer rows into `b2c_payments`. Stripe Charges and Tap
 statement CSV upload/evidence staging were removed earlier for the same
 reason: Stripe's and Tap's own APIs are now the sole source of truth for those
 two providers, and the sheet is no longer cross-referenced against them at
-all. `supabase/migrations/20260901100000_remove_payment_tracker_sheet_system.sql`
-is the single migration that drops every table, view, function, trigger, and
-enum type this system owned; every earlier migration file that created those
-objects is left untouched, per the project's additive-only migration history.
+all. `supabase/migrations/20270101000200_b2c_foundation.sql` is the B2C domain
+migration that creates the final schema directly; its header comment lists
+every table, view, function, trigger, and enum type this removed system would
+have owned and confirms none of them are created.
 
 There is an intentional functionality gap here: iOS and bank-transfer
 ingestion has no working intake path until the product owner designs and

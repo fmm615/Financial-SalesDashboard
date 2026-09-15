@@ -1,19 +1,21 @@
 /**
  * DATABASE TYPE SNAPSHOT
  *
- * Regenerate against a clean local Supabase database with:
- *   npm run supabase:types
+ * Hand-maintained to match `supabase/migrations/` exactly. `npm run
+ * supabase:types` runs the raw Supabase CLI generator, which produces a much
+ * more verbose, differently-shaped file (inline Row/Insert/Update objects, no
+ * shared Table<>/Uuid/Timestamp/Decimal helpers) that is NOT a drop-in
+ * replacement for this file's format -- running it and overwriting this file
+ * would break every import site that relies on the helper types below. Update
+ * this snapshot by hand alongside any migration change instead.
  *
  * Do not use these raw rows in UI components. Map them through a repository or
- * domain type first. Regeneration will replace this Phase 2 checked-in snapshot.
+ * domain type first.
  *
- * Hand-edited for the Payment Tracker removal migration
- * (supabase/migrations/20260901100000_remove_payment_tracker_sheet_system.sql):
- * every table/view/function/enum that migration drops was removed from this
- * snapshot by hand, since `npm run supabase:types` could not be run against a
- * live database in this environment. Regenerate this file against a real
- * Supabase instance at the next opportunity to confirm it matches the actual
- * post-migration schema exactly.
+ * This snapshot was the authoritative reference the clean from-scratch
+ * migration rebuild (`20270101000000_foundation_and_access.sql` through
+ * `20270101000400_cross_domain_sweep.sql`) was built to match, replacing the
+ * previous 79 incrementally-accumulated migration files.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];

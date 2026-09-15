@@ -1,4 +1,46 @@
--- Only the two approved roles exist in this rebuild: admin and viewer.
+-- Clean-slate consolidated migration (Task 1 of 4): extensions, shared enums,
+-- the generic updated_at trigger, and the profiles/roles/approved_users/
+-- profile_roles access model. Every other domain migration depends on the
+-- enums and functions created here and must be applied after this one.
+--
+-- Deliberately NOT included here (handled by a final cross-cutting sweep
+-- migration once every domain's tables exist, mirroring how the original
+-- schema always treated this as a late step):
+--   * audit trigger attachment (public.write_audit_event(), owned by the
+--     Finance/Targets/Reports/Audit domain) on approved_users/profile_roles
+--   * schema-wide blanket grants/revokes (`grant select on all tables in
+--     schema public to authenticated`, etc.)
+
+create extension if not exists pgcrypto;
+create extension if not exists citext;
+
+create type public.access_role as enum ('admin', 'viewer');
+create type public.review_flag_type as enum (
+  'refunded',
+  'failed',
+  'possible_duplicate',
+  'unmapped_product',
+  'needs_follow_up',
+  'needs_fx_review'
+);
+create type public.review_flag_status as enum ('open', 'resolved', 'dismissed');
+create type public.backfill_status as enum ('not_started', 'partial', 'complete', 'unavailable');
+create type public.integration_status as enum ('pending', 'processing', 'completed', 'failed', 'cancelled');
+create type public.report_type as enum ('monthly', 'quarterly', 'annual', 'ad_hoc');
+create type public.report_job_status as enum ('pending', 'processing', 'completed', 'failed', 'cancelled');
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = timezone('utc', now());
+  return new;
+end;
+$$;
+
+-- Only the two approved roles exist in this schema: admin and viewer.
 
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -138,3 +180,30 @@ create trigger set_profiles_updated_at
 create trigger set_approved_users_updated_at
   before update on public.approved_users
   for each row execute procedure public.set_updated_at();
+
+-- RLS: every table here has it enabled and only the policies below.
+alter table public.profiles enable row level security;
+alter table public.roles enable row level security;
+alter table public.approved_users enable row level security;
+alter table public.profile_roles enable row level security;
+
+create policy profiles_read_approved on public.profiles for select to authenticated using (public.is_approved_user());
+create policy roles_read_approved on public.roles for select to authenticated using (public.is_approved_user());
+create policy profile_roles_read_own_or_admin on public.profile_roles for select to authenticated
+  using (profile_id = auth.uid() or public.is_admin());
+create policy approved_users_read_admin on public.approved_users for select to authenticated using (public.is_admin());
+
+create policy approved_users_insert_admin on public.approved_users for insert to authenticated with check (public.is_admin());
+create policy approved_users_update_admin on public.approved_users for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy profile_roles_insert_admin on public.profile_roles for insert to authenticated with check (public.is_admin());
+create policy profile_roles_update_admin on public.profile_roles for update to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy profile_roles_delete_admin on public.profile_roles for delete to authenticated using (public.is_admin());
+
+-- Table-specific grants (the schema-wide `grant select on all tables in schema
+-- public to authenticated` baseline is applied once, later, by the final
+-- cross-cutting sweep migration after every domain's tables exist).
+grant insert, update on table public.approved_users to authenticated;
+grant insert, update, delete on table public.profile_roles to authenticated;
+
+revoke all on function public.handle_new_auth_user() from public;
+grant execute on function public.current_profile_id(), public.is_approved_user(), public.is_admin() to authenticated;

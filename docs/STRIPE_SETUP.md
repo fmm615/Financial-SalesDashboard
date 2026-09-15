@@ -84,14 +84,11 @@ Review Queue item, or drawer action. Duplicates, failed payments, refunds, and
 other active review conditions remain visible for traceability.
 
 Existing product mappings, mapping functions, classifications, and historical
-`unmapped_product` flags are read-only audit history. After merged code is
-deployed, manually run these migrations in order in Supabase SQL Editor:
-
-1. `supabase/migrations/20260824150000_retire_b2c_product_mapping_requirement.sql`
-2. `supabase/migrations/20260824151000_preserve_retired_unmapped_product_flag_history.sql`
-
-Confirm both succeed before relying on this behavior. Do not run `supabase db
-push` for this change.
+`unmapped_product` flags are read-only audit history. The retired mapping
+requirement and the preservation of historical `unmapped_product` flags are
+both part of `supabase/migrations/20270101000200_b2c_foundation.sql`, the B2C
+domain migration; applying the standard migration set already gives you this
+behavior.
 
 The daily job should call `/api/internal/reconcile/stripe` with the `Authorization: Bearer <INTEGRATION_CRON_SECRET>` header. It re-reads the last 48 hours, using provider IDs and content fingerprints to avoid double-counting.
 

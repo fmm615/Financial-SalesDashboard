@@ -79,9 +79,10 @@ tracking/canonicalization, Finance staging-row corrections/date-authority
 actions, and the Finance-to-ledger posting repository/RPC. Tap-statement and
 Stripe-Charges CSV upload/evidence-staging services were removed earlier for
 the same reason (Stripe's and Tap's own APIs are now the sole source of truth
-for those two providers). `supabase/migrations/20260901100000_remove_payment_tracker_sheet_system.sql`
-drops the corresponding database tables/views/functions/enums; no earlier
-migration file was edited or deleted. There is an intentional gap here: iOS
+for those two providers). `supabase/migrations/20270101000200_b2c_foundation.sql`
+is the B2C domain migration that creates the final schema directly and
+deliberately excludes the corresponding database tables/views/functions/enums;
+its header comment lists every excluded table. There is an intentional gap here: iOS
 and bank-transfer ingestion has no automated intake path until a new one is
 designed and built. Historical `b2c_payments` rows with
 `source_system = 'finance_tracker'` are untouched and remain reportable ledger
@@ -139,16 +140,23 @@ Provider-specific code and normalization.
 
 ### `supabase/migrations/`
 
-All database schema changes, additive-only: an existing migration file is
-never edited or deleted, even when a later migration removes what it created.
-`20260901100000_remove_payment_tracker_sheet_system.sql` is the single
-migration that drops the entire Payment Tracker workbook system (staging,
-provider-evidence-CSV staging, exact cross-tab duplicate grouping, lineage
-tracking, Finance staging-row actions, and Finance-to-ledger posting) plus the
-one Payment-Tracker-specific check inside `record_b2c_manual_bank_transfer`;
-every table/function/enum it drops was created across many earlier migration
-files (`20260812090000` through `20260820113000`) that remain in the repository
-unedited as history.
+All database schema changes, represented as five clean, domain-scoped
+migration files that create the final schema directly rather than replaying
+incremental history:
+
+- `20270101000000_foundation_and_access.sql` — extensions, shared enums,
+  `profiles`/`roles`/`approved_users`/`profile_roles`.
+- `20270101000100_b2b_foundation.sql` — all B2B tables/functions/RLS.
+- `20270101000200_b2c_foundation.sql` — all B2C tables/functions/RLS. Its
+  header comment documents that the entire Payment Tracker workbook system
+  (staging, provider-evidence-CSV staging, exact cross-tab duplicate
+  grouping, lineage tracking, Finance staging-row actions, and
+  Finance-to-ledger posting) is deliberately excluded rather than created and
+  then dropped.
+- `20270101000300_finance_targets_reports.sql` — Finance/Targets/Summit/Review
+  Queue/Audit Log/Reports/Integration-tracking tables.
+- `20270101000400_cross_domain_sweep.sql` — audit-trigger attachment and
+  baseline schema grants, applied last since it spans all four domains.
 
 ## Rule
 

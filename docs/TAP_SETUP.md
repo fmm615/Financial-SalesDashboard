@@ -13,15 +13,12 @@ TAP_PRODUCT_REFERENCE_METADATA_KEY=product_id
 
 The key must never use a `NEXT_PUBLIC_` prefix and must never be committed. Set the metadata key to the actual stable product reference sent by your Tap checkout. Use `product` only if Tap's direct product field is the stable reference you want to map.
 
-## 2. Run the database migration
+## 2. Database migration
 
-In Supabase SQL Editor run:
-
-```text
-supabase/migrations/20260805130000_tap_b2c_mapping.sql
-```
-
-This creates a local Tap product-mapping function and an index. It makes no connection to Tap and changes no Tap data.
+The local Tap product-mapping function and its supporting index are created
+by `supabase/migrations/20270101000200_b2c_foundation.sql`, the B2C domain
+migration; applying the standard migration set already gives you this
+behavior. It makes no connection to Tap and changes no Tap data.
 
 ## 3. Start the app and import
 

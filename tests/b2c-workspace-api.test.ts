@@ -91,7 +91,7 @@ describe("GET /api/b2c/workspace", () => {
     const retiredResponse = await GET(new NextRequest("http://localhost/api/b2c/workspace?issue=Unmapped%20product"));
 
     expect(retiredResponse.status).toBe(422);
-    for (const issue of ["Possible duplicate", "Failed", "Missing customer email", "Needs follow-up", "Needs FX review", "Refunded", "Tap statement unmatched", "none"]) {
+    for (const issue of ["Possible duplicate", "Failed", "Missing customer email", "Needs follow-up", "Needs FX review", "Refunded", "none"]) {
       const response = await GET(new NextRequest(`http://localhost/api/b2c/workspace?issue=${encodeURIComponent(issue)}`));
       expect(response.status).toBe(200);
     }
