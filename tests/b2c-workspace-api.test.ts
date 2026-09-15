@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: mocks.getApprovedRole }));
+vi.mock("@/lib/auth/access", () => ({ getApprovedRole: mocks.getApprovedRole, getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
 vi.mock("@/server/repositories/b2c-ledger-repository", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   SupabaseB2cLedgerRepository: class {

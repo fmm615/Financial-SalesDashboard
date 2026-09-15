@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { firstValidationMessage, reportRequestSchema } from "@/lib/validation/financial-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createDraftReportJob, getDraftReportArchive } from "@/server/services/process-draft-report";
 
 export async function GET() {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || !await getApprovedRole(client, user.id)) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   try {
     return NextResponse.json({ reports: await getDraftReportArchive(client) });
@@ -18,7 +18,7 @@ export async function GET() {
 /** Queues an isolated draft report. It intentionally has no provider financial data. */
 export async function POST(request: NextRequest) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || await getApprovedRole(client, user.id) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   const parsed = reportRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: firstValidationMessage(parsed.error) }, { status: 422 });

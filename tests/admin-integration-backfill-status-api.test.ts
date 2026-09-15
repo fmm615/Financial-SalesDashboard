@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: mocks.getApprovedRole }));
+vi.mock("@/lib/auth/access", () => ({ getApprovedRole: mocks.getApprovedRole, getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
 vi.mock("@/server/repositories/integration-run-summary-repository", () => ({
   IntegrationRunSummaryRepository: class {
     listLatestHistoricalBackfills = mocks.listLatestHistoricalBackfills;

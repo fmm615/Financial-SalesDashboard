@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { b2cReviewResolutionSchema } from "@/lib/validation/b2c-review-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 /** Resolves a local B2C review task with an auditable Admin note; Stripe is untouched. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ flagId: string }> }) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || await getApprovedRole(client, user.id) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }

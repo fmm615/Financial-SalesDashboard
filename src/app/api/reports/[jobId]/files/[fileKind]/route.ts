@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const paramsSchema = z.object({ jobId: z.string().uuid(), fileKind: z.enum(["pdf", "csv_bundle"]) });
 
 export async function GET(_: NextRequest, context: { params: Promise<{ jobId: string; fileKind: string }> }) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || !await getApprovedRole(client, user.id)) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   const parsed = paramsSchema.safeParse(await context.params);
   if (!parsed.success) return NextResponse.json({ error: "Invalid report file." }, { status: 422 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { HubSpotClient } from "@/lib/integrations/hubspot/client";
 import { getHubSpotConfig } from "@/lib/integrations/hubspot/config";
 import { createServerSupabaseClient, createServiceDatabaseClient } from "@/lib/supabase/server";
@@ -16,7 +16,7 @@ const backfillRequestSchema = z.object({
 /** Starts or resumes one bounded, read-only page of the all-history B2B import. */
 export async function POST(request: NextRequest) {
   const sessionClient = await createServerSupabaseClient();
-  const { data: { user } } = await sessionClient.auth.getUser();
+  const { data: { user } } = await getSessionUser(sessionClient);
   if (!user || await getApprovedRole(sessionClient, user.id) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }

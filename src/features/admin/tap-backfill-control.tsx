@@ -16,8 +16,14 @@ export function TapBackfillControl({ onRunSettled }: { onRunSettled?: () => void
       let next: BackfillResult | null = null;
       do {
         const response = await fetch("/api/admin/tap/backfill", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
-        const body = await response.json() as BackfillResult & { error?: string };
-        if (!response.ok || !("runId" in body)) throw new Error(body.error ?? "Tap backfill could not be completed.");
+        const rawBody = await response.text();
+        let body: (BackfillResult & { error?: string }) | null;
+        try {
+          body = rawBody ? JSON.parse(rawBody) as BackfillResult & { error?: string } : null;
+        } catch {
+          throw new Error("The page took too long and was interrupted. Progress up to the last page is saved -- click the button again to resume.");
+        }
+        if (!response.ok || !body || !("runId" in body)) throw new Error(body?.error ?? "Tap backfill could not be completed.");
         next = body; setResult(next);
         if (next.hasMore) await new Promise((resolve) => window.setTimeout(resolve, 300));
       } while (next.hasMore);

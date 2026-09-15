@@ -13,7 +13,7 @@ const repositoryMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn() }));
+vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn(), getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
 vi.mock("@/server/repositories/b2c-payment-duplicate-repository", () => ({
   B2cPaymentDuplicateRepository: vi.fn().mockImplementation(() => repositoryMocks),
 }));

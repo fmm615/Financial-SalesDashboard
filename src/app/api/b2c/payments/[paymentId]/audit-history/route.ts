@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 /**
@@ -13,7 +13,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ paymentId: string }> }) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || !(await getApprovedRole(client, user.id))) {
     return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   }

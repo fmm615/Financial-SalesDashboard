@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { b2cWorkspaceLedgerQuerySchema } from "@/lib/validation/b2c-workspace-contracts";
 import { SupabaseB2cLedgerRepository, type B2cDecoratedLedgerRow, type B2cLedgerPage } from "@/server/repositories/b2c-ledger-repository";
@@ -27,7 +27,7 @@ function toSafeLedgerRow(row: B2cDecoratedLedgerRow): SafeLedgerRow {
 
 export async function GET(request: NextRequest) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
 
   const role = await getApprovedRole(client, user.id);

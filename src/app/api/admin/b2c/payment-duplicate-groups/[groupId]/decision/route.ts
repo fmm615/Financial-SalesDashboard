@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { b2cPaymentDuplicateDecisionSchema } from "@/lib/validation/b2c-payment-duplicate-contracts";
 import { B2cPaymentDuplicateRepository } from "@/server/repositories/b2c-payment-duplicate-repository";
@@ -11,7 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ groupId: string }> },
 ) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || await getApprovedRole(client, user.id) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }

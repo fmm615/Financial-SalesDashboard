@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import type { Database } from "@/types/database.generated";
 
 const PUBLIC_PATHS = new Set(["/login", "/access-denied", "/session-loading"]);
@@ -41,7 +41,10 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSessionUser re-verifies the session against Supabase's auth server on
+  // every request and retries a run of dropped connections (see its doc
+  // comment) before this falls back to treating the caller as signed out.
+  const { data: { user } } = await getSessionUser(supabase);
   if (!user) return PUBLIC_PATHS.has(pathname) ? response : redirectWithSessionCookies(response, request, "/login");
 
   const role = await getApprovedRole(supabase, user.id);

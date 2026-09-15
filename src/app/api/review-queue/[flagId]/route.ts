@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { reviewQueueFlagIdSchema } from "@/lib/validation/review-queue-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SupabaseReviewQueueRepository } from "@/server/repositories/review-queue-repository";
@@ -8,7 +8,7 @@ import { createReviewQueueService } from "@/server/services/review-queue";
 /** Returns retained review history for one approved-user-visible flag. */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ flagId: string }> }) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || !await getApprovedRole(client, user.id)) {
     return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   }

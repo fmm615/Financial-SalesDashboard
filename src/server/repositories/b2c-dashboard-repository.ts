@@ -1,6 +1,7 @@
 import { b2cPaymentExclusionReasons, isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import { resolveB2cSourceCoverage, type B2cSourceCoverage } from "@/lib/b2c/source-coverage";
 import { resolveEffectiveB2cPayment } from "@/lib/b2c/effective-payment";
+import { retryTransient } from "@/lib/resilience";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 /**
@@ -324,9 +325,8 @@ function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
  * per-payment duplicate state from the approved reporting RPC.
  * Refunds remain separate source records and reduce only the net-payment metric.
  */
-export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
-  const period = resolveB2cReportingPeriod(selectedMonth, today);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, duplicateReportingStatesResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = await Promise.all([
+function loadB2cSnapshotResults(client: DatabaseClient) {
+  return Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,category_code,membership_tier,payment_status,original_amount,original_currency,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,original_amount,original_currency,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
     client.from("review_flags").select("id,source_area,source_record_id,flag_type,reason").eq("source_area", "b2c_payment").eq("status", "open"),
@@ -343,7 +343,20 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "tap").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "tap").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (paymentsResult.error ?? refundsResult.error ?? paymentFlagsResult.error ?? refundFlagsResult.error ?? localOverridesResult.error ?? paymentFxConversionsResult.error ?? refundFxConversionsResult.error ?? financeExceptionResult.error ?? duplicateReportingStatesResult.error ?? stripeContactFallbacksResult.error ?? stripeEvidenceResult.error ?? stripeHistoricalResult.error ?? stripeReconciliationResult.error ?? tapHistoricalResult.error ?? tapReconciliationResult.error) {
+}
+
+function hasSnapshotError(results: Awaited<ReturnType<typeof loadB2cSnapshotResults>>): boolean {
+  return results.some((result) => result.error);
+}
+
+export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
+  const period = resolveB2cReportingPeriod(selectedMonth, today);
+  // 15 independent queries run concurrently, so a single dropped connection
+  // on any one of them previously failed the entire dashboard. Retrying the
+  // whole batch absorbs a run of flaky round trips before giving up for real.
+  const results = await retryTransient(() => loadB2cSnapshotResults(client), hasSnapshotError);
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, duplicateReportingStatesResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = results;
+  if (hasSnapshotError(results)) {
     throw new Error("Could not load B2C source records.");
   }
 
@@ -529,10 +542,17 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
 
   const rows: B2cLedgerRow[] = [
     ...payments.filter((payment) => isInB2cPeriod(effectivePayment(payment).occurredOn, period)).map((payment) => {
-      const reviewFlags = (flagsByRecord.get(payment.id) ?? []).map((flag) => ({ id: flag.id, type: reviewFlagLabel(flag), reason: flag.reason }));
       const effective = effectivePayment(payment);
       const conversion = latestPaymentFxConversionByPayment.get(payment.id);
       const displayContact = resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id));
+      // A "missing customer email" flag is opened once, at first sync, and
+      // nothing ever closes it after a later re-sync/enrichment backfills the
+      // email (see stripe-sync-repository.ts persistCharge). Re-checking the
+      // live displayed email here -- exactly like the reportability check in
+      // payment-reportability.ts already does -- keeps the badge from lying
+      // about a payment whose email is now clearly visible in this same row.
+      const paymentFlags = (flagsByRecord.get(payment.id) ?? []).filter((flag) => !isMissingCustomerEmailFlag(flag) || !displayContact.customerEmail);
+      const reviewFlags = paymentFlags.map((flag) => ({ id: flag.id, type: reviewFlagLabel(flag), reason: flag.reason }));
       const stripeEvidence = payment.source_system === "stripe" ? stripeEvidenceByPayment.get(payment.id) ?? {
         originalAmount: payment.original_amount,
         originalCurrency: payment.original_currency,
@@ -582,7 +602,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       hasOpenPaymentDuplicate: openDuplicatePaymentIds.has(payment.id),
       hasDuplicateExclusion: excludedDuplicatePaymentIds.has(payment.id),
       openReviewFlags: reviewFlags,
-      issue: flagLabel(flagsByRecord.get(payment.id) ?? []),
+      issue: flagLabel(paymentFlags),
     };
     }),
     ...refunds.filter((refund) => {

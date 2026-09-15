@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { HubSpotClient } from "@/lib/integrations/hubspot/client";
 import { getHubSpotConfig } from "@/lib/integrations/hubspot/config";
 import { createServerSupabaseClient, createServiceDatabaseClient } from "@/lib/supabase/server";
@@ -16,7 +16,7 @@ function safeConfigurationMessage(error: unknown): string {
 /** An Admin-only operator retry. Scheduled reconciliation uses the separate internal route. */
 export async function POST() {
   const sessionClient = await createServerSupabaseClient();
-  const { data: { user } } = await sessionClient.auth.getUser();
+  const { data: { user } } = await getSessionUser(sessionClient);
   if (!user || await getApprovedRole(sessionClient, user.id) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }

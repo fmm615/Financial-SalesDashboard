@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { TapClient } from "@/lib/integrations/tap/client";
 import { getTapConfig } from "@/lib/integrations/tap/config";
 import { createServerSupabaseClient, createServiceDatabaseClient } from "@/lib/supabase/server";
@@ -8,6 +8,9 @@ import { SupabaseTapSyncRepository } from "@/server/repositories/stripe-sync-rep
 import { runTapHistoricalBackfillBatch } from "@/server/services/sync-tap";
 
 export const runtime = "nodejs";
+// Give this the full 60s a Vercel serverless function can run so a slow page
+// doesn't get killed mid-request and return an HTML error page instead of JSON.
+export const maxDuration = 60;
 const backfillRequestSchema = z.object({ restartCompleted: z.boolean().optional() });
 
 function safeTapErrorDetail(error: unknown): string {
@@ -21,7 +24,7 @@ function safeTapErrorDetail(error: unknown): string {
 /** Starts/resumes a bounded, persisted, read-only Tap history import. */
 export async function POST(request: NextRequest) {
   const sessionClient = await createServerSupabaseClient();
-  const { data: { user } } = await sessionClient.auth.getUser();
+  const { data: { user } } = await getSessionUser(sessionClient);
   if (!user || await getApprovedRole(sessionClient, user.id) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   const parsed = backfillRequestSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Invalid historical backfill request." }, { status: 422 });

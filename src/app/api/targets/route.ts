@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET() {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || !await getApprovedRole(client, user.id)) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
 
   const [financial, operational, progress] = await Promise.all([

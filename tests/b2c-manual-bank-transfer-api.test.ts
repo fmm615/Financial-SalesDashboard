@@ -7,7 +7,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { previewManualBankTransfer, recordManualBankTransfer } from "@/server/services/record-manual-bank-transfer";
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn() }));
+vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn(), getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
 vi.mock("@/server/services/record-manual-bank-transfer", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/services/record-manual-bank-transfer")>();
   return { ...actual, previewManualBankTransfer: vi.fn(), recordManualBankTransfer: vi.fn() };

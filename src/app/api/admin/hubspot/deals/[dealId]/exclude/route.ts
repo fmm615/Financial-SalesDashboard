@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hubSpotDealExclusionSchema } from "@/lib/validation/hubspot-review-contracts";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { z } from "zod";
 /** Excludes a source deal locally with an audit reason; it never deletes HubSpot data. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ dealId: string }> }) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || await getApprovedRole(client, user.id) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
 
   const body = await request.json().catch(() => null);

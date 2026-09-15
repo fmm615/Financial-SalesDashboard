@@ -68,7 +68,13 @@ export class StripeClient {
   }
 
   private async listPage(resource: "charges" | "refunds", cursor?: string, since?: Date): Promise<StripePage> {
-    const query = new URLSearchParams({ limit: "100" });
+    // Historical backfill enriches each charge with up to 5 further Stripe
+    // calls (checkout/invoice/payment method/customer/balance transaction),
+    // done sequentially per page. A 100-record page can take minutes, which
+    // exceeds a serverless function's execution limit; 20 keeps a worst-case
+    // page comfortably inside it. The 48-hour reconciliation path also uses
+    // this page size (via listSince), which only shortens its internal loop.
+    const query = new URLSearchParams({ limit: "20" });
     if (since) query.set("created[gte]", String(Math.floor(since.getTime() / 1000)));
     if (cursor) query.set("starting_after", cursor);
     const response = await this.request(`/v1/${resource}?${query.toString()}`) as StripeListResponse;

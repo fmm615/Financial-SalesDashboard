@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { StripeClient } from "@/lib/integrations/stripe/client";
 import { getStripeConfig } from "@/lib/integrations/stripe/config";
 import { createServerSupabaseClient, createServiceDatabaseClient } from "@/lib/supabase/server";
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
 /** An Admin-only on-demand retry; scheduled reconciliation uses the internal route. */
 export async function POST() {
   const sessionClient = await createServerSupabaseClient();
-  const { data: { user } } = await sessionClient.auth.getUser();
+  const { data: { user } } = await getSessionUser(sessionClient);
   if (!user || await getApprovedRole(sessionClient, user.id) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   let config;
   try { config = getStripeConfig(); } catch { return NextResponse.json({ error: "Stripe configuration is incomplete." }, { status: 422 }); }

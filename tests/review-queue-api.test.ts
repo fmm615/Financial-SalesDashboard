@@ -9,7 +9,7 @@ import { getApprovedRole } from "@/lib/auth/access";
 const mocks = vi.hoisted(() => ({ listFlags: vi.fn(), getFlagDetail: vi.fn() }));
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn() }));
+vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn(), getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
 vi.mock("@/server/repositories/review-queue-repository", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/repositories/review-queue-repository")>();
   return {

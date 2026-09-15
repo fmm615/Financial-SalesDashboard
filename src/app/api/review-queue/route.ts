@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole } from "@/lib/auth/access";
+import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { reviewQueueListQuerySchema } from "@/lib/validation/review-queue-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SupabaseReviewQueueRepository } from "@/server/repositories/review-queue-repository";
@@ -14,7 +14,7 @@ function validationErrorMessage(issue: { path: PropertyKey[]; message: string } 
 /** Returns approved-user-visible review metadata; source values remain in their bounded workflows. */
 export async function GET(request: NextRequest) {
   const client = await createServerSupabaseClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSessionUser(client);
   if (!user || !await getApprovedRole(client, user.id)) {
     return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   }
