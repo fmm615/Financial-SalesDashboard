@@ -28,12 +28,11 @@ export const b2cPaymentLocalCorrectionSchema = z.object({
   customerName: optionalVerifiedText(200, "Customer name"),
   customerEmail: z.string().trim().toLowerCase().email("Enter a valid customer email.").max(320).optional(),
   customerPhone: z.string().trim().regex(/^[0-9+().\-\s]{5,40}$/, "Enter a valid customer mobile number.").refine((value) => !isPlaceholder(value), "Customer mobile cannot be a placeholder dash.").optional(),
-  categoryCode: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]*$/, "Use lowercase letters, numbers, hyphens, or underscores.").max(100).refine((value) => value !== "unmapped", "Enter a verified PLAYBOOK category, not unmapped.").optional(),
   membershipTier: optionalVerifiedText(100, "Plan or tier"),
   amountUsd: optionalUsdAmount,
   occurredOn: optionalBusinessDate,
   reason: requiredAuditReason,
-}).strict().refine((value) => Boolean(value.customerName || value.customerEmail || value.customerPhone || value.categoryCode || value.membershipTier || value.amountUsd || value.occurredOn), {
+}).strict().refine((value) => Boolean(value.customerName || value.customerEmail || value.customerPhone || value.membershipTier || value.amountUsd || value.occurredOn), {
   message: "Enter at least one verified local correction.",
   path: ["customerName"],
 });

@@ -20,7 +20,6 @@ export type B2cLedgerQuery = {
   issue?: NonNullable<B2cLedgerRow["issue"]> | "none";
   dateFrom?: string;
   dateTo?: string;
-  category?: string;
   foreignCurrencyOnly?: boolean;
   currency?: string;
   minAmountUsd?: string;
@@ -40,7 +39,6 @@ export type B2cLedgerPage = {
 /** Safe values/counts for filters across the selected period, before the active page query is applied. */
 export type B2cLedgerFilterMetadata = {
   sources: string[];
-  categories: string[];
   issues: NonNullable<B2cLedgerRow["issue"]>[];
   foreignCurrencyCount: number;
 };
@@ -94,7 +92,6 @@ function matchesQuery(row: B2cDecoratedLedgerRow, query: B2cLedgerQuery): boolea
   if (query.issue === "none" ? row.issue !== null : query.issue && row.issue !== query.issue) return false;
   if (query.dateFrom && row.dateValue < query.dateFrom) return false;
   if (query.dateTo && row.dateValue > query.dateTo) return false;
-  if (query.category && row.category !== query.category) return false;
   if (query.foreignCurrencyOnly && !row.foreignCurrencyReview) return false;
   if (query.currency && (row.sourceOriginalCurrency ?? "USD") !== query.currency) return false;
   const absoluteAmountUsd = row.amountValueUsd === null ? null : Math.abs(Number(row.amountValueUsd));
@@ -122,7 +119,6 @@ function sortRows(rows: B2cDecoratedLedgerRow[], sort: B2cLedgerSort): B2cDecora
 function buildFilterMetadata(rows: B2cDecoratedLedgerRow[]): B2cLedgerFilterMetadata {
   return {
     sources: [...new Set(rows.map((row) => row.source))].sort(),
-    categories: [...new Set(rows.map((row) => row.category))].sort(),
     issues: [...new Set(rows.flatMap((row) => row.issue ? [row.issue] : []))].sort(),
     foreignCurrencyCount: rows.filter((row) => row.foreignCurrencyReview).length,
   };

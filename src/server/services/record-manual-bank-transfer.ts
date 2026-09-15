@@ -12,7 +12,6 @@ export type PreparedManualBankTransfer = {
   bankReference: string;
   customerEmail: string;
   customerName: string;
-  categoryCode: string;
   membershipTier: string | null;
   /** Canonicalized to exactly six decimal places. */
   amountUsd: string;
@@ -61,7 +60,6 @@ export function prepareManualBankTransfer(input: ManualBankTransferRequest): Pre
     bankReference: input.bankReference.trim(),
     customerEmail: input.customerEmail.trim().toLowerCase(),
     customerName: input.customerName.trim(),
-    categoryCode: input.categoryCode.trim(),
     membershipTier: input.membershipTier?.trim() || null,
     amountUsd: canonicalAmount(input.amountUsd),
     receivedAtRaw: input.receivedAt.trim(),
@@ -81,7 +79,6 @@ export function hashPreparedManualBankTransfer(prepared: PreparedManualBankTrans
     prepared.bankReference,
     prepared.customerEmail,
     prepared.customerName,
-    prepared.categoryCode,
     prepared.membershipTier ?? "",
     prepared.amountUsd,
     prepared.receivedAtRaw,

@@ -26,7 +26,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     p_customer_name: parsed.data.customerName ?? null,
     p_customer_email: parsed.data.customerEmail ?? null,
     p_customer_phone: parsed.data.customerPhone ?? null,
-    p_category_code: parsed.data.categoryCode ?? null,
     p_membership_tier: parsed.data.membershipTier ?? null,
     p_local_amount_usd: parsed.data.amountUsd ?? null,
     p_local_occurred_on: parsed.data.occurredOn ?? null,

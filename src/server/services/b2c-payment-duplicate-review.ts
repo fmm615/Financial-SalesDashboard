@@ -13,8 +13,6 @@ export type B2cPaymentDuplicateMemberReview = {
   sourceAmount: string;
   sourceCurrency: string;
   effectiveAmountUsd: string;
-  sourceCategoryCode: string | null;
-  effectiveCategoryCode: string;
   sourceOccurredOn: string | null;
   effectiveOccurredOn: string;
 };
@@ -58,10 +56,6 @@ export function toB2cPaymentDuplicateGroupReview(
       sourceCurrency: payment.original_currency,
       effectiveAmountUsd: requireComparisonFact(
         payment.local_override?.local_amount_usd ?? payment.amount_usd,
-      ),
-      sourceCategoryCode: payment.category_code,
-      effectiveCategoryCode: requireComparisonFact(
-        payment.local_override?.category_code ?? payment.category_code,
       ),
       sourceOccurredOn: payment.occurred_on,
       effectiveOccurredOn: requireComparisonFact(

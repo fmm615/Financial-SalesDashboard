@@ -15,7 +15,9 @@
  * This snapshot was the authoritative reference the clean from-scratch
  * migration rebuild (`20270101000000_foundation_and_access.sql` through
  * `20270101000400_cross_domain_sweep.sql`) was built to match, replacing the
- * previous 79 incrementally-accumulated migration files.
+ * previous 79 incrementally-accumulated migration files. It has since been
+ * updated for `20270101000500_remove_b2c_category.sql`, which removed the B2C
+ * category concept and the product_mappings table.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -49,8 +51,6 @@ type B2cPaymentRow = {
   customer_email: string | null;
   customer_name: string | null;
   customer_phone: string | null;
-  product_mapping_id: Uuid | null;
-  category_code: string;
   membership_tier: string | null;
   payment_status: "succeeded" | "failed" | "pending";
   original_amount: Decimal;
@@ -195,10 +195,6 @@ export interface Database {
       profile_roles: Table<{ profile_id: Uuid; role_id: Uuid; assigned_at: Timestamp; assigned_by: Uuid | null }>;
       customers: Table<{ id: Uuid; email: string; full_name: string | null; created_at: Timestamp; updated_at: Timestamp }>;
       products: Table<{ id: Uuid; internal_code: string; name: string; active: boolean; created_at: Timestamp; updated_at: Timestamp }>;
-      product_mappings: Table<{
-        id: Uuid; source_system: "stripe" | "tap"; external_product_id: string; product_id: Uuid; category_code: string;
-        membership_tier: string | null; created_by: Uuid; updated_by: Uuid; created_at: Timestamp; updated_at: Timestamp;
-      }>;
       b2c_payments: Table<B2cPaymentRow>;
       b2c_payment_duplicate_groups: Table<{
         id: Uuid;
@@ -223,7 +219,7 @@ export interface Database {
       b2c_stripe_refund_details: Table<B2cStripeRefundDetailsRow>;
       b2c_payment_local_overrides: Table<{
         payment_id: Uuid; customer_name: string | null; customer_email: string | null; customer_phone: string | null;
-        category_code: string | null; membership_tier: string | null; local_amount_usd: Decimal | null; local_occurred_on: string | null; created_by: Uuid; updated_by: Uuid;
+        membership_tier: string | null; local_amount_usd: Decimal | null; local_occurred_on: string | null; created_by: Uuid; updated_by: Uuid;
         created_at: Timestamp; updated_at: Timestamp;
       }>;
       b2c_payment_finance_exception_decisions: Table<{
@@ -317,14 +313,6 @@ export interface Database {
       flag_hubspot_possible_duplicates: { Args: { p_deal_id: Uuid }; Returns: undefined };
       flag_manual_b2b_possible_duplicates: { Args: { p_deal_id: Uuid }; Returns: undefined };
       resolve_hubspot_duplicate_group: { Args: { p_group_id: Uuid; p_decision: string; p_keep_deal_id: Uuid | null; p_note: string }; Returns: undefined };
-      apply_stripe_product_mapping: {
-        Args: { p_external_product_id: string; p_internal_product_code: string; p_internal_product_name: string; p_category_code: string; p_membership_tier: string | null; p_reason: string };
-        Returns: Uuid;
-      };
-      apply_b2c_product_mapping: {
-        Args: { p_source_system: "stripe" | "tap"; p_external_product_id: string; p_internal_product_code: string; p_internal_product_name: string; p_category_code: string; p_membership_tier: string | null; p_reason: string };
-        Returns: Uuid;
-      };
       resolve_b2c_review_flag: { Args: { p_flag_id: Uuid; p_resolution_status: "resolved" | "dismissed"; p_resolution_note: string }; Returns: undefined };
       open_b2c_payment_duplicate_group: {
         Args: { p_payment_id: Uuid };
@@ -347,7 +335,7 @@ export interface Database {
         }>;
       };
       apply_b2c_payment_local_correction: {
-        Args: { p_payment_id: Uuid; p_customer_name: string | null; p_customer_email: string | null; p_customer_phone: string | null; p_category_code: string | null; p_membership_tier: string | null; p_local_amount_usd: Decimal | null; p_local_occurred_on: string | null; p_reason: string };
+        Args: { p_payment_id: Uuid; p_customer_name: string | null; p_customer_email: string | null; p_customer_phone: string | null; p_membership_tier: string | null; p_local_amount_usd: Decimal | null; p_local_occurred_on: string | null; p_reason: string };
         Returns: undefined;
       };
       include_b2c_payment_with_finance_exception: {
@@ -376,7 +364,7 @@ export interface Database {
       };
       record_b2c_manual_bank_transfer: {
         Args: {
-          p_bank_reference: string; p_customer_email: string; p_customer_name: string; p_category_code: string;
+          p_bank_reference: string; p_customer_email: string; p_customer_name: string;
           p_membership_tier: string | null; p_amount_usd_text: string; p_received_at_raw: string; p_reason: string;
           p_expected_input_sha256: string;
         };

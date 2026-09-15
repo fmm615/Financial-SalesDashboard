@@ -145,7 +145,7 @@ export class SupabaseB2cProviderSyncRepository {
 
   async persistCharge(input: NormalisedB2cProviderCharge & { providerEventId?: string; reconciliationSource?: string }): Promise<{ paymentId: string; inserted: boolean }> {
     const { data: existing, error: existingError } = await this.client.from("b2c_payments")
-      .select("id,provider_event_id,customer_email,customer_name,customer_phone,product_mapping_id,category_code,membership_tier,source_metadata").eq("source_system", this.provider).eq("provider_transaction_id", input.chargeId).maybeSingle();
+      .select("id,provider_event_id,customer_email,customer_name,customer_phone,membership_tier,source_metadata").eq("source_system", this.provider).eq("provider_transaction_id", input.chargeId).maybeSingle();
     if (existingError) throw new Error(`Could not check existing ${this.providerLabel} charge: ${existingError.message}`);
 
     const existingMetadata = existing?.source_metadata && typeof existing.source_metadata === "object" && !Array.isArray(existing.source_metadata) ? existing.source_metadata as Record<string, unknown> : {};
@@ -164,13 +164,10 @@ export class SupabaseB2cProviderSyncRepository {
     const mergedEmail = mergeContact(existing?.customer_email, input.customerEmail, existingMetadata.customer_email_source, input.sourceMetadata.customer_email_source);
     const mergedPhone = mergeContact(existing?.customer_phone, input.customerPhone, existingMetadata.customer_phone_source, input.sourceMetadata.customer_phone_source);
     const customerId = mergedEmail.value ? await this.upsertCustomer(mergedEmail.value, mergedName.value) : null;
-    // Provider product references are source context. Retain a local Admin
-    // classification on redelivery, but do not infer one from provider text.
-    const categoryCode = existing?.category_code ?? "unmapped";
-    const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: mergedEmail.value, amountUsd: input.amountUsd ?? input.originalAmount, originalCurrency: input.originalCurrency, categoryCode, occurredOn: input.occurredOn, providerTransactionId: input.chargeId });
+    const duplicateFingerprint = createB2cDuplicateFingerprint({ customerEmail: mergedEmail.value, amountUsd: input.amountUsd ?? input.originalAmount, originalCurrency: input.originalCurrency, occurredOn: input.occurredOn, providerTransactionId: input.chargeId });
     const values = {
       source_system: this.provider, provider_transaction_id: input.chargeId, provider_event_id: input.providerEventId ?? existing?.provider_event_id ?? null,
-      customer_id: customerId, customer_email: mergedEmail.value, customer_name: mergedName.value, customer_phone: mergedPhone.value, product_mapping_id: existing?.product_mapping_id ?? null, category_code: categoryCode,
+      customer_id: customerId, customer_email: mergedEmail.value, customer_name: mergedName.value, customer_phone: mergedPhone.value,
       membership_tier: existing?.membership_tier ?? input.sourceMetadata.provider_plan_name ?? null, payment_status: input.paymentStatus, original_amount: input.originalAmount,
       original_currency: input.originalCurrency, exchange_rate_to_usd: input.exchangeRateToUsd, amount_usd: input.amountUsd, gross_amount_usd: input.amountUsd,
       tax_amount_usd: null, net_amount_usd: null, occurred_at: input.occurredAt, occurred_on: input.occurredOn, duplicate_fingerprint: duplicateFingerprint,

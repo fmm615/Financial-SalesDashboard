@@ -10,7 +10,7 @@ const nonEmpty = z.string().trim().min(1);
 
 /**
  * Manual bank-transfer entry is USD-only in B2C v1: the browser supplies only
- * the seven required facts (plus an optional membership tier). It never
+ * the six required facts (plus an optional membership tier). It never
  * sends `sourceSystem`, status, original currency, exchange rate, gross/net/
  * tax amounts, duplicate fingerprint, actor, or reportability -- the server
  * derives `occurred_on` in Asia/Bahrain and stores currency `USD`, exchange
@@ -22,7 +22,6 @@ export const manualBankTransferSchema = z.object({
   bankReference: nonEmpty.max(200),
   customerEmail: z.string().trim().toLowerCase().email(),
   customerName: nonEmpty.max(200),
-  categoryCode: nonEmpty.max(100),
   membershipTier: z.string().trim().min(1).max(100).optional(),
   amountUsd: money,
   receivedAt: z.string().datetime({ offset: true }),

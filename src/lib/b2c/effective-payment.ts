@@ -7,7 +7,6 @@ export type B2cPaymentSourceValues = {
   customerName: string | null;
   customerEmail: string | null;
   customerPhone: string | null;
-  categoryCode: string | null;
   membershipTier: string | null;
   /** Null means the provider supplied no Finance-approved USD conversion. */
   amountUsd: string | null;
@@ -41,7 +40,6 @@ export function resolveEffectiveB2cPayment(
     customerName: override?.customerName ?? source.customerName,
     customerEmail: override?.customerEmail ?? source.customerEmail,
     customerPhone: override?.customerPhone ?? source.customerPhone,
-    categoryCode: override?.categoryCode ?? source.categoryCode,
     membershipTier: override?.membershipTier ?? source.membershipTier,
     // A generic local override is allowed only for a USD provider source.
     // Foreign-source USD is calculated exclusively by the append-only Finance
