@@ -39,8 +39,6 @@ function isDuplicateMember(value: unknown): value is B2cPaymentDuplicateMemberRe
     && typeof member.sourceAmount === "string"
     && typeof member.sourceCurrency === "string"
     && typeof member.effectiveAmountUsd === "string"
-    && isNullableString(member.sourceCategoryCode)
-    && typeof member.effectiveCategoryCode === "string"
     && isNullableString(member.sourceOccurredOn)
     && typeof member.effectiveOccurredOn === "string";
 }
@@ -100,7 +98,6 @@ function GroupMembers({ group, selectedPaymentId, onSelect }: {
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <ComparisonValue label="Customer email" source={member.sourceCustomerEmail} effective={member.effectiveCustomerEmail} />
         <ComparisonValue label="Amount" source={member.sourceAmount ? `${member.sourceAmount} ${member.sourceCurrency}` : null} effective={`${member.effectiveAmountUsd} USD`} />
-        <ComparisonValue label="Category" source={member.sourceCategoryCode} effective={member.effectiveCategoryCode} />
         <ComparisonValue label="Business date" source={member.sourceOccurredOn} effective={member.effectiveOccurredOn} />
       </dl>
     </article>)}

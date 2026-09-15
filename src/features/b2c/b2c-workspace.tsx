@@ -131,7 +131,6 @@ export function B2cWorkspace({
     if (issue) params.set("issue", issue);
     if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
     if (filters.dateTo) params.set("dateTo", filters.dateTo);
-    if (filters.category !== "all") params.set("category", filters.category);
     if (filters.foreignCurrencyOnly) params.set("foreignCurrencyOnly", "true");
     if (filters.minAmount) params.set("minAmountUsd", filters.minAmount);
     if (filters.maxAmount) params.set("maxAmountUsd", filters.maxAmount);
@@ -210,7 +209,6 @@ export function B2cWorkspace({
 
   const visibleRows = ledgerRows;
   const sources = useMemo(() => (ledgerFilterMetadata?.sources ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
-  const categories = useMemo(() => (ledgerFilterMetadata?.categories ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
   const issues = useMemo(() => (ledgerFilterMetadata?.issues ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
   const foreignCurrencyCount = ledgerFilterMetadata?.foreignCurrencyCount ?? 0;
 
@@ -300,7 +298,7 @@ export function B2cWorkspace({
         : <EmptyState title="Loading the Work queue" description="Preparing prioritized B2C records." />)}
 
       {activeTab === "ledger" && <SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
-        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} sources={sources} categories={categories} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
+        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} sources={sources} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
         {visibleRows.length === 0 ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." /> : <B2cLedgerTable rows={visibleRows} onReview={openRow} />}
         {hasMore && <div className="mt-4 text-center"><button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="min-h-11 rounded-pill border border-border px-5 text-sm font-medium text-brand-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60">{loadingMore ? "Loading…" : "Load more"}</button></div>}
 

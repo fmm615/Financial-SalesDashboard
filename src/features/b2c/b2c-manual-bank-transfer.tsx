@@ -11,14 +11,13 @@ type Draft = {
   bankReference: string;
   customerName: string;
   customerEmail: string;
-  categoryCode: string;
   membershipTier: string;
   amountUsd: string;
   receivedAtLocal: string;
   reason: string;
 };
 
-const EMPTY_DRAFT: Draft = { bankReference: "", customerName: "", customerEmail: "", categoryCode: "", membershipTier: "", amountUsd: "", receivedAtLocal: "", reason: "" };
+const EMPTY_DRAFT: Draft = { bankReference: "", customerName: "", customerEmail: "", membershipTier: "", amountUsd: "", receivedAtLocal: "", reason: "" };
 
 const inputClass = "mt-1 block h-10 w-full min-w-0 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
 const textareaClass = "mt-1 block min-h-20 w-full min-w-0 resize-y rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent";
@@ -57,7 +56,6 @@ function draftToRequest(draft: Draft): ManualBankTransferRequest | null {
     bankReference: draft.bankReference.trim(),
     customerEmail: draft.customerEmail.trim(),
     customerName: draft.customerName.trim(),
-    categoryCode: draft.categoryCode.trim(),
     membershipTier: draft.membershipTier.trim() || undefined,
     amountUsd: draft.amountUsd.trim(),
     receivedAt,
@@ -68,7 +66,7 @@ function draftToRequest(draft: Draft): ManualBankTransferRequest | null {
 function isDraftComplete(draft: Draft): boolean {
   return Boolean(
     draft.bankReference.trim() && draft.customerName.trim() && draft.customerEmail.trim()
-    && draft.categoryCode.trim() && draft.amountUsd.trim() && draft.receivedAtLocal && draft.reason.trim(),
+    && draft.amountUsd.trim() && draft.receivedAtLocal && draft.reason.trim(),
   );
 }
 
@@ -162,7 +160,6 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded?: () => void 
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Bank reference</dt><dd className="font-medium text-text-primary">{draft.bankReference}</dd></div>
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Customer</dt><dd className="font-medium text-text-primary">{draft.customerName} · {draft.customerEmail}</dd></div>
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Amount (USD)</dt><dd className="font-medium text-text-primary">{draft.amountUsd}</dd></div>
-          <div><dt className="text-xs uppercase tracking-wide text-text-muted">Category</dt><dd className="font-medium text-text-primary">{draft.categoryCode}{draft.membershipTier ? ` · ${draft.membershipTier}` : ""}</dd></div>
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Bank transfer date/time (explicit UTC offset)</dt><dd className="font-medium text-text-primary">{request?.receivedAt ?? "—"}</dd></div>
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Bahrain business date</dt><dd className="font-medium text-text-primary">{businessDate ?? "—"}</dd></div>
           <div><dt className="text-xs uppercase tracking-wide text-text-muted">Reason</dt><dd className="font-medium text-text-primary">{draft.reason}</dd></div>
@@ -177,7 +174,7 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded?: () => void 
       </div>}
       {assessment.matchState === "possible_duplicate" && <div role="alert" className="rounded-md border border-warning/30 bg-warning/5 p-4 text-sm text-warning">
         <p className="font-medium">Possible duplicate.</p>
-        <p className="mt-1">Another completed B2C payment matches this customer, amount, category, and business date within 48 hours. Recording it will keep it excluded from totals until an Admin reviews it.</p>
+        <p className="mt-1">Another completed B2C payment matches this customer, amount, and business date within 48 hours. Recording it will keep it excluded from totals until an Admin reviews it.</p>
         <ul className="mt-2 space-y-1">
           {assessment.possibleMatches.map((match) => <li key={match.recordId}>{match.sourceLabel} · {match.occurredOn} · {match.amountUsd}</li>)}
         </ul>
@@ -201,7 +198,6 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded?: () => void 
       <label className={fieldClass}>Customer email<input required type="email" value={draft.customerEmail} onChange={(event) => setField("customerEmail", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Bank transfer date/time (your browser time zone: an explicit UTC offset will be recorded)<input required type="datetime-local" value={draft.receivedAtLocal} onChange={(event) => setField("receivedAtLocal", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Amount (USD)<input required inputMode="decimal" value={draft.amountUsd} onChange={(event) => setField("amountUsd", event.target.value)} className={inputClass} /></label>
-      <label className={fieldClass}>Category<input required value={draft.categoryCode} onChange={(event) => setField("categoryCode", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Membership tier (optional)<input value={draft.membershipTier} onChange={(event) => setField("membershipTier", event.target.value)} className={inputClass} /></label>
     </div>
     <label className={fieldClass}>Reason<textarea required value={draft.reason} onChange={(event) => setField("reason", event.target.value)} className={textareaClass} /></label>

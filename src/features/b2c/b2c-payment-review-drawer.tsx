@@ -160,7 +160,6 @@ function RowSummary({ row }: { row: B2cReviewRow }) {
     <div><dt className="text-text-muted">Amount</dt><dd className="mt-1 font-medium tabular-nums text-text-primary">{row.amountUsd}</dd></div>
     <div><dt className="text-text-muted">Source</dt><dd className="mt-1 text-text-secondary">{row.source}</dd></div>
     <div><dt className="text-text-muted">Status</dt><dd className="mt-1"><StatusBadge status={row.paymentStatus} /></dd></div>
-    <div><dt className="text-text-muted">Category</dt><dd className="mt-1 text-text-secondary">{row.category}</dd></div>
     <div><dt className="text-text-muted">Provider reference</dt><dd className="mt-1 break-all font-mono text-xs text-text-secondary">{row.providerReference ?? "—"}</dd></div>
     {row.decision && <div className="sm:col-span-2"><dt className="text-text-muted">Reporting decision</dt><dd className="mt-1 leading-6 text-text-secondary">{row.decision.explanation}</dd></div>}
   </dl>;
