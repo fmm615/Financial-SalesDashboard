@@ -191,7 +191,7 @@ payment_values_sql() {
   local amount="$4"
   local occurred_at="$5"
   local occurred_on="$6"
-  printf "('%s', 'stripe', '%s', '%s', 'membership', 'succeeded', %s, 'USD', 1, %s, %s, '%s', '%s', repeat('1', 64))" \
+  printf "('%s', 'stripe', '%s', '%s', 'succeeded', %s, 'USD', 1, %s, %s, '%s', '%s', repeat('1', 64))" \
     "$id" "$provider_id" "$email" "$amount" "$amount" "$amount" "$occurred_at" "$occurred_on"
 }
 
@@ -205,7 +205,7 @@ run_trigger_update_race() {
   run_psql -qAtc "
     begin;
     insert into public.b2c_payments (
-      id, source_system, provider_transaction_id, customer_email, category_code,
+      id, source_system, provider_transaction_id, customer_email,
       payment_status, original_amount, original_currency, exchange_rate_to_usd,
       amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint
     ) values $first_value, $second_value;
@@ -275,7 +275,7 @@ run_resolver_race() {
   third_value="$(payment_values_sql "$third_id" 'ch_lock_resolver_3' 'other.resolver@playbook.test' 66 '2026-09-03 10:00:00+00' '2026-09-03')"
   run_psql -qAtc "
     insert into public.b2c_payments (
-      id, source_system, provider_transaction_id, customer_email, category_code,
+      id, source_system, provider_transaction_id, customer_email,
       payment_status, original_amount, original_currency, exchange_rate_to_usd,
       amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint
     ) values $first_value, $second_value, $third_value;
@@ -331,7 +331,7 @@ run_stale_dismissal_race() {
   run_psql -qAtc "
     begin;
     insert into public.b2c_payments (
-      id, source_system, provider_transaction_id, customer_email, category_code,
+      id, source_system, provider_transaction_id, customer_email,
       payment_status, original_amount, original_currency, exchange_rate_to_usd,
       amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint
     ) values $first_value, $second_value;
@@ -406,7 +406,7 @@ run_correction_keep_one_race() {
   second_value="$(payment_values_sql "$second_id" 'ch_lock_correction_2' 'lock.correction@playbook.test' 88 '2026-09-05 09:00:00+00' '2026-09-05')"
   run_psql -qAtc "
     insert into public.b2c_payments (
-      id, source_system, provider_transaction_id, customer_email, category_code,
+      id, source_system, provider_transaction_id, customer_email,
       payment_status, original_amount, original_currency, exchange_rate_to_usd,
       amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint
     ) values $first_value, $second_value;
@@ -436,7 +436,7 @@ run_correction_keep_one_race() {
     select set_config('request.jwt.claim.sub', '$admin_id', false);
     select public.apply_b2c_payment_local_correction(
       '$first_id', null, 'corrected.lock@playbook.test', null,
-      null, null, null, null, 'Verified correction during duplicate resolution.'
+      null, null, null, 'Verified correction during duplicate resolution.'
     );
   " >"$test_tmp_dir/correction-action.out" 2>&1 &
   local correction_pid=$!
@@ -474,7 +474,7 @@ run_provider_redelivery_keep_one_race() {
   second_value="$(payment_values_sql "$second_id" 'ch_lock_provider_2' 'lock.provider@playbook.test' 99 '2026-09-06 09:00:00+00' '2026-09-06')"
   run_psql -qAtc "
     insert into public.b2c_payments (
-      id, source_system, provider_transaction_id, customer_email, category_code,
+      id, source_system, provider_transaction_id, customer_email,
       payment_status, original_amount, original_currency, exchange_rate_to_usd,
       amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint
     ) values $first_value, $second_value;
@@ -514,8 +514,6 @@ run_provider_redelivery_keep_one_race() {
         customer_email = 'lock.provider@playbook.test',
         customer_name = 'Provider Lock',
         customer_phone = null,
-        product_mapping_id = null,
-        category_code = 'membership',
         membership_tier = null,
         payment_status = 'succeeded',
         original_amount = 99,

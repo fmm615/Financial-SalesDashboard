@@ -1,6 +1,6 @@
 begin;
 
-select plan(50);
+select plan(55);
 
 -- Seeded Fatema is an Admin; seeded Wafa is a Viewer.
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
@@ -11,7 +11,9 @@ select has_table('public', 'b2b_deals', 'B2B deals are present in the clean sche
 select has_table('public', 'financial_corrections', 'append-only financial corrections are present');
 select has_table('public', 'operational_targets', 'operational targets are separate from financial targets');
 select has_table('public', 'report_jobs', 'durable report jobs are present');
-select is((select count(*)::integer from pg_trigger where not tgisinternal and tgname like 'audit_%'), 36, 'the cross-domain sweep attaches all 36 audit triggers');
+-- 35, not 36: 20270101000500_remove_b2c_category.sql drops product_mappings,
+-- and with it the audit trigger the sweep attached to that table.
+select is((select count(*)::integer from pg_trigger where not tgisinternal and tgname like 'audit_%'), 35, 'the cross-domain sweep attaches all 35 audit triggers');
 select ok(not exists (
   select 1 from pg_class relation join pg_namespace namespace on namespace.oid = relation.relnamespace
   where namespace.nspname = 'public' and relation.relkind = 'r'
@@ -30,12 +32,12 @@ select ok((select not public from storage.buckets where id = 'report-archives'),
 
 -- 10-27: B2C integrity, manual transfers, duplicate workflow, FX, exceptions.
 select throws_ok($$
-  insert into public.b2c_payments (source_system, provider_transaction_id, customer_email, category_code, payment_status, original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint)
-  values ('stripe', 'pi_test_001', 'duplicate@playbook.test', 'membership', 'succeeded', 100, 'USD', 1, 100, 100, '2027-01-01 10:00:00+00', '2027-01-01', repeat('a', 64))
+  insert into public.b2c_payments (source_system, provider_transaction_id, customer_email, payment_status, original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint)
+  values ('stripe', 'pi_test_001', 'duplicate@playbook.test', 'succeeded', 100, 'USD', 1, 100, 100, '2027-01-01 10:00:00+00', '2027-01-01', repeat('a', 64))
 $$, '23505', null, 'provider transaction identifiers remain idempotent');
 select throws_ok($$
-  insert into public.b2c_payments (source_system, provider_transaction_id, customer_email, category_code, payment_status, original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint)
-  values ('stripe', 'ch_foreign_with_invented_usd', 'foreign@playbook.test', 'membership', 'succeeded', 50, 'BHD', 2.65, 132.5, 132.5, '2027-01-02 10:00:00+00', '2027-01-02', repeat('b', 64))
+  insert into public.b2c_payments (source_system, provider_transaction_id, customer_email, payment_status, original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint)
+  values ('stripe', 'ch_foreign_with_invented_usd', 'foreign@playbook.test', 'succeeded', 50, 'BHD', 2.65, 132.5, 132.5, '2027-01-02 10:00:00+00', '2027-01-02', repeat('b', 64))
 $$, '23514', null, 'foreign provider payments cannot invent USD at ingestion');
 select is((select amount_usd from public.b2c_payments where id = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1'), 100::numeric, 'a linked partial refund leaves the original payment unchanged');
 select throws_ok($$
@@ -43,8 +45,8 @@ select throws_ok($$
   values ('dddddddd-dddd-4ddd-8ddd-ddddddddddd1', 'stripe', 're_overage_clean_suite', 76, 'USD', 1, 76, '2027-01-03 10:00:00+00')
 $$, 'P0001', 'Refund total cannot exceed original payment amount', 'refunds cannot exceed the linked payment total');
 
-insert into public.b2c_payments (id, source_system, provider_transaction_id, customer_email, category_code, payment_status, original_amount, original_currency, occurred_at, occurred_on, duplicate_fingerprint)
-values ('a1000000-0000-4000-8000-000000000001', 'tap', 'tap_foreign_override', 'fx.local@playbook.test', 'membership', 'succeeded', 20, 'BHD', '2027-01-04 10:00:00+00', '2027-01-04', repeat('c', 64));
+insert into public.b2c_payments (id, source_system, provider_transaction_id, customer_email, payment_status, original_amount, original_currency, occurred_at, occurred_on, duplicate_fingerprint)
+values ('a1000000-0000-4000-8000-000000000001', 'tap', 'tap_foreign_override', 'fx.local@playbook.test', 'succeeded', 20, 'BHD', '2027-01-04 10:00:00+00', '2027-01-04', repeat('c', 64));
 select throws_ok($$
   insert into public.b2c_payment_local_overrides (payment_id, local_amount_usd, created_by, updated_by)
   values ('a1000000-0000-4000-8000-000000000001', 53.2, '11111111-1111-4111-8111-111111111111', '11111111-1111-4111-8111-111111111111')
@@ -53,29 +55,29 @@ $$, 'P0001', 'A foreign-currency payment requires a Finance-approved FX conversi
 select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
 set local role authenticated;
 select throws_ok($$
-  select public.record_b2c_manual_bank_transfer('VIEWER-REF', 'viewer@playbook.test', 'Viewer', 'membership', null, '125.000000', '2027-01-05T08:00:00+03:00', 'Viewer attempt.', repeat('0', 64))
+  select public.record_b2c_manual_bank_transfer('VIEWER-REF', 'viewer@playbook.test', 'Viewer', null, '125.000000', '2027-01-05T08:00:00+03:00', 'Viewer attempt.', repeat('0', 64))
 $$, 'P0001', 'Only an authenticated administrator can record a manual bank transfer', 'a Viewer cannot record a manual bank transfer');
 reset role;
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
 select public.record_b2c_manual_bank_transfer(
-  'MANUAL-CLEAN-1', 'bank.member@playbook.test', 'Bank Member', 'membership', null, '150.000000', '2027-01-05T08:00:00+03:00', 'Confirmed clean bank transfer.',
-  encode(extensions.digest('MANUAL-CLEAN-1|bank.member@playbook.test|Bank Member|membership||150.000000|2027-01-05T08:00:00+03:00|Confirmed clean bank transfer.', 'sha256'), 'hex')
+  'MANUAL-CLEAN-1', 'bank.member@playbook.test', 'Bank Member', null, '150.000000', '2027-01-05T08:00:00+03:00', 'Confirmed clean bank transfer.',
+  encode(extensions.digest('MANUAL-CLEAN-1|bank.member@playbook.test|Bank Member||150.000000|2027-01-05T08:00:00+03:00|Confirmed clean bank transfer.', 'sha256'), 'hex')
 );
 select ok((select source_system = 'manual_bank_transfer' and original_currency = 'USD' and exchange_rate_to_usd = 1 and entered_by = '11111111-1111-4111-8111-111111111111'::uuid from public.b2c_payments where provider_transaction_id = 'MANUAL-CLEAN-1'), 'a clean manual transfer records USD-only facts and the Admin actor');
 select is((select occurred_on from public.b2c_payments where provider_transaction_id = 'MANUAL-CLEAN-1'), '2027-01-05'::date, 'the manual transfer stores its Bahrain business date');
 select throws_ok($$
-  select public.record_b2c_manual_bank_transfer('MANUAL-CLEAN-1', 'bank.member@playbook.test', 'Bank Member', 'membership', null, '150.000000', '2027-01-05T08:00:00+03:00', 'A second confirmation.', encode(extensions.digest('MANUAL-CLEAN-1|bank.member@playbook.test|Bank Member|membership||150.000000|2027-01-05T08:00:00+03:00|A second confirmation.', 'sha256'), 'hex'))
+  select public.record_b2c_manual_bank_transfer('MANUAL-CLEAN-1', 'bank.member@playbook.test', 'Bank Member', null, '150.000000', '2027-01-05T08:00:00+03:00', 'A second confirmation.', encode(extensions.digest('MANUAL-CLEAN-1|bank.member@playbook.test|Bank Member||150.000000|2027-01-05T08:00:00+03:00|A second confirmation.', 'sha256'), 'hex'))
 $$, 'P0001', 'A manual bank transfer with this reference already exists', 'an exact manual bank reference is rejected outright');
 select throws_ok($$
-  select public.record_b2c_manual_bank_transfer('MANUAL-STALE-1', 'stale@playbook.test', 'Stale Member', 'membership', null, '90.000000', '2027-01-05T09:00:00+03:00', 'Reviewed details changed.', repeat('f', 64))
+  select public.record_b2c_manual_bank_transfer('MANUAL-STALE-1', 'stale@playbook.test', 'Stale Member', null, '90.000000', '2027-01-05T09:00:00+03:00', 'Reviewed details changed.', repeat('f', 64))
 $$, 'P0001', 'The reviewed bank transfer details changed since preview. Start again.', 'a stale manual-transfer review hash fails before a write');
 
-insert into public.b2c_payments (id, source_system, provider_transaction_id, customer_email, category_code, payment_status, original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint)
-values ('a2000000-0000-4000-8000-000000000001', 'stripe', 'ch_manual_content_candidate', 'content.duplicate@playbook.test', 'membership', 'succeeded', 75, 'USD', 1, 75, 75, '2027-01-06 08:00:00+00', '2027-01-06', repeat('d', 64));
+insert into public.b2c_payments (id, source_system, provider_transaction_id, customer_email, payment_status, original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint)
+values ('a2000000-0000-4000-8000-000000000001', 'stripe', 'ch_manual_content_candidate', 'content.duplicate@playbook.test', 'succeeded', 75, 'USD', 1, 75, 75, '2027-01-06 08:00:00+00', '2027-01-06', repeat('d', 64));
 select public.record_b2c_manual_bank_transfer(
-  'MANUAL-CONTENT-1', 'content.duplicate@playbook.test', 'Different Name', 'membership', null, '75.000000', '2027-01-06T12:00:00+03:00', 'Retain possible duplicate for review.',
-  encode(extensions.digest('MANUAL-CONTENT-1|content.duplicate@playbook.test|Different Name|membership||75.000000|2027-01-06T12:00:00+03:00|Retain possible duplicate for review.', 'sha256'), 'hex')
+  'MANUAL-CONTENT-1', 'content.duplicate@playbook.test', 'Different Name', null, '75.000000', '2027-01-06T12:00:00+03:00', 'Retain possible duplicate for review.',
+  encode(extensions.digest('MANUAL-CONTENT-1|content.duplicate@playbook.test|Different Name||75.000000|2027-01-06T12:00:00+03:00|Retain possible duplicate for review.', 'sha256'), 'hex')
 );
 select ok(
   exists (select 1 from public.b2c_payments where provider_transaction_id = 'MANUAL-CONTENT-1')
@@ -106,10 +108,10 @@ select ok(
   and exists (select 1 from public.financial_corrections where target_area = 'b2c_payment' and target_record_id = 'a1000000-0000-4000-8000-000000000001'::uuid and after_value ->> 'amount_usd' = '50.000000'),
   'payment FX conversion appends conversion evidence and a financial correction'
 );
-insert into public.b2c_payments (id, source_system, provider_transaction_id, customer_email, category_code, payment_status, original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint)
+insert into public.b2c_payments (id, source_system, provider_transaction_id, customer_email, payment_status, original_amount, original_currency, exchange_rate_to_usd, amount_usd, gross_amount_usd, occurred_at, occurred_on, duplicate_fingerprint)
 values
-  ('a3000000-0000-4000-8000-000000000001', 'stripe', 'ch_exception_ok', null, 'unmapped', 'succeeded', 120, 'USD', 1, 120, 120, '2027-01-08 08:00:00+00', '2027-01-08', repeat('e', 64)),
-  ('a3000000-0000-4000-8000-000000000002', 'tap', 'tap_exception_failed', null, 'unmapped', 'failed', 120, 'USD', 1, 120, 120, '2027-01-08 09:00:00+00', '2027-01-08', repeat('f', 64));
+  ('a3000000-0000-4000-8000-000000000001', 'stripe', 'ch_exception_ok', null, 'succeeded', 120, 'USD', 1, 120, 120, '2027-01-08 08:00:00+00', '2027-01-08', repeat('e', 64)),
+  ('a3000000-0000-4000-8000-000000000002', 'tap', 'tap_exception_failed', null, 'failed', 120, 'USD', 1, 120, 120, '2027-01-08 09:00:00+00', '2027-01-08', repeat('f', 64));
 select lives_ok($$ select public.include_b2c_payment_with_finance_exception('a3000000-0000-4000-8000-000000000001', 'Finance verified the unique USD payment without provider email.', true, true) $$, 'an eligible unmapped provider payment can receive a documented Finance exception');
 select throws_ok($$ select public.include_b2c_payment_with_finance_exception('a3000000-0000-4000-8000-000000000002', 'A failed source payment cannot become reportable.', true, true) $$, 'P0001', 'Only a succeeded provider payment can be included by Finance exception', 'a failed provider payment cannot receive a Finance exception');
 
@@ -223,6 +225,32 @@ select throws_ok($$
   insert into public.report_jobs (report_type, period_start, period_end, status, safe_error_summary)
   values ('monthly', '2027-01-01', '2027-01-31', 'failed', null)
 $$, '23514', null, 'a failed report job must retain a safe failure summary and timestamp');
+
+-- 51-55: the B2C Category concept is gone, and membership_tier -- a separate
+-- concept that shared the same tables, RPC parameter lists, and SQL statements
+-- -- is deliberately intact.
+select hasnt_table('public', 'product_mappings', 'the retired product mapping table is gone');
+select hasnt_column('public', 'b2c_payments', 'category_code', 'B2C payments no longer carry a PLAYBOOK reporting category');
+select hasnt_column('public', 'b2c_payment_local_overrides', 'category_code', 'the local overlay no longer carries a category');
+select has_column('public', 'b2c_payments', 'membership_tier', 'membership_tier survives the category removal');
+
+-- The duplicate fingerprint is email + USD amount + business date. Two
+-- succeeded payments that agree on those three facts group together; nothing
+-- about a category is consulted any more. MANUAL-TIER-1 also proves the
+-- surviving optional membership_tier parameter still round-trips.
+select public.record_b2c_manual_bank_transfer(
+  'MANUAL-TIER-1', 'content.duplicate@playbook.test', 'Tier Member', 'annual', '75.000000', '2027-01-06T13:00:00+03:00', 'Third payment sharing the duplicate facts.',
+  encode(extensions.digest('MANUAL-TIER-1|content.duplicate@playbook.test|Tier Member|annual|75.000000|2027-01-06T13:00:00+03:00|Third payment sharing the duplicate facts.', 'sha256'), 'hex')
+);
+select ok(
+  (select membership_tier = 'annual' from public.b2c_payments where provider_transaction_id = 'MANUAL-TIER-1')
+  and exists (
+    select 1 from public.b2c_payment_duplicate_group_members member
+    join public.b2c_payments payment on payment.id = member.payment_id
+    where payment.provider_transaction_id = 'MANUAL-TIER-1'
+  ),
+  'a manual transfer keeps its optional tier and still groups on email, amount, and business date alone'
+);
 
 select * from finish();
 
