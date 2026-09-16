@@ -140,6 +140,7 @@ export function B2cWorkspace({
     if (sourceStatus) params.set("sourceStatus", sourceStatus);
     if (filters.status !== "all") params.set("paymentStatus", filters.status);
     if (issue) params.set("issue", issue);
+    if (filters.financeStatus !== "all") params.set("reportingDecision", filters.financeStatus);
     if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
     if (filters.dateTo) params.set("dateTo", filters.dateTo);
     if (filters.foreignCurrencyOnly) params.set("foreignCurrencyOnly", "true");

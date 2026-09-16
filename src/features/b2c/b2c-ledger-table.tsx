@@ -5,12 +5,21 @@ import type { B2cDecoratedLedgerRow } from "@/server/repositories/b2c-ledger-rep
 
 export type B2cSafeLedgerRow = Omit<B2cDecoratedLedgerRow, "stripeEvidence">;
 
+/** `reportable` and `exception_included` both count toward Finance totals; `blocked` and `excluded` do not. */
+function financeInclusionLabel(reportingDecision: B2cSafeLedgerRow["decision"]["reportingDecision"]): "Included in Finance" | "Excluded from Finance" {
+  return reportingDecision === "reportable" || reportingDecision === "exception_included" ? "Included in Finance" : "Excluded from Finance";
+}
+
 /**
  * Desktop columns cover customer, email, mobile, date, amount, source,
  * description (with a provider decline/seller message where one exists),
- * status, and next action. Provider IDs, plan, full evidence, and audit
- * history still live in the shared drawer, opened by the row's one `Review`
- * action. Mobile uses compact record cards instead of the desktop table.
+ * status, and next action. The status cell also shows whether the record
+ * currently counts toward Finance totals ("Included in Finance" for
+ * `reportable`/`exception_included`, "Excluded from Finance" for
+ * `blocked`/`excluded` -- see b2c-ledger-repository's reportingDecision).
+ * Provider IDs, plan, full evidence, and audit history still live in the
+ * shared drawer, opened by the row's one `Review` action. Mobile uses
+ * compact record cards instead of the desktop table.
  */
 export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; onReview: (row: B2cSafeLedgerRow) => void }) {
   return <>
@@ -42,6 +51,7 @@ export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; o
             <TableCell>
               <div className="flex flex-col items-start gap-1">
                 <StatusBadge status={row.paymentStatus} />
+                <StatusBadge status={financeInclusionLabel(row.decision.reportingDecision)} />
                 {row.issue && <StatusBadge status={row.issue} />}
               </div>
             </TableCell>
@@ -71,6 +81,7 @@ export function B2cLedgerTable({ rows, onReview }: { rows: B2cSafeLedgerRow[]; o
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={row.paymentStatus} />
+            <StatusBadge status={financeInclusionLabel(row.decision.reportingDecision)} />
             {row.issue && <StatusBadge status={row.issue} />}
           </div>
           <button type="button" onClick={() => onReview(row)} className="min-h-11 min-w-11 rounded-pill border border-border px-3 text-sm font-medium text-brand-accent hover:bg-surface-muted">Review</button>

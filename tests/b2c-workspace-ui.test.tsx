@@ -349,6 +349,8 @@ describe("Ledger", () => {
     await expectQuery("paymentStatus", "Refunded");
     fireEvent.change(screen.getByLabelText("Issue"), { target: { value: "none" } });
     await expectQuery("issue", "none");
+    fireEvent.change(screen.getByLabelText("Finance status"), { target: { value: "blocked" } });
+    await expectQuery("reportingDecision", "blocked");
     fireEvent.click(screen.getByText("More filters"));
     fireEvent.change(screen.getByLabelText("Date from"), { target: { value: "2026-08-01" } });
     await expectQuery("dateFrom", "2026-08-01");
@@ -384,6 +386,28 @@ describe("Ledger", () => {
     expect(within(row).getByRole("button", { name: "Review" })).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "View Stripe details" })).not.toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "Edit locally" })).not.toBeInTheDocument();
+  });
+
+  it("shows whether each row currently counts toward Finance totals", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    const blockedRow: B2cSafeLedgerRow = {
+      ...ledgerRow, id: "payment-blocked", customerName: "Sam Blocked",
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_amount"], explanation: "Blocked by a missing amount." },
+    };
+    const exceptionRow: B2cSafeLedgerRow = {
+      ...ledgerRow, id: "payment-exception", customerName: "Nora Exception",
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "exception_included", postingStatus: "not_applicable", blockingReasons: [], explanation: "Included by a Finance exception." },
+    };
+    stubFetch({ role: "admin", ledgerRows: [ledgerRow, blockedRow, exceptionRow] });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const table = await screen.findByRole("table", { name: "B2C ledger" });
+    const reportableRow = within(table).getByText("Maya Al Khalifa").closest("tr") as HTMLElement;
+    expect(within(reportableRow).getByText("Included in Finance")).toBeInTheDocument();
+    const exceptionIncludedRow = within(table).getByText("Nora Exception").closest("tr") as HTMLElement;
+    expect(within(exceptionIncludedRow).getByText("Included in Finance")).toBeInTheDocument();
+    const blockedRowEl = within(table).getByText("Sam Blocked").closest("tr") as HTMLElement;
+    expect(within(blockedRowEl).getByText("Excluded from Finance")).toBeInTheDocument();
   });
 
   it("shows a provider's decline/seller message beside the description when one is retained", async () => {

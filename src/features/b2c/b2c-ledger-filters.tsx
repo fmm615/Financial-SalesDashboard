@@ -12,14 +12,23 @@ export type B2cLedgerFiltersState = {
   status: string;
   source: string;
   issue: string;
+  financeStatus: string;
   foreignCurrencyOnly: boolean;
 };
 
 export const initialB2cLedgerFilters: B2cLedgerFiltersState = {
-  search: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "", status: "all", source: "all", issue: "all", foreignCurrencyOnly: false,
+  search: "", dateFrom: "", dateTo: "", minAmount: "", maxAmount: "", status: "all", source: "all", issue: "all", financeStatus: "all", foreignCurrencyOnly: false,
 };
 
 type Option = { value: string; label: string };
+
+/** Mirrors the `reportingDecision` enum the server already validates and filters on -- see b2cWorkspaceLedgerQuerySchema. */
+const FINANCE_STATUS_OPTIONS: Option[] = [
+  { value: "reportable", label: "Included — reportable" },
+  { value: "exception_included", label: "Included — Finance exception" },
+  { value: "blocked", label: "Excluded — needs correction" },
+  { value: "excluded", label: "Excluded — duplicate" },
+];
 
 /** Display-only controls for narrowing the already-loaded B2C source ledger. */
 export function B2cLedgerFilters({ filters, onChange, periodMonth, sources, issues, shownCount, totalCount, foreignCurrencyCount }: {
@@ -38,7 +47,7 @@ export function B2cLedgerFilters({ filters, onChange, periodMonth, sources, issu
   const inputClass = "mt-1 h-10 w-full rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
   const hasFilters = Object.entries(filters).some(([key, value]) => {
     if (key === "foreignCurrencyOnly") return value === true;
-    return key === "status" || key === "source" || key === "issue" ? value !== "all" : value !== "";
+    return key === "status" || key === "source" || key === "issue" || key === "financeStatus" ? value !== "all" : value !== "";
   });
   // Advanced filters live under "More filters"; the badge counts only those, so
   // an Admin can tell at a glance whether a hidden filter is narrowing the ledger.
@@ -50,12 +59,13 @@ export function B2cLedgerFilters({ filters, onChange, periodMonth, sources, issu
     filters.foreignCurrencyOnly,
   ].filter(Boolean).length;
   return <div role="region" aria-label="B2C ledger filters" className="mb-5 rounded-input border border-border bg-surface-muted/30 p-4">
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <div><span className="text-sm text-text-primary">Reporting period</span><div className="mt-1 flex h-10 items-center"><B2cPeriodSelector month={periodMonth} /></div></div>
       <label>Search<input name="search" value={filters.search} onChange={update} className={inputClass} placeholder="Name, email, mobile, or ID" /></label>
       <label>Source<select name="source" value={filters.source} onChange={update} className={inputClass}><option value="all">All sources</option>{sources.map((source) => <option key={source.value} value={source.value}>{source.label}</option>)}</select></label>
       <label>Payment status<select name="status" value={filters.status} onChange={update} className={inputClass}><option value="all">All statuses</option><option value="Completed">Completed</option><option value="Failed">Failed</option><option value="Pending">Pending</option><option value="Refunded">Refunded</option></select></label>
       <label>Issue<select name="issue" value={filters.issue} onChange={update} className={inputClass}><option value="all">All issues</option><option value="none">No issue</option>{issues.map((issue) => <option key={issue.value} value={issue.value}>{issue.label}</option>)}</select></label>
+      <label>Finance status<select name="financeStatus" value={filters.financeStatus} onChange={update} className={inputClass}><option value="all">All records</option>{FINANCE_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
     </div>
     <details className="mt-4 group">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-brand-accent marker:content-none">

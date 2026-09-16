@@ -122,6 +122,7 @@ describe("B2C Stripe enrichment presentation", () => {
       providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
       hasOpenPaymentDuplicate: false, hasDuplicateExclusion: false,
       openReviewFlags: [], issue: "Missing customer email" as const,
+      decision: { sourceStatus: "succeeded" as const, reconciliationStatus: "not_required" as const, reportingDecision: "blocked" as const, postingStatus: "not_applicable" as const, blockingReasons: ["missing_customer_email" as const], explanation: "Blocked by a missing customer email." },
     };
     const snapshot: B2cDashboardSnapshot = {
       period: { month: "2026-08", monthLabel: "August 2026", monthStart: "2026-08-01", monthEnd: "2026-08-31" },
@@ -171,6 +172,7 @@ describe("B2C Stripe enrichment presentation", () => {
       providerReference: "ch_123", sourceSystem: "stripe" as const, productReference: "price_monthly", hasLocalCorrection: false, localCorrectionFields: [], hasFinanceException: false,
       hasOpenPaymentDuplicate: false, hasDuplicateExclusion: false,
       openReviewFlags: [], issue: null,
+      decision: { sourceStatus: "succeeded" as const, reconciliationStatus: "not_required" as const, reportingDecision: "reportable" as const, postingStatus: "not_applicable" as const, blockingReasons: [], explanation: "Every approved reporting rule passed, so this record is reportable." },
       stripeEvidence: {
         originalAmount: "50.42", originalCurrency: "USD", amountRefunded: "10.00", description: "Founding Membership renewal", sellerMessage: "Payment complete", cardholderName: "Stripe customer",
         settlementGrossAmount: "50.42", settlementFeeAmount: "1.75", settlementFeeTaxAmount: "0.18", settlementNetAmount: "48.67", settlementCurrency: "BHD", settlementExchangeRate: 0.376 as unknown as string, refunds: [{ refundId: "refund-1", originalAmount: "10.00", originalCurrency: "USD", settlementRefundAmount: "10.00", settlementCurrency: "BHD", settlementExchangeRate: "0.376" }],
