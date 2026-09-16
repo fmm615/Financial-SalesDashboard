@@ -9,6 +9,23 @@ import {
 } from "@/server/services/b2c-work-items";
 import { buildB2cWorkspaceOverview, chunkB2cWorkspaceQueryValues } from "@/server/repositories/b2c-workspace-repository";
 
+// Mirrors b2c_payment_decision_reasons: missing_business_date and
+// implausible_future_date are display-only and never gate reportability;
+// every other blocking reason always co-occurs with a matching exclusion
+// reason. Used here only to build internally-consistent fixtures -- the
+// actual production code (buildB2cRecordWorkItems) reads blockingReasons
+// only and never reportingDecision.
+const BLOCKING_TO_EXCLUSION_REASON: Partial<Record<B2cBlockingReason, string>> = {
+  missing_amount: "needs_fx_review",
+  missing_fx: "needs_fx_review",
+  missing_customer_email: "missing_customer_email",
+  possible_duplicate: "possible_duplicate",
+  duplicate_exclusion: "duplicate_exclusion",
+  failed_payment: "not_succeeded",
+  pending_payment: "not_succeeded",
+  other_open_review: "needs_follow_up",
+};
+
 function decision(
   blockingReasons: B2cBlockingReason[] = [],
   overrides: {
@@ -19,12 +36,13 @@ function decision(
     exclusionReasons?: string[];
   } = {},
 ) {
+  const gatingExclusionReasons = [...new Set(blockingReasons.flatMap((reason) => BLOCKING_TO_EXCLUSION_REASON[reason] ?? []))];
   return presentB2cPaymentDecision({
     source_status: overrides.sourceStatus ?? "succeeded",
     reconciliation_status: overrides.reconciliationStatus ?? "not_required",
-    reporting_decision: overrides.reportingDecision ?? (blockingReasons.length > 0 ? "blocked" : "reportable"),
+    reporting_decision: overrides.reportingDecision ?? (gatingExclusionReasons.length > 0 ? "blocked" : "reportable"),
     posting_status: overrides.postingStatus ?? "not_applicable",
-    exclusion_reasons: overrides.exclusionReasons ?? [],
+    exclusion_reasons: overrides.exclusionReasons ?? gatingExclusionReasons,
     blocking_reasons: blockingReasons,
   });
 }

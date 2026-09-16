@@ -34,12 +34,23 @@ const sqlPaymentDecisionSchema = z.object({
   exclusion_reasons: z.array(b2cPaymentExclusionReasonSchema),
   blocking_reasons: z.array(b2cBlockingReasonSchema),
 }).strict().superRefine((decision, context) => {
-  const hasBlockers = decision.blocking_reasons.length > 0;
-  if ((decision.reporting_decision === "reportable" || decision.reporting_decision === "exception_included") && hasBlockers) {
-    context.addIssue({ code: "custom", message: "An included B2C payment cannot have blocking reasons." });
+  // reporting_decision is gated on exclusion_reasons, not blocking_reasons.
+  // blocking_reasons is a superset that additionally carries two
+  // display-only reasons (a missing/implausible business date) shown on a
+  // row without excluding it from totals -- every other blocking reason is
+  // a "real" gate that must always co-occur with a matching
+  // exclusion_reasons entry. So a reportable/exception_included decision
+  // may still carry those two display-only reasons, but never a real one.
+  const hasExclusions = decision.exclusion_reasons.length > 0;
+  const hasGatingBlockingReason = decision.blocking_reasons.some(
+    (reason) => reason !== "missing_business_date" && reason !== "implausible_future_date",
+  );
+  if (decision.reporting_decision === "reportable" || decision.reporting_decision === "exception_included") {
+    if (hasExclusions) context.addIssue({ code: "custom", message: "An included B2C payment cannot have exclusion reasons." });
+    if (hasGatingBlockingReason) context.addIssue({ code: "custom", message: "An included B2C payment cannot have a gating blocking reason." });
   }
-  if (decision.reporting_decision === "blocked" && !hasBlockers) {
-    context.addIssue({ code: "custom", message: "A blocked B2C payment requires a blocking reason." });
+  if (decision.reporting_decision === "blocked" && !hasExclusions) {
+    context.addIssue({ code: "custom", message: "A blocked B2C payment requires an exclusion reason." });
   }
   if (decision.reporting_decision === "excluded" && !decision.blocking_reasons.includes("duplicate_exclusion")) {
     context.addIssue({ code: "custom", message: "An excluded B2C payment requires the audited duplicate exclusion reason." });

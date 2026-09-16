@@ -41,7 +41,13 @@ describe("B2C SQL payment decision validation", () => {
     })).toThrow(/invalid B2C payment decision/i);
   });
 
-  it("rejects a reportable database decision that also claims blockers", () => {
+  it("accepts a reportable decision that carries only the display-only future-date blocking reason", () => {
+    expect(parseB2cSqlPaymentDecision({
+      ...completeSqlDecision, blocking_reasons: ["implausible_future_date"],
+    })).toMatchObject({ reportingDecision: "reportable", blockingReasons: ["implausible_future_date"] });
+  });
+
+  it("rejects a reportable database decision that also claims a gating blocker", () => {
     expect(() => parseB2cSqlPaymentDecision({
       ...completeSqlDecision, blocking_reasons: ["possible_duplicate"],
     })).toThrow(/invalid B2C payment decision/i);
