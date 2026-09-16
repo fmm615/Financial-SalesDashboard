@@ -115,6 +115,7 @@ export function B2cWorkspace({
   const justResolvedPaymentIds = useRef(new Set<string>());
   const ledgerRequestGeneration = useRef(0);
   const activeLedgerRequest = useRef<AbortController | null>(null);
+  const ledgerSectionRef = useRef<HTMLDivElement>(null);
 
   const period = snapshot?.period.month;
 
@@ -207,6 +208,14 @@ export function B2cWorkspace({
         updated[targetIndex] = cursor;
         return updated;
       });
+      // The viewport otherwise stays at whatever scroll position the
+      // Previous/Next click happened at (typically the pager itself, near
+      // the bottom), so a page change with real new rows can look like
+      // nothing happened at all. Must be instant, not smooth: the rows
+      // swap in the same tick, and that layout shift silently cancels an
+      // in-progress smooth-scroll animation, leaving the viewport exactly
+      // where it started.
+      ledgerSectionRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "start" });
     } catch {
       if (generation === ledgerRequestGeneration.current && !controller.signal.aborted) setLedgerLoadError(true);
     } finally {
@@ -316,7 +325,7 @@ export function B2cWorkspace({
         ? <B2cWorkQueue overview={workItems} activeQueue={activeQueue} onSelectQueue={(queue) => setQuery({ queue: queue === "all" ? null : queue })} onOpenItem={openWorkItem} />
         : <EmptyState title="Loading the Work queue" description="Preparing prioritized B2C records." />)}
 
-      {activeTab === "ledger" && <SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
+      {activeTab === "ledger" && <div ref={ledgerSectionRef}><SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
         <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} periodMonth={snapshot.period.month} sources={sources} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
         {visibleRows.length === 0 ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." /> : <B2cLedgerTable rows={visibleRows} onReview={openRow} />}
         {ledgerTotalCount > 0 && <nav aria-label="B2C Ledger pagination" className="mt-4 flex flex-wrap items-center justify-center gap-2">
@@ -337,7 +346,7 @@ export function B2cWorkspace({
             <p className="mt-5 border-t border-border pt-4 text-sm leading-6 text-text-secondary">Current exclusions: {foreignCurrencyCount} foreign-currency record{foreignCurrencyCount === 1 ? "" : "s"} awaiting approved FX, {snapshot.calculation.missingCustomerEmailCount} missing customer email{snapshot.calculation.missingCustomerEmailCount === 1 ? "" : "s"}, {snapshot.calculation.possibleDuplicateCount} possible duplicate{snapshot.calculation.possibleDuplicateCount === 1 ? "" : "s"}, {snapshot.calculation.otherReviewCount} other review item{snapshot.calculation.otherReviewCount === 1 ? "" : "s"}, and {snapshot.calculation.nonSucceededPaymentCount} failed or pending payment{snapshot.calculation.nonSucceededPaymentCount === 1 ? "" : "s"}. {snapshot.calculation.financeExceptionPaymentCount} payment{snapshot.calculation.financeExceptionPaymentCount === 1 ? " is" : "s are"} included by a Finance exception.</p>
           </div>
         </details>
-      </SectionCard>}
+      </SectionCard></div>}
 
       {activeTab === "sources" && <B2cSourceManagement />}
     </div>
