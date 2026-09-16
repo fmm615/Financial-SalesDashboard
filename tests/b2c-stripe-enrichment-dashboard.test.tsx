@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
 import { B2cOperations } from "@/features/b2c/b2c-operations";
 import { getB2cDashboardSnapshot, resolveB2cContactDisplay, resolveB2cLedgerSourceLabel, type B2cDashboardSnapshot, type B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
 
@@ -37,7 +36,7 @@ function stubWorkspaceFetch(rows: B2cLedgerRow[], evidenceByPaymentId: Record<st
 
 function dashboardClientForUnmappedProviderPayment(sourceSystem: "stripe" | "tap", description: string | null) {
   const payment = {
-    id: `${sourceSystem}-unmapped-payment`, source_system: sourceSystem, provider_transaction_id: `${sourceSystem}_provider_1`,
+    id: sourceSystem === "stripe" ? "81000000-0000-4000-8000-000000000001" : "81000000-0000-4000-8000-000000000002", source_system: sourceSystem, provider_transaction_id: `${sourceSystem}_provider_1`,
     customer_name: "Provider customer", customer_email: "customer@example.com", customer_phone: null,
     membership_tier: null, payment_status: "succeeded",
     original_amount: "120.000000", original_currency: "USD", amount_usd: "120.000000", occurred_on: "2026-08-09",
@@ -61,7 +60,21 @@ function dashboardClientForUnmappedProviderPayment(sourceSystem: "stripe" | "tap
   };
   return {
     from: (table: string) => queryFor(table),
-    rpc: async (name: string) => ({ data: name === "get_b2c_tap_statement_unmatched_ledger_rows" ? [] : [], error: null }),
+    rpc: async (name: string) => ({
+      data: name === "get_b2c_ledger_decisions" ? [{
+        record_type: "Payment",
+        record_id: payment.id,
+        decision: {
+          source_status: "succeeded",
+          reconciliation_status: "not_required",
+          reporting_decision: "reportable",
+          posting_status: "not_applicable",
+          exclusion_reasons: [],
+          blocking_reasons: [],
+        },
+      }] : [],
+      error: null,
+    }),
   };
 }
 
@@ -100,8 +113,6 @@ describe("B2C Stripe enrichment presentation", () => {
     });
 
     expect(display).toMatchObject({ customerName: "Current Stripe Name", customerEmail: "current-profile@example.com", customerPhone: "+973 1700 0000" });
-    expect(isReportableB2cPayment({ paymentStatus: "succeeded", customerEmail: null, openFlagTypes: new Set(["needs_follow_up"]) })).toBe(false);
-
     const row = {
       id: "payment-1", recordType: "Payment" as const,
       customerName: display.customerName, customerEmail: display.customerEmail, customerPhone: display.customerPhone,

@@ -1,8 +1,7 @@
-import { resolveB2cPaymentDecision, type B2cPaymentDecision } from "@/lib/b2c/payment-decision";
-import { getB2cDashboardSnapshot, type B2cLedgerRow, type B2cOpenReviewFlag } from "@/server/repositories/b2c-dashboard-repository";
+import { z } from "zod";
+import { presentB2cPaymentDecision, type B2cPaymentDecision } from "@/lib/b2c/payment-decision";
+import { resolveB2cReportingPeriod, type B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
 import type { DatabaseClient } from "@/lib/supabase/server";
-
-export type B2cDecoratedLedgerRow = B2cLedgerRow & { decision: B2cPaymentDecision };
 
 export const B2C_LEDGER_MAX_LIMIT = 100;
 export const B2C_LEDGER_DEFAULT_LIMIT = 25;
@@ -28,6 +27,16 @@ export type B2cLedgerQuery = {
   search?: string;
 };
 
+export type B2cDecoratedLedgerRow = Omit<B2cLedgerRow, "sqlDecision"> & {
+  decision: B2cPaymentDecision;
+};
+
+export type B2cLedgerFilterMetadata = {
+  sources: string[];
+  issues: NonNullable<B2cLedgerRow["issue"]>[];
+  foreignCurrencyCount: number;
+};
+
 export type B2cLedgerPage = {
   rows: B2cDecoratedLedgerRow[];
   nextCursor: string | null;
@@ -36,111 +45,324 @@ export type B2cLedgerPage = {
   filterMetadata: B2cLedgerFilterMetadata;
 };
 
-/** Safe values/counts for filters across the selected period, before the active page query is applied. */
-export type B2cLedgerFilterMetadata = {
-  sources: string[];
-  issues: NonNullable<B2cLedgerRow["issue"]>[];
-  foreignCurrencyCount: number;
+export type B2cLedgerCursor = {
+  version: 1;
+  sort: B2cLedgerSort;
+  value: string;
+  recordType: "Payment" | "Refund";
+  id: string;
 };
 
-/** Raw labels preserve ungrouped historical flags. Grouped duplicate state comes only from the safe per-payment boolean. */
-const OPEN_FLAG_LABEL_TO_TYPE: Partial<Record<NonNullable<B2cOpenReviewFlag["type"]>, string>> = {
-  "Possible duplicate": "possible_duplicate",
-  "Needs follow-up": "needs_follow_up",
-  "Missing customer email": "needs_follow_up",
-};
+const cursorSchema = z.object({
+  version: z.literal(1),
+  sort: z.enum(["date_desc", "date_asc", "amount_desc", "amount_asc"]),
+  value: z.string().min(1).max(100),
+  recordType: z.enum(["Payment", "Refund"]),
+  id: z.string().uuid(),
+}).strict();
 
-function paymentStatusForDecision(row: B2cLedgerRow): "succeeded" | "failed" | "pending" {
-  if (row.paymentStatus === "Failed") return "failed";
-  if (row.paymentStatus === "Pending") return "pending";
-  return "succeeded";
-}
-
-/**
- * Rebuilds the one accurate decision for an already-projected ledger row.
- * Every input comes from a field the row already carries -- no new database
- * read, and no rule loosened beyond what `resolveB2cPaymentDecision` allows.
- */
-export function decorateB2cLedgerRow(row: B2cLedgerRow, today = new Date()): B2cDecoratedLedgerRow {
-  const openFlagTypes = new Set(row.openReviewFlags.flatMap((flag) => {
-    if (flag.type === "Possible duplicate" && row.hasOpenPaymentDuplicate) return [];
-    const rawType = OPEN_FLAG_LABEL_TO_TYPE[flag.type];
-    return rawType ? [rawType] : [];
-  }));
-  const decision = resolveB2cPaymentDecision({
-    sourceSystem: row.sourceSystem,
-    paymentStatus: paymentStatusForDecision(row),
-    customerEmail: row.customerEmail,
-    occurredOn: row.dateValue || null,
-    openFlagTypes,
-    originalCurrency: row.sourceOriginalCurrency ?? "USD",
-    amountUsd: row.amountValueUsd,
-    hasFinanceException: row.hasFinanceException,
-    isApprovedFinancePayment: row.sourceSystem === "finance_tracker",
-    hasOpenPaymentDuplicate: row.hasOpenPaymentDuplicate,
-    hasDuplicateExclusion: row.hasDuplicateExclusion,
-    financeLineageStatus: row.sourceSystem === "finance_tracker" ? "posted" : "not_applicable",
-  }, today);
-  return { ...row, decision };
-}
-
-function matchesQuery(row: B2cDecoratedLedgerRow, query: B2cLedgerQuery): boolean {
-  if (query.source && row.sourceSystem !== query.source) return false;
-  if (query.sourceStatus && row.decision.sourceStatus !== query.sourceStatus) return false;
-  if (query.paymentStatus && row.paymentStatus !== query.paymentStatus) return false;
-  if (query.reportingDecision && row.decision.reportingDecision !== query.reportingDecision) return false;
-  if (query.issue === "none" ? row.issue !== null : query.issue && row.issue !== query.issue) return false;
-  if (query.dateFrom && row.dateValue < query.dateFrom) return false;
-  if (query.dateTo && row.dateValue > query.dateTo) return false;
-  if (query.foreignCurrencyOnly && !row.foreignCurrencyReview) return false;
-  if (query.currency && (row.sourceOriginalCurrency ?? "USD") !== query.currency) return false;
-  const absoluteAmountUsd = row.amountValueUsd === null ? null : Math.abs(Number(row.amountValueUsd));
-  if (query.minAmountUsd && (absoluteAmountUsd === null || absoluteAmountUsd < Number(query.minAmountUsd))) return false;
-  if (query.maxAmountUsd && (absoluteAmountUsd === null || absoluteAmountUsd > Number(query.maxAmountUsd))) return false;
-  if (query.search) {
-    const needle = query.search.trim().toLowerCase();
-    if (!needle) return true;
-    const haystack = [row.customerName, row.customerEmail, row.customerPhone, row.providerReference].filter(Boolean).join(" ").toLowerCase();
-    if (!haystack.includes(needle)) return false;
+export class B2cLedgerCursorError extends Error {
+  constructor(message = "The B2C Ledger page cursor is invalid.") {
+    super(message);
+    this.name = "B2cLedgerCursorError";
   }
-  return true;
 }
 
-function sortRows(rows: B2cDecoratedLedgerRow[], sort: B2cLedgerSort): B2cDecoratedLedgerRow[] {
-  const sorted = [...rows];
-  const amount = (row: B2cDecoratedLedgerRow) => Number(row.amountValueUsd ?? "0");
-  if (sort === "date_asc") sorted.sort((first, second) => first.dateValue.localeCompare(second.dateValue));
-  else if (sort === "amount_desc") sorted.sort((first, second) => amount(second) - amount(first));
-  else if (sort === "amount_asc") sorted.sort((first, second) => amount(first) - amount(second));
-  else sorted.sort((first, second) => second.dateValue.localeCompare(first.dateValue));
-  return sorted;
+export function encodeB2cLedgerCursor(cursor: B2cLedgerCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
-function buildFilterMetadata(rows: B2cDecoratedLedgerRow[]): B2cLedgerFilterMetadata {
+export function decodeB2cLedgerCursor(value: string, expectedSort: B2cLedgerSort): B2cLedgerCursor {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+    const cursor = cursorSchema.parse(decoded);
+    if (cursor.sort !== expectedSort) {
+      throw new B2cLedgerCursorError("The B2C Ledger cursor does not match the selected sort.");
+    }
+    return cursor;
+  } catch (error) {
+    if (error instanceof B2cLedgerCursorError) throw error;
+    throw new B2cLedgerCursorError();
+  }
+}
+
+const issueSchema = z.enum([
+  "Possible duplicate",
+  "Failed",
+  "Missing customer email",
+  "Needs follow-up",
+  "Needs FX review",
+  "Refunded",
+]);
+
+const openReviewFlagSchema = z.object({
+  id: z.string().uuid(),
+  type: issueSchema,
+  reason: z.string(),
+}).strict();
+
+const correctionFieldSchema = z.enum([
+  "customerName",
+  "customerEmail",
+  "customerPhone",
+  "membershipTier",
+  "amountUsd",
+  "occurredOn",
+]);
+
+const rowDataSchema = z.object({
+  id: z.string().uuid(),
+  record_type: z.enum(["Payment", "Refund"]),
+  customer_name: z.string().nullable(),
+  customer_email: z.string().nullable(),
+  customer_phone: z.string().nullable(),
+  customer_name_evidence_label: z.enum(["Stripe payment method", "Stripe profile"]).nullable(),
+  customer_email_evidence_label: z.enum(["Stripe payment method", "Stripe profile"]).nullable(),
+  customer_phone_evidence_label: z.enum(["Stripe payment method", "Stripe profile"]).nullable(),
+  date_value: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  amount_value_usd: z.string().nullable(),
+  source_original_amount: z.string(),
+  source_original_currency: z.string().length(3),
+  source_description: z.string().nullable(),
+  source_seller_message: z.string().nullable(),
+  foreign_currency_review: z.boolean(),
+  has_fx_conversion: z.boolean(),
+  fx_conversion_source: z.string().nullable(),
+  fx_conversion_effective_on: z.string().nullable(),
+  source_date_value: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  membership_tier: z.string().nullable(),
+  source: z.string(),
+  payment_status: z.enum(["Completed", "Failed", "Pending", "Refunded"]),
+  provider_reference: z.string().nullable(),
+  source_system: z.enum(["stripe", "tap", "manual_bank_transfer", "finance_tracker"]),
+  product_reference: z.string().nullable(),
+  source_metadata: z.record(z.string(), z.unknown()),
+  has_local_correction: z.boolean(),
+  local_correction_fields: z.array(correctionFieldSchema),
+  has_finance_exception: z.boolean(),
+  has_open_payment_duplicate: z.boolean(),
+  has_duplicate_exclusion: z.boolean(),
+  open_review_flags: z.array(openReviewFlagSchema),
+  issue: issueSchema.nullable(),
+}).strict();
+
+const pageIdentitySchema = z.object({
+  record_type: z.enum(["Payment", "Refund"]),
+  record_id: z.string().uuid(),
+  sort_value: z.string(),
+  decision: z.unknown(),
+}).strict();
+
+const hydrationSchema = z.object({
+  record_type: z.enum(["Payment", "Refund"]),
+  record_id: z.string().uuid(),
+  row_data: rowDataSchema,
+  decision: z.unknown(),
+}).strict();
+
+const metadataSchema = z.object({
+  total_count: z.number().int().nonnegative(),
+  sources: z.array(z.string()),
+  issues: z.array(issueSchema),
+  foreign_currency_count: z.number().int().nonnegative(),
+}).strict();
+
+const USD_SCALE = BigInt(1_000_000);
+
+function scaledUsd(value: string): bigint {
+  const match = /^(-?)(\d+)(?:\.(\d{1,6}))?$/.exec(value);
+  if (!match) throw new Error("The B2C Ledger returned an invalid USD value.");
+  const scaled = BigInt(match[2]) * USD_SCALE + BigInt((match[3] ?? "").padEnd(6, "0"));
+  return match[1] === "-" ? -scaled : scaled;
+}
+
+function formatUsd(value: string): string {
+  const scaled = scaledUsd(value);
+  const absolute = scaled < BigInt(0) ? -scaled : scaled;
+  const whole = absolute / USD_SCALE;
+  const cents = (absolute % USD_SCALE) / BigInt(10_000);
+  return `${scaled < BigInt(0) ? "−" : ""}$${whole.toLocaleString("en-US")}.${cents.toString().padStart(2, "0")}`;
+}
+
+function formatSourceAmount(value: string, currency: string, negative: boolean): string {
+  if (currency === "USD") return formatUsd(`${negative ? "-" : ""}${value}`);
+  const compact = value.replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
+  return `${negative ? "−" : ""}${compact} ${currency}`;
+}
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" })
+    .format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function billingIntervalLabel(metadata: Record<string, unknown>): string | null {
+  const interval = typeof metadata.stripe_billing_interval === "string" ? metadata.stripe_billing_interval : null;
+  const rawCount = typeof metadata.stripe_billing_interval_count === "string" ? metadata.stripe_billing_interval_count : "1";
+  const count = Number(rawCount);
+  if (!interval || !Number.isInteger(count) || count < 1) return null;
+  if (count === 1) {
+    if (interval === "day") return "Daily";
+    if (interval === "week") return "Weekly";
+    if (interval === "month") return "Monthly";
+    if (interval === "year") return "Annual";
+    return null;
+  }
+  return ["day", "week", "month", "year"].includes(interval) ? `Every ${count} ${interval}s` : null;
+}
+
+function mapHydratedRow(value: z.infer<typeof hydrationSchema>): B2cDecoratedLedgerRow {
+  const raw = value.row_data;
+  const negative = raw.record_type === "Refund";
+  const sourceAmount = formatSourceAmount(raw.source_original_amount, raw.source_original_currency, negative);
   return {
-    sources: [...new Set(rows.map((row) => row.source))].sort(),
-    issues: [...new Set(rows.flatMap((row) => row.issue ? [row.issue] : []))].sort(),
-    foreignCurrencyCount: rows.filter((row) => row.foreignCurrencyReview).length,
+    id: raw.id,
+    recordType: raw.record_type,
+    customerName: raw.customer_name,
+    customerEmail: raw.customer_email,
+    customerPhone: raw.customer_phone,
+    customerNameEvidenceLabel: raw.customer_name_evidence_label,
+    customerEmailEvidenceLabel: raw.customer_email_evidence_label,
+    customerPhoneEvidenceLabel: raw.customer_phone_evidence_label,
+    date: formatDate(raw.date_value),
+    dateValue: raw.date_value,
+    amountUsd: raw.amount_value_usd === null ? sourceAmount : formatUsd(raw.amount_value_usd),
+    amountValueUsd: raw.amount_value_usd,
+    sourceAmountUsd: sourceAmount,
+    sourceOriginalAmount: raw.source_original_amount,
+    sourceOriginalCurrency: raw.source_original_currency,
+    sourceDescription: raw.source_description,
+    sourceSellerMessage: raw.source_seller_message,
+    isForeignCurrency: raw.source_original_currency !== "USD",
+    foreignCurrencyReview: raw.foreign_currency_review,
+    hasFxConversion: raw.has_fx_conversion,
+    fxConversionSource: raw.fx_conversion_source,
+    fxConversionEffectiveOn: raw.fx_conversion_effective_on,
+    sourceDateValue: raw.source_date_value,
+    membershipTier: raw.membership_tier,
+    billingInterval: raw.record_type === "Payment" ? billingIntervalLabel(raw.source_metadata) : null,
+    source: raw.source,
+    paymentStatus: raw.payment_status,
+    providerReference: raw.provider_reference,
+    sourceSystem: raw.source_system,
+    productReference: raw.product_reference,
+    hasLocalCorrection: raw.has_local_correction,
+    localCorrectionFields: raw.local_correction_fields,
+    hasFinanceException: raw.has_finance_exception,
+    hasOpenPaymentDuplicate: raw.has_open_payment_duplicate,
+    hasDuplicateExclusion: raw.has_duplicate_exclusion,
+    openReviewFlags: raw.open_review_flags,
+    issue: raw.issue,
+    decision: presentB2cPaymentDecision(value.decision),
   };
 }
 
-/** A pure, in-memory page over an already-fetched, already-decorated row set. Cursor is an opaque row-index token. */
-export function pageB2cLedgerRows(rows: B2cDecoratedLedgerRow[], query: B2cLedgerQuery): B2cLedgerPage {
-  const limit = Math.min(Math.max(query.limit ?? B2C_LEDGER_DEFAULT_LIMIT, 1), B2C_LEDGER_MAX_LIMIT);
-  const filtered = sortRows(rows.filter((row) => matchesQuery(row, query)), query.sort ?? "date_desc");
-  const start = query.cursor && /^\d+$/.test(query.cursor) ? Number(query.cursor) : 0;
-  const page = filtered.slice(start, start + limit);
-  const nextIndex = start + page.length;
-  const hasMore = nextIndex < filtered.length;
-  return { rows: page, nextCursor: hasMore ? String(nextIndex) : null, hasMore, totalCount: filtered.length, filterMetadata: buildFilterMetadata(rows) };
+/** Presents the database decision attached to a legacy Work-queue row. */
+export function decorateB2cLedgerRow(row: B2cLedgerRow): B2cDecoratedLedgerRow {
+  const { sqlDecision, ...ledgerRow } = row;
+  return {
+    ...ledgerRow,
+    decision: presentB2cPaymentDecision(sqlDecision),
+  };
 }
 
-/** Loads and pages the B2C ledger. Reuses the existing dashboard snapshot for period scoping and every source read. */
+function rpcFilters(query: B2cLedgerQuery, period: string, today: string) {
+  return {
+    p_period: period,
+    p_today: today,
+    p_source: query.source ?? null,
+    p_source_status: query.sourceStatus ?? null,
+    p_payment_status: query.paymentStatus ?? null,
+    p_reporting_decision: query.reportingDecision ?? null,
+    p_issue: query.issue ?? null,
+    p_date_from: query.dateFrom ?? null,
+    p_date_to: query.dateTo ?? null,
+    p_foreign_currency_only: query.foreignCurrencyOnly ?? false,
+    p_currency: query.currency ?? null,
+    p_min_amount_usd: query.minAmountUsd ?? null,
+    p_max_amount_usd: query.maxAmountUsd ?? null,
+    p_search: query.search ?? null,
+  };
+}
+
 export class SupabaseB2cLedgerRepository {
   constructor(private readonly client: DatabaseClient) {}
 
   async page(query: B2cLedgerQuery, today = new Date()): Promise<B2cLedgerPage> {
-    const snapshot = await getB2cDashboardSnapshot(this.client, today, query.period);
-    return pageB2cLedgerRows(snapshot.rows.map((row) => decorateB2cLedgerRow(row, today)), query);
+    const sort = query.sort ?? "date_desc";
+    const limit = Math.min(Math.max(query.limit ?? B2C_LEDGER_DEFAULT_LIMIT, 1), B2C_LEDGER_MAX_LIMIT);
+    const period = resolveB2cReportingPeriod(query.period, today).month;
+    const todayValue = today.toISOString().slice(0, 10);
+    const cursor = query.cursor ? decodeB2cLedgerCursor(query.cursor, sort) : null;
+    const filters = rpcFilters(query, period, todayValue);
+
+    const [pageResult, metadataResult] = await Promise.all([
+      this.client.rpc("get_b2c_ledger_page", {
+        ...filters,
+        p_limit: limit + 1,
+        p_sort: sort,
+        p_after_value: cursor?.value ?? null,
+        p_after_record_type: cursor?.recordType ?? null,
+        p_after_id: cursor?.id ?? null,
+      }),
+      this.client.rpc("get_b2c_ledger_metadata", filters),
+    ]);
+    if (pageResult.error || metadataResult.error) {
+      throw new Error("Could not load the B2C Ledger page.");
+    }
+
+    const identities = z.array(pageIdentitySchema).parse(pageResult.data ?? []);
+    const metadata = metadataSchema.parse(metadataResult.data);
+    const hasMore = identities.length > limit;
+    const selected = identities.slice(0, limit);
+
+    if (selected.length === 0) {
+      return {
+        rows: [],
+        nextCursor: null,
+        hasMore: false,
+        totalCount: metadata.total_count,
+        filterMetadata: {
+          sources: metadata.sources,
+          issues: metadata.issues,
+          foreignCurrencyCount: metadata.foreign_currency_count,
+        },
+      };
+    }
+
+    const paymentIds = selected.filter((row) => row.record_type === "Payment").map((row) => row.record_id);
+    const refundIds = selected.filter((row) => row.record_type === "Refund").map((row) => row.record_id);
+    const hydrationResult = await this.client.rpc("get_b2c_ledger_rows", {
+      p_payment_ids: paymentIds,
+      p_refund_ids: refundIds,
+      p_today: todayValue,
+    });
+    if (hydrationResult.error) throw new Error("Could not hydrate the B2C Ledger page.");
+
+    const hydrated = z.array(hydrationSchema).parse(hydrationResult.data ?? []);
+    const hydratedByKey = new Map(hydrated.map((row) => [`${row.record_type}:${row.record_id}`, mapHydratedRow(row)]));
+    const rows = selected.map((identity) => {
+      const row = hydratedByKey.get(`${identity.record_type}:${identity.record_id}`);
+      if (!row) throw new Error("The B2C Ledger page hydration was incomplete.");
+      return row;
+    });
+    const last = selected.at(-1)!;
+
+    return {
+      rows,
+      nextCursor: hasMore ? encodeB2cLedgerCursor({
+        version: 1,
+        sort,
+        value: last.sort_value,
+        recordType: last.record_type,
+        id: last.record_id,
+      }) : null,
+      hasMore,
+      totalCount: metadata.total_count,
+      filterMetadata: {
+        sources: metadata.sources,
+        issues: metadata.issues,
+        foreignCurrencyCount: metadata.foreign_currency_count,
+      },
+    };
   }
 }

@@ -39,7 +39,7 @@ const stripeEvidenceRow = {
   decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "reportable", postingStatus: "not_applicable", blockingReasons: [], explanation: "Every approved reporting rule passed, so this record is reportable." },
 };
 
-const ledgerPage = { rows: [stripeEvidenceRow], nextCursor: null, hasMore: false, totalCount: 1, filterMetadata: { sources: ["Stripe", "Tap"], categories: ["membership"], issues: ["Needs follow-up"], foreignCurrencyCount: 2 } };
+const ledgerPage = { rows: [stripeEvidenceRow], nextCursor: null, hasMore: false, totalCount: 1, filterMetadata: { sources: ["Stripe", "Tap"], issues: ["Needs follow-up"], foreignCurrencyCount: 2 } };
 const workspaceOverview = { items: [], counts: { all: 0, data: 0, duplicates: 0, reconciliation: 0 } };
 
 describe("GET /api/b2c/workspace", () => {
@@ -130,6 +130,32 @@ describe("GET /api/b2c/workspace", () => {
     expect(body.workItems).toEqual(workspaceOverview);
     expect(body.ledger.rows[0].stripeEvidence).toBeUndefined();
     expect(mocks.page).toHaveBeenCalledWith({ source: "stripe", sort: "amount_desc" });
+  });
+
+  it("lets an Admin load a Ledger page without materializing the Work queue", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.middlewareRole.mockReturnValue("admin");
+    mocks.page.mockResolvedValue(ledgerPage);
+
+    const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?includeWorkItems=false&cursor=opaque-keyset-token"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.workItems).toBeNull();
+    expect(mocks.overview).not.toHaveBeenCalled();
+    expect(mocks.page).toHaveBeenCalledWith({ cursor: "opaque-keyset-token" });
+  });
+
+  it("returns a validation response for an invalid repository cursor", async () => {
+    const { B2cLedgerCursorError } = await import("@/server/repositories/b2c-ledger-repository");
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.middlewareRole.mockReturnValue("viewer");
+    mocks.page.mockRejectedValue(new B2cLedgerCursorError());
+
+    const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?cursor=malformed-but-opaque"));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: "The B2C Ledger page cursor is invalid." });
   });
 
   it("accepts every exposed ledger filter before it loads the server-filtered page", async () => {

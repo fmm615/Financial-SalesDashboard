@@ -7,16 +7,18 @@ import type { B2cSafeLedgerRow } from "@/features/b2c/b2c-ledger-table";
 
 let currentSearch = new URLSearchParams();
 const pushMock = vi.fn();
+const replaceMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/operations/b2c",
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
   useSearchParams: () => currentSearch,
 }));
 
 afterEach(() => {
   vi.unstubAllGlobals();
   pushMock.mockClear();
+  replaceMock.mockClear();
   currentSearch = new URLSearchParams();
 });
 
@@ -192,6 +194,71 @@ describe("Work queue", () => {
 });
 
 describe("Ledger", () => {
+  it("renders the reporting period inside the Ledger filter bar and nowhere on Work", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin" });
+    const { unmount } = render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const filters = await screen.findByRole("region", { name: "B2C ledger filters" });
+    const period = within(filters).getByLabelText("B2C reporting period");
+    const search = within(filters).getByPlaceholderText("Name, email, mobile, or ID");
+    expect(period.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    unmount();
+    currentSearch = new URLSearchParams("tab=work");
+    stubFetch({ role: "admin" });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+    await screen.findByText("Enter the missing amount for Sam");
+    expect(screen.queryByLabelText("B2C reporting period")).not.toBeInTheDocument();
+  });
+
+  it("replaces rows across label-only Previous and Next keyset pages", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    const requestedCursors: Array<string | null> = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
+      const url = new URL(String(input), "https://playbook.test");
+      const cursor = url.searchParams.get("cursor");
+      requestedCursors.push(cursor);
+      const pageNumber = cursor === "page-3" ? 3 : cursor === "page-2" ? 2 : 1;
+      const row = { ...ledgerRow, id: `payment-${pageNumber}`, customerName: `Customer page ${pageNumber}` };
+      return {
+        ok: true,
+        json: async () => ({
+          role: "admin",
+          ledger: {
+            rows: [row],
+            nextCursor: pageNumber === 1 ? "page-2" : pageNumber === 2 ? "page-3" : null,
+            hasMore: pageNumber < 3,
+            totalCount: 250,
+            filterMetadata: filterMetadataForRows([row]),
+          },
+          workItems: null,
+        }),
+      };
+    }));
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    const pagination = await screen.findByRole("navigation", { name: "B2C Ledger pagination" });
+    expect(within(pagination).getByText("Page 1 of 3")).toBeInTheDocument();
+    expect(within(pagination).getByRole("button", { name: "Previous" })).toBeDisabled();
+    expect(within(pagination).queryByRole("button", { name: "1" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Customer page 1").length).toBeGreaterThan(0);
+
+    fireEvent.click(within(pagination).getByRole("button", { name: "Next" }));
+    await screen.findByText("Page 2 of 3");
+    expect(screen.getAllByText("Customer page 2").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Customer page 1")).not.toBeInTheDocument();
+
+    fireEvent.click(within(pagination).getByRole("button", { name: "Next" }));
+    await screen.findByText("Page 3 of 3");
+    expect(within(pagination).getByRole("button", { name: "Next" })).toBeDisabled();
+
+    fireEvent.click(within(pagination).getByRole("button", { name: "Previous" }));
+    await screen.findByText("Page 2 of 3");
+    expect(requestedCursors).toEqual([null, "page-2", "page-3", "page-2"]);
+    expect(vi.mocked(global.fetch).mock.calls.every(([input]) => new URL(String(input), "https://playbook.test").searchParams.get("includeWorkItems") === "false")).toBe(true);
+  });
+
   it("does not present retired unmapped-product exclusions or a Ledger filter", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
     stubFetch({ role: "admin", ledgerRows: [{ ...ledgerRow, issue: "Needs follow-up" }] });
@@ -241,7 +308,7 @@ describe("Ledger", () => {
 
   it("keeps filter choices and the FX-review count from server metadata after a narrow page reload", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
-    const filterMetadata = { sources: ["Stripe", "Tap"], categories: ["course", "membership"], issues: ["Needs follow-up"], foreignCurrencyCount: 3 };
+    const filterMetadata = { sources: ["Stripe", "Tap"], issues: ["Needs follow-up"], foreignCurrencyCount: 3 };
     vi.stubGlobal("fetch", vi.fn(async () => ({
       ok: true,
       json: async () => ({ role: "admin", ledger: { rows: [ledgerRow], nextCursor: null, hasMore: false, totalCount: 1, filterMetadata }, workItems }),

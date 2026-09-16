@@ -5,7 +5,8 @@ const calendarDate = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[0
 
 /** Query filters for the safe, paged B2C workspace ledger read. `limit` is capped at 100 rows per page. */
 export const b2cWorkspaceLedgerQuerySchema = z.object({
-  cursor: z.string().trim().regex(/^\d+$/, "Enter a valid page cursor.").optional(),
+  cursor: z.string().trim().min(1, "Enter a valid page cursor.").max(1000, "Enter a valid page cursor.").optional(),
+  includeWorkItems: z.enum(["true", "false"]).transform((value) => value === "true").optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   period: z.union([z.literal("all"), z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Enter a valid reporting month.")]).optional(),
   source: z.enum(["stripe", "tap", "manual_bank_transfer", "finance_tracker"]).optional(),

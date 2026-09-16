@@ -1,4 +1,5 @@
-import { b2cPaymentExclusionReasons, isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
+import { z } from "zod";
+import { parseB2cSqlPaymentDecision } from "@/lib/b2c/payment-reportability";
 import { resolveB2cSourceCoverage, type B2cSourceCoverage } from "@/lib/b2c/source-coverage";
 import { resolveEffectiveB2cPayment } from "@/lib/b2c/effective-payment";
 import { retryTransient } from "@/lib/resilience";
@@ -66,6 +67,8 @@ export type B2cLedgerRow = {
   issue: "Possible duplicate" | "Failed" | "Missing customer email" | "Needs follow-up" | "Needs FX review" | "Refunded" | null;
   /** Safe, read-only Stripe evidence. It never participates in reportability. */
   stripeEvidence?: B2cStripeEvidence | null;
+  /** Database-authoritative financial decision used only by the unpaginated Work queue. */
+  sqlDecision?: unknown;
 };
 export type B2cStripeRefundEvidence = {
   refundId: string;
@@ -207,9 +210,10 @@ export type B2cOpenReviewFlag = {
 };
 
 function toScaledUsd(value: string): bigint {
-  const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(value);
+  const match = /^(-?)(\d+)(?:\.(\d{1,6}))?$/.exec(value);
   if (!match) throw new Error("Stored B2C USD value is invalid.");
-  return BigInt(match[1]) * USD_SCALE + BigInt((match[2] ?? "").padEnd(6, "0"));
+  const scaled = BigInt(match[2]) * USD_SCALE + BigInt((match[3] ?? "").padEnd(6, "0"));
+  return match[1] === "-" ? -scaled : scaled;
 }
 
 function formatUsd(value: bigint): string {
@@ -313,17 +317,104 @@ export function resolveB2cReportingPeriod(selectedMonth: string | undefined, tod
   };
 }
 
+const nullableHistoricalCoverageSchema = z.object({
+  status: z.string(),
+  recordsFailed: z.number().int().nonnegative(),
+  completedAt: z.string().nullable(),
+}).strict().nullable();
+
+const nullableReconciliationCoverageSchema = z.object({
+  status: z.string(),
+  requestedRangeEnd: z.string().nullable(),
+  completedAt: z.string().nullable(),
+}).strict().nullable();
+
+const dashboardSummarySchema = z.object({
+  has_source_records: z.boolean(),
+  eligible_payments_usd: z.string(),
+  refunds_usd: z.string(),
+  net_payments_usd: z.string(),
+  completed_source_payments_usd: z.string(),
+  source_refunds_usd: z.string(),
+  calculation: z.object({
+    completed_source_payment_count: z.number().int().nonnegative(),
+    reportable_payment_count: z.number().int().nonnegative(),
+    excluded_completed_payment_count: z.number().int().nonnegative(),
+    excluded_completed_payments_usd: z.string(),
+    source_refund_count: z.number().int().nonnegative(),
+    eligible_refund_count: z.number().int().nonnegative(),
+    missing_customer_email_count: z.number().int().nonnegative(),
+    possible_duplicate_count: z.number().int().nonnegative(),
+    other_review_count: z.number().int().nonnegative(),
+    non_succeeded_payment_count: z.number().int().nonnegative(),
+    finance_exception_payment_count: z.number().int().nonnegative(),
+  }).strict(),
+  review_items: z.number().int().nonnegative(),
+  source_coverage_inputs: z.object({
+    providers: z.array(z.object({
+      provider: z.enum(["stripe", "tap"]),
+      active: z.boolean(),
+      historicalBackfill: nullableHistoricalCoverageSchema,
+      latestReconciliation: nullableReconciliationCoverageSchema,
+    }).strict()),
+  }).strict(),
+}).strict();
+
+const ledgerDecisionsSchema = z.array(z.object({
+  record_type: z.enum(["Payment", "Refund"]),
+  record_id: z.string().uuid(),
+  decision: z.unknown(),
+}).strict());
+
+/** Loads only the database aggregate needed by the page header. */
+export async function getB2cDashboardSummary(
+  client: DatabaseClient,
+  today = new Date(),
+  selectedMonth?: string,
+): Promise<B2cDashboardSnapshot> {
+  const period = resolveB2cReportingPeriod(selectedMonth, today);
+  const { data, error } = await client.rpc("get_b2c_dashboard_summary", {
+    p_period: period.month,
+    p_today: today.toISOString().slice(0, 10),
+  });
+  if (error) throw new Error("Could not load the B2C dashboard summary.");
+  const parsed = dashboardSummarySchema.safeParse(data);
+  if (!parsed.success) throw new Error("Invalid B2C dashboard summary returned by the database.");
+  const summary = parsed.data;
+
+  return {
+    period,
+    sourceCoverage: resolveB2cSourceCoverage(summary.source_coverage_inputs),
+    hasSourceRecords: summary.has_source_records,
+    eligiblePaymentsUsd: formatUsd(toScaledUsd(summary.eligible_payments_usd)),
+    refundsUsd: formatUsd(toScaledUsd(summary.refunds_usd)),
+    netPaymentsUsd: formatUsd(toScaledUsd(summary.net_payments_usd)),
+    completedSourcePaymentsUsd: formatUsd(toScaledUsd(summary.completed_source_payments_usd)),
+    sourceRefundsUsd: formatUsd(toScaledUsd(summary.source_refunds_usd)),
+    calculation: {
+      completedSourcePaymentCount: summary.calculation.completed_source_payment_count,
+      reportablePaymentCount: summary.calculation.reportable_payment_count,
+      excludedCompletedPaymentCount: summary.calculation.excluded_completed_payment_count,
+      excludedCompletedPaymentsUsd: formatUsd(toScaledUsd(summary.calculation.excluded_completed_payments_usd)),
+      sourceRefundCount: summary.calculation.source_refund_count,
+      eligibleRefundCount: summary.calculation.eligible_refund_count,
+      missingCustomerEmailCount: summary.calculation.missing_customer_email_count,
+      possibleDuplicateCount: summary.calculation.possible_duplicate_count,
+      otherReviewCount: summary.calculation.other_review_count,
+      nonSucceededPaymentCount: summary.calculation.non_succeeded_payment_count,
+      financeExceptionPaymentCount: summary.calculation.finance_exception_payment_count,
+    },
+    reviewItems: summary.review_items,
+    rows: [],
+  };
+}
+
 function isInB2cPeriod(date: string, period: B2cReportingPeriod): boolean {
   return period.isAllTime || (date >= period.monthStart && date <= period.monthEnd);
 }
 
-/**
- * Produces a ledger-oriented B2C snapshot. A payment is reportable only when it
- * succeeded and has cleared every shared reporting gate, including the safe
- * per-payment duplicate state from the approved reporting RPC.
- * Refunds remain separate source records and reduce only the net-payment metric.
- */
-function loadB2cSnapshotResults(client: DatabaseClient) {
+/** Legacy all-record read retained only for the unpaginated Work queue and the local equivalence oracle. */
+function loadB2cSnapshotResults(client: DatabaseClient, today: Date) {
   return Promise.all([
     client.from("b2c_payments").select("id,source_system,provider_transaction_id,customer_name,customer_email,customer_phone,membership_tier,payment_status,original_amount,original_currency,amount_usd,occurred_on,source_metadata").order("occurred_at", { ascending: false }),
     client.from("b2c_refunds").select("id,payment_id,source_system,provider_refund_id,original_amount,original_currency,amount_usd,occurred_at").order("occurred_at", { ascending: false }),
@@ -340,6 +431,7 @@ function loadB2cSnapshotResults(client: DatabaseClient) {
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "stripe").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,records_failed,completed_at").eq("provider", "tap").eq("operation_type", "historical_backfill").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("integration_sync_runs").select("status,requested_range_end,completed_at").eq("provider", "tap").eq("operation_type", "reconciliation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    client.rpc("get_b2c_ledger_decisions", { p_today: today.toISOString().slice(0, 10) }),
   ]);
 }
 
@@ -349,17 +441,24 @@ function hasSnapshotError(results: Awaited<ReturnType<typeof loadB2cSnapshotResu
 
 export async function getB2cDashboardSnapshot(client: DatabaseClient, today = new Date(), selectedMonth?: string): Promise<B2cDashboardSnapshot> {
   const period = resolveB2cReportingPeriod(selectedMonth, today);
-  // 15 independent queries run concurrently, so a single dropped connection
+  // 16 independent queries run concurrently, so a single dropped connection
   // on any one of them previously failed the entire dashboard. Retrying the
   // whole batch absorbs a run of flaky round trips before giving up for real.
-  const results = await retryTransient(() => loadB2cSnapshotResults(client), hasSnapshotError);
-  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, duplicateReportingStatesResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult] = results;
+  const results = await retryTransient(() => loadB2cSnapshotResults(client, today), hasSnapshotError);
+  const [paymentsResult, refundsResult, paymentFlagsResult, refundFlagsResult, localOverridesResult, paymentFxConversionsResult, refundFxConversionsResult, financeExceptionResult, duplicateReportingStatesResult, stripeContactFallbacksResult, stripeEvidenceResult, stripeHistoricalResult, stripeReconciliationResult, tapHistoricalResult, tapReconciliationResult, decisionsResult] = results;
   if (hasSnapshotError(results)) {
     throw new Error("Could not load B2C source records.");
   }
 
   const payments = paymentsResult.data ?? [];
   const refunds = refundsResult.data ?? [];
+  const decisionsByRecord = new Map<string, unknown>();
+  for (const result of ledgerDecisionsSchema.parse(decisionsResult.data)) {
+    parseB2cSqlPaymentDecision(result.decision);
+    decisionsByRecord.set(`${result.record_type}:${result.record_id}`, result.decision);
+    // Parsing here is intentional: a malformed database decision must fail
+    // the whole financial read rather than falling back to application logic.
+  }
   const openDuplicatePaymentIds = new Set<string>();
   const excludedDuplicatePaymentIds = new Set<string>();
   for (const state of (duplicateReportingStatesResult.data ?? []) as PaymentDuplicateReportingState[]) {
@@ -448,35 +547,12 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     } : null, conversion ? { amountUsd: conversion.amount_usd } : null);
   };
   const paymentReportability = (payment: typeof payments[number]) => {
-    const openFlags = flagsByRecord.get(payment.id) ?? [];
-    const flagTypes = new Set(openFlags.map((flag) => flag.flag_type));
-    const effective = effectivePayment(payment);
-    const hasFinanceException = latestFinanceDecisionByPayment.get(payment.id)?.decision === "include";
+    const rawDecision = decisionsByRecord.get(`Payment:${payment.id}`);
+    if (!rawDecision) throw new Error("A B2C payment is missing its database decision.");
+    const decision = parseB2cSqlPaymentDecision(rawDecision);
     return {
-      isReportable: isReportableB2cPayment({
-        paymentStatus: payment.payment_status,
-        customerEmail: effective.customerEmail,
-        openFlagTypes: flagTypes,
-        originalCurrency: payment.original_currency,
-        amountUsd: effective.amountUsd,
-        hasFinanceException,
-        isApprovedFinancePayment: payment.source_system === "finance_tracker",
-        hasOpenPaymentDuplicate: openDuplicatePaymentIds.has(payment.id),
-        hasDuplicateExclusion: excludedDuplicatePaymentIds.has(payment.id),
-        hasBlockingNeedsFollowUp: openFlags.some((flag) => flag.flag_type === "needs_follow_up" && !isMissingCustomerEmailFlag(flag)),
-      }),
-      exclusions: b2cPaymentExclusionReasons({
-        paymentStatus: payment.payment_status,
-        customerEmail: effective.customerEmail,
-        openFlagTypes: flagTypes,
-        originalCurrency: payment.original_currency,
-        amountUsd: effective.amountUsd,
-        hasFinanceException,
-        isApprovedFinancePayment: payment.source_system === "finance_tracker",
-        hasOpenPaymentDuplicate: openDuplicatePaymentIds.has(payment.id),
-        hasDuplicateExclusion: excludedDuplicatePaymentIds.has(payment.id),
-        hasBlockingNeedsFollowUp: openFlags.some((flag) => flag.flag_type === "needs_follow_up" && !isMissingCustomerEmailFlag(flag)),
-      }),
+      isReportable: decision.reportingDecision === "reportable" || decision.reportingDecision === "exception_included",
+      exclusions: decision.exclusionReasons,
     };
   };
 
@@ -541,12 +617,9 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       const effective = effectivePayment(payment);
       const conversion = latestPaymentFxConversionByPayment.get(payment.id);
       const displayContact = resolveB2cContactDisplay(effective, stripeFallbacksByPayment.get(payment.id));
-      // A "missing customer email" flag is opened once, at first sync, and
-      // nothing ever closes it after a later re-sync/enrichment backfills the
-      // email (see stripe-sync-repository.ts persistCharge). Re-checking the
-      // live displayed email here -- exactly like the reportability check in
-      // payment-reportability.ts already does -- keeps the badge from lying
-      // about a payment whose email is now clearly visible in this same row.
+      // Preserve the existing display behavior for a stale missing-email flag.
+      // This affects only the badge: labelled Stripe fallback context never
+      // satisfies the database-authoritative reportability decision.
       const paymentFlags = (flagsByRecord.get(payment.id) ?? []).filter((flag) => !isMissingCustomerEmailFlag(flag) || !displayContact.customerEmail);
       const reviewFlags = paymentFlags.map((flag) => ({ id: flag.id, type: reviewFlagLabel(flag), reason: flag.reason }));
       const stripeEvidence = payment.source_system === "stripe" ? stripeEvidenceByPayment.get(payment.id) ?? {
@@ -590,6 +663,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       providerReference: payment.provider_transaction_id,
       sourceSystem: payment.source_system,
       stripeEvidence,
+      sqlDecision: decisionsByRecord.get(`Payment:${payment.id}`),
       productReference: sourceMetadataText(payment.source_metadata, "product_reference"),
       hasLocalCorrection: effective.hasLocalCorrection,
       localCorrectionFields: effective.correctedFields,
@@ -642,6 +716,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         providerReference: refund.provider_refund_id,
         sourceSystem: refund.source_system,
         productReference: null,
+        sqlDecision: decisionsByRecord.get(`Refund:${refund.id}`),
         hasLocalCorrection: Boolean(payment && effective?.hasLocalCorrection),
         localCorrectionFields: effective?.correctedFields ?? [],
         hasFinanceException: Boolean(payment && latestFinanceDecisionByPayment.get(payment.id)?.decision === "include"),

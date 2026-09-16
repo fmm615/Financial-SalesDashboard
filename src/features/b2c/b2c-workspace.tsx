@@ -7,7 +7,6 @@ import { EmptyState, ErrorState, MetricCard, SectionCard } from "@/components/ui
 import { useAppRole } from "@/lib/auth/role-context";
 import { B2cLedgerFilters, initialB2cLedgerFilters, type B2cLedgerFiltersState } from "@/features/b2c/b2c-ledger-filters";
 import { B2cLedgerTable, type B2cSafeLedgerRow } from "@/features/b2c/b2c-ledger-table";
-import { B2cPeriodSelector } from "@/features/b2c/b2c-period-selector";
 import { B2cWorkQueue, type B2cWorkQueueFilter } from "@/features/b2c/b2c-work-queue";
 import { B2cSourceManagement } from "@/features/b2c/b2c-source-management";
 import { B2cPaymentReviewDrawer, type B2cPaymentReviewDrawerTarget } from "@/features/b2c/b2c-payment-review-drawer";
@@ -17,6 +16,7 @@ import { summarizeB2cWorkItemCounts, type B2cWorkspaceOverview } from "@/server/
 import type { B2cWorkItem } from "@/server/services/b2c-work-items";
 
 type WorkspaceTab = "work" | "ledger" | "sources";
+const B2C_LEDGER_PAGE_SIZE = 100;
 const TABS: Array<{ value: WorkspaceTab; label: string; adminOnly?: boolean }> = [
   { value: "work", label: "Work queue", adminOnly: true },
   { value: "ledger", label: "Ledger" },
@@ -106,7 +106,9 @@ export function B2cWorkspace({
   const [hasMore, setHasMore] = useState(false);
   const [workItems, setWorkItems] = useState<B2cWorkspaceOverview | null>(null);
   const [ledgerLoadError, setLedgerLoadError] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageLoading, setPageLoading] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageStartCursors, setPageStartCursors] = useState<Array<string | null>>([null]);
 
   const [filters, setFilters] = useState<B2cLedgerFiltersState>(initialB2cLedgerFilters);
   const [drawerTarget, setDrawerTarget] = useState<B2cPaymentReviewDrawerTarget | null>(null);
@@ -117,7 +119,10 @@ export function B2cWorkspace({
   const period = snapshot?.period.month;
 
   const loadLedgerPage = useCallback(async (cursor: string | null, signal: AbortSignal) => {
-    const params = new URLSearchParams({ limit: "100" });
+    const params = new URLSearchParams({
+      limit: String(B2C_LEDGER_PAGE_SIZE),
+      includeWorkItems: activeTab === "work" && canManage ? "true" : "false",
+    });
     if (period) params.set("period", period);
     if (cursor) params.set("cursor", cursor);
     const search = filters.search.trim();
@@ -138,13 +143,13 @@ export function B2cWorkspace({
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok || !payload || typeof payload !== "object" || !("ledger" in payload)) throw new Error("Workspace data unavailable");
     return payload as WorkspaceLedgerResponse;
-  }, [filters, period]);
+  }, [activeTab, canManage, filters, period]);
 
   const invalidateLedgerRequests = useCallback(() => {
     ledgerRequestGeneration.current += 1;
     activeLedgerRequest.current?.abort();
     activeLedgerRequest.current = null;
-    setLoadingMore(false);
+    setPageLoading(false);
   }, []);
 
   const beginLedgerRequest = useCallback(() => {
@@ -157,6 +162,7 @@ export function B2cWorkspace({
   const reload = useCallback(async () => {
     const { controller, generation } = beginLedgerRequest();
     setLedgerLoadError(false);
+    setPageLoading(true);
     try {
       const page = await loadLedgerPage(null, controller.signal);
       if (generation !== ledgerRequestGeneration.current) return;
@@ -166,10 +172,15 @@ export function B2cWorkspace({
       setNextCursor(page.ledger.nextCursor);
       setHasMore(page.ledger.hasMore);
       setWorkItems(page.workItems);
+      setPageIndex(0);
+      setPageStartCursors([null]);
     } catch {
       if (generation === ledgerRequestGeneration.current && !controller.signal.aborted) setLedgerLoadError(true);
     } finally {
-      if (generation === ledgerRequestGeneration.current) activeLedgerRequest.current = null;
+      if (generation === ledgerRequestGeneration.current) {
+        activeLedgerRequest.current = null;
+        setPageLoading(false);
+      }
     }
   }, [beginLedgerRequest, loadLedgerPage]);
 
@@ -178,24 +189,30 @@ export function B2cWorkspace({
     return invalidateLedgerRequests;
   }, [invalidateLedgerRequests, reload]);
 
-  async function loadMore() {
-    if (!nextCursor) return;
+  async function loadPage(targetIndex: number, cursor: string | null) {
     const { controller, generation } = beginLedgerRequest();
-    setLoadingMore(true);
+    setPageLoading(true);
+    setLedgerLoadError(false);
     try {
-      const page = await loadLedgerPage(nextCursor, controller.signal);
+      const page = await loadLedgerPage(cursor, controller.signal);
       if (generation !== ledgerRequestGeneration.current) return;
-      setLedgerRows((current) => [...current, ...page.ledger.rows]);
+      setLedgerRows(page.ledger.rows);
       setLedgerTotalCount(page.ledger.totalCount);
       setLedgerFilterMetadata(page.ledger.filterMetadata);
       setNextCursor(page.ledger.nextCursor);
       setHasMore(page.ledger.hasMore);
+      setPageIndex(targetIndex);
+      setPageStartCursors((current) => {
+        const updated = current.slice(0, targetIndex + 1);
+        updated[targetIndex] = cursor;
+        return updated;
+      });
     } catch {
       if (generation === ledgerRequestGeneration.current && !controller.signal.aborted) setLedgerLoadError(true);
     } finally {
       if (generation === ledgerRequestGeneration.current) {
         activeLedgerRequest.current = null;
-        setLoadingMore(false);
+        setPageLoading(false);
       }
     }
   }
@@ -204,6 +221,8 @@ export function B2cWorkspace({
     invalidateLedgerRequests();
     setNextCursor(null);
     setHasMore(false);
+    setPageIndex(0);
+    setPageStartCursors([null]);
     setFilters(nextFilters);
   }
 
@@ -211,6 +230,7 @@ export function B2cWorkspace({
   const sources = useMemo(() => (ledgerFilterMetadata?.sources ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
   const issues = useMemo(() => (ledgerFilterMetadata?.issues ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
   const foreignCurrencyCount = ledgerFilterMetadata?.foreignCurrencyCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(ledgerTotalCount / B2C_LEDGER_PAGE_SIZE));
 
   // A record deep-linked from the Work queue or Review Queue opens the same shared drawer.
   useEffect(() => {
@@ -272,7 +292,6 @@ export function B2cWorkspace({
   return <AppShell
     title="B2C"
     description="One workspace for B2C work items, the full ledger, and provider/Finance sources. Only completed, verified, non-duplicate payments contribute to totals."
-    controls={<B2cPeriodSelector month={snapshot.period.month} />}
   >
     <div className={`mb-4 rounded-card border p-4 ${financialTotalsAvailable ? "border-success/25 bg-success/5" : "border-warning/30 bg-warning/5"}`} role="status">
       <p className={`font-semibold ${financialTotalsAvailable ? "text-success" : "text-warning"}`}>{snapshot.sourceCoverage.title}</p>
@@ -298,9 +317,13 @@ export function B2cWorkspace({
         : <EmptyState title="Loading the Work queue" description="Preparing prioritized B2C records." />)}
 
       {activeTab === "ledger" && <SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
-        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} sources={sources} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
+        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} periodMonth={snapshot.period.month} sources={sources} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
         {visibleRows.length === 0 ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." /> : <B2cLedgerTable rows={visibleRows} onReview={openRow} />}
-        {hasMore && <div className="mt-4 text-center"><button type="button" disabled={loadingMore} onClick={() => void loadMore()} className="min-h-11 rounded-pill border border-border px-5 text-sm font-medium text-brand-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60">{loadingMore ? "Loading…" : "Load more"}</button></div>}
+        {ledgerTotalCount > 0 && <nav aria-label="B2C Ledger pagination" className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <button type="button" disabled={pageLoading || pageIndex === 0} onClick={() => void loadPage(pageIndex - 1, pageStartCursors[pageIndex - 1] ?? null)} className="min-h-11 rounded-pill border border-border px-5 text-sm font-medium text-brand-accent transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60">Previous</button>
+          <span className="min-w-28 text-center text-sm font-medium tabular-nums text-text-secondary" aria-live="polite">Page {pageIndex + 1} of {totalPages}</span>
+          <button type="button" disabled={pageLoading || !hasMore || !nextCursor} onClick={() => nextCursor && void loadPage(pageIndex + 1, nextCursor)} className="min-h-11 rounded-pill border border-border px-5 text-sm font-medium text-brand-accent transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60">{pageLoading ? "Loading…" : "Next"}</button>
+        </nav>}
 
         <details className="mt-6 rounded-card border border-border">
           <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-text-primary">Why totals differ</summary>
