@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChangeEvent } from "react";
+import { B2cPeriodSelector } from "@/features/b2c/b2c-period-selector";
 
 export type B2cLedgerFiltersState = {
   search: string;
@@ -22,9 +23,10 @@ export const initialB2cLedgerFilters: B2cLedgerFiltersState = {
 type Option = { value: string; label: string };
 
 /** Display-only controls for narrowing the already-loaded B2C source ledger. */
-export function B2cLedgerFilters({ filters, onChange, sources, categories, issues, shownCount, totalCount, foreignCurrencyCount }: {
+export function B2cLedgerFilters({ filters, onChange, periodMonth, sources, categories, issues, shownCount, totalCount, foreignCurrencyCount }: {
   filters: B2cLedgerFiltersState;
   onChange: (filters: B2cLedgerFiltersState) => void;
+  periodMonth: string;
   sources: Option[];
   categories: Option[];
   issues: Option[];
@@ -50,9 +52,10 @@ export function B2cLedgerFilters({ filters, onChange, sources, categories, issue
     filters.category !== "all",
     filters.foreignCurrencyOnly,
   ].filter(Boolean).length;
-  return <div className="mb-5 rounded-input border border-border bg-surface-muted/30 p-4">
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <label className="sm:col-span-2 lg:col-span-1">Search<input name="search" value={filters.search} onChange={update} className={inputClass} placeholder="Name, email, mobile, or ID" /></label>
+  return <div role="region" aria-label="B2C ledger filters" className="mb-5 rounded-input border border-border bg-surface-muted/30 p-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div><span className="text-sm text-text-primary">Reporting period</span><div className="mt-1 flex h-10 items-center"><B2cPeriodSelector month={periodMonth} /></div></div>
+      <label>Search<input name="search" value={filters.search} onChange={update} className={inputClass} placeholder="Name, email, mobile, or ID" /></label>
       <label>Source<select name="source" value={filters.source} onChange={update} className={inputClass}><option value="all">All sources</option>{sources.map((source) => <option key={source.value} value={source.value}>{source.label}</option>)}</select></label>
       <label>Payment status<select name="status" value={filters.status} onChange={update} className={inputClass}><option value="all">All statuses</option><option value="Completed">Completed</option><option value="Failed">Failed</option><option value="Pending">Pending</option><option value="Refunded">Refunded</option></select></label>
       <label>Issue<select name="issue" value={filters.issue} onChange={update} className={inputClass}><option value="all">All issues</option><option value="none">No issue</option>{issues.map((issue) => <option key={issue.value} value={issue.value}>{issue.label}</option>)}</select></label>
