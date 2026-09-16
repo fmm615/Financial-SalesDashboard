@@ -74,12 +74,17 @@ The Payment Tracker Excel-workbook system (staging, exact cross-tab duplicate gr
 
 ## B2C payment duplicate groups
 
-`b2c_payment_duplicate_groups` and its supporting functions, defined in
-`20270101000200_b2c_foundation.sql`,
-are the sole authority for B2C payment content candidates: the protected SQL
-constructor uses effective e-mail, verified USD amount, category, business
-date, and the approved 48-hour window. Application repositories must not
-reimplement that query or create `possible_duplicate` flags for content matches.
+`b2c_payment_duplicate_groups` and its supporting functions, originally
+defined in `20270101000200_b2c_foundation.sql` and since redefined by
+`20270101000500_remove_b2c_category.sql` and
+`20270101000700_b2c_duplicate_window_setting.sql` (the current live
+definition), are the sole authority for B2C payment content candidates: the
+protected SQL constructor uses effective e-mail, verified USD amount,
+business date, and an Admin-configurable window (`public.b2c_settings.
+duplicate_detection_window_hours`, default 48, bounded 1-168 hours).
+Application repositories must not reimplement that query or create
+`possible_duplicate` flags for content matches, and must read the same
+configured window rather than hardcoding their own copy of the number.
 
 `b2c_payment_duplicate_groups` and
 `b2c_payment_duplicate_group_members` retain immutable, audited group/member

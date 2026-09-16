@@ -17,9 +17,11 @@
  * `20270101000400_cross_domain_sweep.sql`) was built to match, replacing the
  * previous 79 incrementally-accumulated migration files. It has since been
  * updated for `20270101000500_remove_b2c_category.sql`, which removed the B2C
- * category concept and the product_mappings table, and for
+ * category concept and the product_mappings table, for
  * `20270101000600_b2c_ledger_keyset_reads.sql`, which added the B2C Ledger's
- * keyset-paginated read RPCs.
+ * keyset-paginated read RPCs, and for
+ * `20270101000700_b2c_duplicate_window_setting.sql`, which added the
+ * Admin-configurable B2C duplicate-detection window (`b2c_settings`).
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -276,6 +278,7 @@ export interface Database {
       reports: Table<{ id: Uuid; job_id: Uuid; generated_at: Timestamp; summary_snapshot: Json; snapshot_version: string; readiness_status: "draft_fixture_only" | "financial_ready"; created_at: Timestamp }>;
       report_files: Table<{ id: Uuid; report_id: Uuid; file_kind: "pdf" | "csv_bundle"; storage_bucket: string; storage_path: string; created_at: Timestamp }>;
       report_delivery_attempts: Table<{ id: Uuid; report_id: Uuid; recipient_email: string; status: Database["public"]["Enums"]["integration_status"]; requested_at: Timestamp; sent_at: Timestamp | null; failed_at: Timestamp | null; safe_error_summary: string | null; created_at: Timestamp }>;
+      b2c_settings: Table<{ id: boolean; duplicate_detection_window_hours: number; reason: string | null; updated_by: Uuid | null; updated_at: Timestamp }>;
     };
     Views: {
       reportable_b2b_deals: {
@@ -286,6 +289,7 @@ export interface Database {
       };
     };
     Functions: {
+      update_b2c_duplicate_detection_window: { Args: { p_window_hours: number; p_reason: string }; Returns: undefined };
       revise_financial_target: { Args: { p_target_id: Uuid; p_metric_code: string; p_period_start: string; p_period_end: string; p_target_amount_usd: Decimal; p_finance_reference: string; p_revision_reason: string }; Returns: Uuid };
       revise_operational_target: { Args: { p_target_id: Uuid; p_display_name: string; p_value_kind: "money_usd" | "quantity"; p_target_value: Decimal; p_unit_label: string | null; p_period_start: string; p_period_end: string; p_finance_reference: string; p_revision_reason: string }; Returns: Uuid };
       apply_hubspot_deal_financial_correction: {

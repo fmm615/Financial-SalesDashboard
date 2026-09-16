@@ -25,6 +25,15 @@ function sourceLabelFor(sourceSystem: string): string {
 const recordHref = (paymentId: string) => `/operations/b2c?tab=work&record=${paymentId}`;
 
 /**
+ * Historical default and fallback for the configurable duplicate-detection
+ * window (public.b2c_settings.duplicate_detection_window_hours). Used only if
+ * the settings row is somehow missing or unreadable; the row is bootstrapped
+ * by supabase/migrations/20270101000700_b2c_duplicate_window_setting.sql and
+ * is never deleted, so this should not normally be reached.
+ */
+const DEFAULT_DUPLICATE_DETECTION_WINDOW_HOURS = 48;
+
+/**
  * The database RPC (record_b2c_manual_bank_transfer,
  * supabase/migrations/20270101000500_remove_b2c_category.sql) is the sole
  * authority for the write -- it independently rederives every check. This repository's
@@ -34,6 +43,24 @@ const recordHref = (paymentId: string) => `/operations/b2c?tab=work&record=${pay
  */
 export class SupabaseB2cPaymentsRepository implements B2cPaymentsRepository {
   constructor(private readonly client: DatabaseClient) {}
+
+  /**
+   * Reads the Admin-configurable duplicate-detection window (see
+   * public.b2c_settings, supabase/migrations/20270101000700_b2c_duplicate_window_setting.sql)
+   * so the preview an Admin reviews always matches the window the ledger's
+   * own possible-duplicate flagging (public.open_b2c_payment_duplicate_group)
+   * is currently enforcing. Falls back to the historical 48-hour default only
+   * if the settings row is unreadable.
+   */
+  private async getDuplicateDetectionWindowHours(): Promise<number> {
+    const { data, error } = await this.client
+      .from("b2c_settings")
+      .select("duplicate_detection_window_hours")
+      .eq("id", true)
+      .maybeSingle();
+    if (error || !data) return DEFAULT_DUPLICATE_DETECTION_WINDOW_HOURS;
+    return data.duplicate_detection_window_hours;
+  }
 
   async assessManualBankTransferDuplicates(input: PreparedManualBankTransfer): Promise<ManualBankTransferDuplicateAssessment> {
     const inputSha256 = hashPreparedManualBankTransfer(input);
@@ -56,9 +83,10 @@ export class SupabaseB2cPaymentsRepository implements B2cPaymentsRepository {
       occurredOn: input.occurredOn,
       providerTransactionId: input.bankReference,
     });
+    const windowHours = await this.getDuplicateDetectionWindowHours();
     const receivedAt = new Date(input.receivedAtRaw);
-    const windowStart = new Date(receivedAt.getTime() - 48 * 60 * 60 * 1000).toISOString();
-    const windowEnd = new Date(receivedAt.getTime() + 48 * 60 * 60 * 1000).toISOString();
+    const windowStart = new Date(receivedAt.getTime() - windowHours * 60 * 60 * 1000).toISOString();
+    const windowEnd = new Date(receivedAt.getTime() + windowHours * 60 * 60 * 1000).toISOString();
 
     const { data: possible, error: possibleError } = await this.client
       .from("b2c_payments")

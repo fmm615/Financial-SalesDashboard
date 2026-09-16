@@ -11,9 +11,11 @@ select has_table('public', 'b2b_deals', 'B2B deals are present in the clean sche
 select has_table('public', 'financial_corrections', 'append-only financial corrections are present');
 select has_table('public', 'operational_targets', 'operational targets are separate from financial targets');
 select has_table('public', 'report_jobs', 'durable report jobs are present');
--- 35, not 36: 20270101000500_remove_b2c_category.sql drops product_mappings,
--- and with it the audit trigger the sweep attached to that table.
-select is((select count(*)::integer from pg_trigger where not tgisinternal and tgname like 'audit_%'), 35, 'the cross-domain sweep attaches all 35 audit triggers');
+-- 36, not 35: 20270101000500_remove_b2c_category.sql drops product_mappings
+-- (and with it the audit trigger the sweep attached to that table), and
+-- 20270101000700_b2c_duplicate_window_setting.sql adds one new audited table,
+-- b2c_settings, back to 36.
+select is((select count(*)::integer from pg_trigger where not tgisinternal and tgname like 'audit_%'), 36, 'the cross-domain sweep plus later migrations attach 36 audit triggers');
 select ok(not exists (
   select 1 from pg_class relation join pg_namespace namespace on namespace.oid = relation.relnamespace
   where namespace.nspname = 'public' and relation.relkind = 'r'

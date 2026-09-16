@@ -164,13 +164,17 @@ describe("SupabaseB2cPaymentsRepository.assessManualBankTransferDuplicates", () 
     expect(result.exactMatchHref).toBe("/operations/b2c?tab=work&record=existing-payment");
   });
 
-  it("retains a possible match from the standard 48-hour content check", async () => {
+  it("retains a possible match from the configured (default 48-hour) content check", async () => {
     const client = {
       from: vi.fn((table: string) => {
         if (table === "b2c_payments") {
           const builder = chainable({ data: null, error: null });
           builder.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
           builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: [{ id: "stripe-1", source_system: "stripe", occurred_on: "2026-08-12", amount_usd: "266.000000" }], error: null });
+          return builder;
+        }
+        if (table === "b2c_settings") {
+          const builder = chainable({ data: { duplicate_detection_window_hours: 48 }, error: null });
           return builder;
         }
         throw new Error(`Unexpected table ${table}`);
@@ -184,6 +188,58 @@ describe("SupabaseB2cPaymentsRepository.assessManualBankTransferDuplicates", () 
     expect(result.possibleMatches).toEqual([{ recordKind: "provider_payment", recordId: "stripe-1", sourceLabel: "Stripe", occurredOn: "2026-08-12", amountUsd: "266.000000" }]);
   });
 
+  it("uses a narrower configured window when an Admin has changed it", async () => {
+    const gte = vi.fn();
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === "b2c_payments") {
+          const builder = chainable({ data: null, error: null });
+          builder.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+          builder.gte = gte.mockReturnValue(builder);
+          builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null });
+          return builder;
+        }
+        if (table === "b2c_settings") {
+          return chainable({ data: { duplicate_detection_window_hours: 6 }, error: null });
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+    const repository = new SupabaseB2cPaymentsRepository(client as never);
+
+    await repository.assessManualBankTransferDuplicates(prepareManualBankTransfer(baseInput));
+
+    const receivedAt = new Date(prepareManualBankTransfer(baseInput).receivedAtRaw);
+    const expectedWindowStart = new Date(receivedAt.getTime() - 6 * 60 * 60 * 1000).toISOString();
+    expect(gte).toHaveBeenCalledWith("occurred_at", expectedWindowStart);
+  });
+
+  it("falls back to the historical 48-hour default when the settings row cannot be read", async () => {
+    const gte = vi.fn();
+    const client = {
+      from: vi.fn((table: string) => {
+        if (table === "b2c_payments") {
+          const builder = chainable({ data: null, error: null });
+          builder.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+          builder.gte = gte.mockReturnValue(builder);
+          builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null });
+          return builder;
+        }
+        if (table === "b2c_settings") {
+          return chainable({ data: null, error: { message: "unavailable" } });
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+    const repository = new SupabaseB2cPaymentsRepository(client as never);
+
+    await repository.assessManualBankTransferDuplicates(prepareManualBankTransfer(baseInput));
+
+    const receivedAt = new Date(prepareManualBankTransfer(baseInput).receivedAtRaw);
+    const expectedWindowStart = new Date(receivedAt.getTime() - 48 * 60 * 60 * 1000).toISOString();
+    expect(gte).toHaveBeenCalledWith("occurred_at", expectedWindowStart);
+  });
+
   it("returns a clean assessment for a genuinely new transfer", async () => {
     const client = {
       from: vi.fn((table: string) => {
@@ -191,6 +247,9 @@ describe("SupabaseB2cPaymentsRepository.assessManualBankTransferDuplicates", () 
           const builder = chainable({ data: null, error: null });
           builder.then = (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null });
           return builder;
+        }
+        if (table === "b2c_settings") {
+          return chainable({ data: { duplicate_detection_window_hours: 48 }, error: null });
         }
         throw new Error(`Unexpected table ${table}`);
       }),
