@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, MetricCard, SectionCard } from "@/components/ui";
+import { fadeTransition } from "@/lib/motion";
 import { useAppRole } from "@/lib/auth/role-context";
 import { B2cLedgerFilters, initialB2cLedgerFilters, type B2cLedgerFiltersState } from "@/features/b2c/b2c-ledger-filters";
 import { B2cLedgerTable, type B2cSafeLedgerRow } from "@/features/b2c/b2c-ledger-table";
@@ -240,6 +242,7 @@ export function B2cWorkspace({
   const issues = useMemo(() => (ledgerFilterMetadata?.issues ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
   const foreignCurrencyCount = ledgerFilterMetadata?.foreignCurrencyCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(ledgerTotalCount / B2C_LEDGER_PAGE_SIZE));
+  const reducedMotion = useReducedMotion();
 
   // A record deep-linked from the Work queue or Review Queue opens the same shared drawer.
   useEffect(() => {
@@ -327,7 +330,11 @@ export function B2cWorkspace({
 
       {activeTab === "ledger" && <div ref={ledgerSectionRef}><SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
         <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} periodMonth={snapshot.period.month} sources={sources} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
-        {visibleRows.length === 0 ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." /> : <B2cLedgerTable rows={visibleRows} onReview={openRow} />}
+        {visibleRows.length === 0
+          ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." />
+          : <motion.div key={pageIndex} variants={reducedMotion ? undefined : fadeTransition} initial={reducedMotion ? false : "initial"} animate={reducedMotion ? undefined : "animate"}>
+              <B2cLedgerTable rows={visibleRows} onReview={openRow} />
+            </motion.div>}
         {ledgerTotalCount > 0 && <nav aria-label="B2C Ledger pagination" className="mt-4 flex flex-wrap items-center justify-center gap-2">
           <button type="button" disabled={pageLoading || pageIndex === 0} onClick={() => void loadPage(pageIndex - 1, pageStartCursors[pageIndex - 1] ?? null)} className="min-h-11 rounded-pill border border-border px-5 text-sm font-medium text-brand-accent transition-colors hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60">Previous</button>
           <span className="min-w-28 text-center text-sm font-medium tabular-nums text-text-secondary" aria-live="polite">Page {pageIndex + 1} of {totalPages}</span>
