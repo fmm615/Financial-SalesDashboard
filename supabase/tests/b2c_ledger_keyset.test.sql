@@ -1,6 +1,6 @@
 begin;
 
-select plan(26);
+select plan(27);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -123,6 +123,29 @@ select is(
     'blocking_reasons', '["implausible_future_date","duplicate_exclusion","other_open_review"]'::jsonb
   ),
   'ordered blockers preserve future date, duplicate exclusion, and open review'
+);
+
+-- An implausible future date alone must never gate reporting_decision: the
+-- pre-refactor TypeScript financial gate (b2cPaymentExclusionReasons) never
+-- checked date plausibility, so a future-dated payment with no other issue
+-- was always counted in totals. blocking_reasons carries the date issue for
+-- the per-row UI label, but reporting_decision is driven by
+-- exclusion_reasons alone and must stay 'reportable' here.
+select is(
+  public.b2c_payment_decision_reasons(
+    'succeeded', 'member@playbook.test', 'USD', 100,
+    false, false, false, false, false,
+    'stripe', date '2026-08-22', date '2026-08-20'
+  ),
+  jsonb_build_object(
+    'source_status', 'succeeded',
+    'reconciliation_status', 'not_required',
+    'reporting_decision', 'reportable',
+    'posting_status', 'not_applicable',
+    'exclusion_reasons', '[]'::jsonb,
+    'blocking_reasons', '["implausible_future_date"]'::jsonb
+  ),
+  'an implausible future date alone is shown for review but never excludes a payment from totals'
 );
 
 insert into public.b2c_payments (

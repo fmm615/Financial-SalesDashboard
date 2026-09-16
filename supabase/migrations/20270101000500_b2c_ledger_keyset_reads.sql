@@ -86,9 +86,19 @@ begin
     blocking_reasons := blocking_reasons || '"other_open_review"'::jsonb;
   end if;
 
+  -- reporting_decision (and therefore every financial total/count derived
+  -- from it) is gated on exclusion_reasons, not blocking_reasons.
+  -- exclusion_reasons is the exact set the pre-refactor TypeScript gate
+  -- (b2cPaymentExclusionReasons) checked and never included date
+  -- plausibility. blocking_reasons additionally carries
+  -- missing_business_date/implausible_future_date for the per-row UI label
+  -- only (matching the pre-refactor payment-decision.ts, which flagged
+  -- these for display without excluding the payment from totals); letting
+  -- them gate reporting_decision here would silently start excluding a
+  -- future-dated payment from totals that the old system always counted.
   reporting_decision := case
     when coalesce(p_has_duplicate_exclusion, false) then 'excluded'
-    when jsonb_array_length(blocking_reasons) > 0 then 'blocked'
+    when jsonb_array_length(exclusion_reasons) > 0 then 'blocked'
     when coalesce(p_has_finance_exception, false) then 'exception_included'
     else 'reportable'
   end;
