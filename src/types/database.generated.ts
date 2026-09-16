@@ -406,6 +406,77 @@ export interface Database {
           refund_settlement_exchange_rate: Decimal | null;
         }>;
       };
+      get_b2c_ledger_page: {
+        Args: {
+          p_period?: string;
+          p_today?: string;
+          p_limit?: number;
+          p_sort?: "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
+          p_after_value?: string | null;
+          p_after_record_type?: "Payment" | "Refund" | null;
+          p_after_id?: Uuid | null;
+          p_source?: "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker" | null;
+          p_source_status?: "succeeded" | "failed" | "pending" | null;
+          p_payment_status?: "Completed" | "Failed" | "Pending" | "Refunded" | null;
+          p_reporting_decision?: "reportable" | "blocked" | "excluded" | "exception_included" | null;
+          p_issue?: string | null;
+          p_date_from?: string | null;
+          p_date_to?: string | null;
+          p_category?: string | null;
+          p_foreign_currency_only?: boolean;
+          p_currency?: string | null;
+          p_min_amount_usd?: Decimal | null;
+          p_max_amount_usd?: Decimal | null;
+          p_search?: string | null;
+        };
+        Returns: Array<{
+          record_type: "Payment" | "Refund";
+          record_id: Uuid;
+          sort_value: string;
+          decision: Json;
+        }>;
+      };
+      get_b2c_ledger_metadata: {
+        Args: {
+          p_period?: string;
+          p_today?: string;
+          p_source?: "stripe" | "tap" | "manual_bank_transfer" | "finance_tracker" | null;
+          p_source_status?: "succeeded" | "failed" | "pending" | null;
+          p_payment_status?: "Completed" | "Failed" | "Pending" | "Refunded" | null;
+          p_reporting_decision?: "reportable" | "blocked" | "excluded" | "exception_included" | null;
+          p_issue?: string | null;
+          p_date_from?: string | null;
+          p_date_to?: string | null;
+          p_category?: string | null;
+          p_foreign_currency_only?: boolean;
+          p_currency?: string | null;
+          p_min_amount_usd?: Decimal | null;
+          p_max_amount_usd?: Decimal | null;
+          p_search?: string | null;
+        };
+        Returns: Json;
+      };
+      get_b2c_ledger_rows: {
+        Args: { p_payment_ids: Uuid[]; p_refund_ids: Uuid[]; p_today: string };
+        Returns: Array<{
+          record_type: "Payment" | "Refund";
+          record_id: Uuid;
+          row_data: Json;
+          decision: Json;
+        }>;
+      };
+      get_b2c_ledger_decisions: {
+        Args: { p_today: string };
+        Returns: Json;
+      };
+      get_b2c_dashboard_summary: {
+        Args: { p_period: string; p_today: string };
+        Returns: Json;
+      };
+      get_b2c_payment_evidence: {
+        Args: { p_payment_id: Uuid };
+        Returns: Json;
+      };
     };
     Enums: {
       access_role: "admin" | "viewer";
