@@ -76,13 +76,13 @@ function stubFetch(overrides: { role?: "admin" | "viewer"; ledgerRows?: B2cSafeL
 }
 
 describe("B2cWorkspace tab defaults and URL state", () => {
-  it("defaults an Admin to the Work queue", async () => {
+  it("defaults an Admin to the Ledger", async () => {
     stubFetch({ role: "admin" });
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
     const tablist = await screen.findByRole("tablist", { name: "B2C workspace" });
-    expect(within(tablist).getByRole("tab", { name: "Work queue", selected: true })).toBeInTheDocument();
-    expect(await screen.findByText("Enter the missing amount for Sam")).toBeInTheDocument();
+    expect(within(tablist).getByRole("tab", { name: "Ledger", selected: true })).toBeInTheDocument();
+    expect(await screen.findByRole("table", { name: "B2C ledger" })).toBeInTheDocument();
   });
 
   it("defaults a Viewer to the Ledger and never offers the Work queue tab", async () => {
@@ -123,6 +123,7 @@ describe("B2cWorkspace tab defaults and URL state", () => {
 
 describe("Work queue", () => {
   it("shows three filter chips with counts and exactly one primary action per item", async () => {
+    currentSearch = new URLSearchParams("tab=work");
     stubFetch({ role: "admin" });
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
@@ -138,6 +139,7 @@ describe("Work queue", () => {
   });
 
   it("no longer offers a Ready-to-post filter or panel", async () => {
+    currentSearch = new URLSearchParams("tab=work");
     stubFetch({ role: "admin" });
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
@@ -147,6 +149,7 @@ describe("Work queue", () => {
   });
 
   it("filters to the Duplicates chip", async () => {
+    currentSearch = new URLSearchParams("tab=work");
     stubFetch({ role: "admin" });
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
@@ -457,14 +460,14 @@ describe("Ledger", () => {
 });
 
 describe("Sources", () => {
-  it("shows Admin-only sync controls and the one live Add bank transfer action, with no workbook/statement upload", async () => {
+  it("shows Admin-only sync controls, with no manual bank transfer card and no workbook/statement upload", async () => {
     currentSearch = new URLSearchParams("tab=sources");
     stubFetch({ role: "admin" });
     render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
     expect(await screen.findByText("Sync Stripe now")).toBeInTheDocument();
     expect(screen.getByText("Sync Tap now")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add bank transfer" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add bank transfer" })).not.toBeInTheDocument();
     expect(screen.queryByText("Import workbook")).not.toBeInTheDocument();
   });
 
@@ -473,11 +476,31 @@ describe("Sources", () => {
     stubFetch({ role: "viewer" });
     render(<RoleProvider role="viewer"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
 
-    expect(await screen.findByText("Manual bank transfer entry requires Admin access.")).toBeInTheDocument();
+    expect(await screen.findAllByText("Sync requires Admin access.")).toHaveLength(2);
     expect(screen.queryByText("Sync Stripe now")).not.toBeInTheDocument();
     expect(screen.queryByText("Sync Tap now")).not.toBeInTheDocument();
     const sourcesPanel = await screen.findByRole("tabpanel", { name: "Sources" });
     expect(within(sourcesPanel).queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
+describe("Manual bank transfer entry point", () => {
+  it("shows Add bank transfer on the Ledger tab for an Admin", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin" });
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    expect(screen.getByRole("button", { name: "Add bank transfer" })).toBeInTheDocument();
+  });
+
+  it("never shows Add bank transfer to a Viewer", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "viewer" });
+    render(<RoleProvider role="viewer"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    expect(screen.queryByRole("button", { name: "Add bank transfer" })).not.toBeInTheDocument();
   });
 });
 

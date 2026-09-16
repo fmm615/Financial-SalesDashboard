@@ -4,3 +4,7 @@ node_modules/
 coverage/
 .tsbuildinfo
 .env*.local
+.DS_Store
+.backups/
+.claude/
+supabase/.temp/

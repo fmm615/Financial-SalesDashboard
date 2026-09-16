@@ -7,7 +7,6 @@ import { StripeSyncControl } from "@/features/admin/stripe-sync-control";
 import { StripeBackfillControl } from "@/features/admin/stripe-backfill-control";
 import { TapSyncControl } from "@/features/admin/tap-sync-control";
 import { TapBackfillControl } from "@/features/admin/tap-backfill-control";
-import { B2cManualBankTransfer } from "@/features/b2c/b2c-manual-bank-transfer";
 
 function SourceCard({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
   return <SectionCard title={title} description={description}>
@@ -16,13 +15,13 @@ function SourceCard({ title, description, children }: { title: string; descripti
 }
 
 /**
- * Sources owns provider sync/backfill and manual bank transfer intake -- the
- * one place these actions live. Viewers see nothing here; every action
- * control is Admin-only. The Payment Tracker workbook, Tap statement, and
- * Stripe Charges upload flows that used to live on this tab have been
- * removed: the Finance workbook is no longer cross-referenced against
- * Stripe/Tap. iOS manual entry still awaits a new implementation; manual
- * bank transfer entry below already records real payments directly.
+ * Sources owns read-only provider sync/backfill -- the one place these
+ * actions live. Viewers see nothing here; every action control is
+ * Admin-only. The Payment Tracker workbook, Tap statement, and Stripe
+ * Charges upload flows that used to live on this tab have been removed: the
+ * Finance workbook is no longer cross-referenced against Stripe/Tap. Manual
+ * bank transfer entry (which writes a new financial record, not a read-only
+ * sync) lives on the Ledger tab instead -- see b2c-workspace.tsx.
  */
 export function B2cSourceManagement() {
   const canManage = useCanManage();
@@ -53,10 +52,6 @@ export function B2cSourceManagement() {
             </div>
           </details>
         </> : <p className="text-sm leading-6 text-text-muted">Sync requires Admin access.</p>}
-      </SourceCard>
-
-      <SourceCard title="Manual bank transfers" description="A genuinely new bank transfer, entered after a reviewed duplicate check.">
-        {canManage ? <B2cManualBankTransfer /> : <p className="text-sm leading-6 text-text-muted">Manual bank transfer entry requires Admin access.</p>}
       </SourceCard>
     </div>
   </div>;

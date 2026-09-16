@@ -784,12 +784,11 @@ grant select on public.b2c_payment_duplicate_groups to authenticated;
 grant select on public.b2c_payment_duplicate_group_members to authenticated;
 
 -- ---------------------------------------------------------------------------
--- record_b2c_manual_bank_transfer: FINAL TRIMMED form, copied verbatim from
--- 20260901100000_remove_payment_tracker_sheet_system.sql. Rejection order:
--- exact bank-reference match, then the generic 48-hour content-duplicate
--- fingerprint (retained and flagged for review, never rejected outright).
--- The third, Payment-Tracker-lineage-specific check that migration removed
--- is gone; this function has no dependency beyond public.b2c_payments.
+-- record_b2c_manual_bank_transfer: this definition is superseded by the
+-- category-free 8-param version in 20270101000500_remove_b2c_category.sql,
+-- which drops this overload and recreates the function without
+-- p_category_code. Kept here only as the pre-category-removal starting
+-- point; nothing should treat this body as the live function.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.record_b2c_manual_bank_transfer(

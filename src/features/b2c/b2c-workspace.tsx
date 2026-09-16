@@ -11,6 +11,7 @@ import { B2cLedgerFilters, initialB2cLedgerFilters, type B2cLedgerFiltersState }
 import { B2cLedgerTable, type B2cSafeLedgerRow } from "@/features/b2c/b2c-ledger-table";
 import { B2cWorkQueue, type B2cWorkQueueFilter } from "@/features/b2c/b2c-work-queue";
 import { B2cSourceManagement } from "@/features/b2c/b2c-source-management";
+import { B2cManualBankTransfer } from "@/features/b2c/b2c-manual-bank-transfer";
 import { B2cPaymentReviewDrawer, type B2cPaymentReviewDrawerTarget } from "@/features/b2c/b2c-payment-review-drawer";
 import type { B2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
 import type { B2cLedgerFilterMetadata } from "@/server/repositories/b2c-ledger-repository";
@@ -20,8 +21,8 @@ import type { B2cWorkItem } from "@/server/services/b2c-work-items";
 type WorkspaceTab = "work" | "ledger" | "sources";
 const B2C_LEDGER_PAGE_SIZE = 100;
 const TABS: Array<{ value: WorkspaceTab; label: string; adminOnly?: boolean }> = [
-  { value: "work", label: "Work queue", adminOnly: true },
   { value: "ledger", label: "Ledger" },
+  { value: "work", label: "Work queue", adminOnly: true },
   { value: "sources", label: "Sources" },
 ];
 
@@ -71,9 +72,11 @@ function TabBar({ active, onSelect, showWork }: { active: WorkspaceTab; onSelect
 }
 
 /**
- * The one B2C workspace: `Work queue`, `Ledger`, and `Sources` tabs stored in
- * the URL. Replaces the three former front doors (`/operations/b2c`,
- * `/operations/b2c/reconciliation`, `/admin/b2c-finance`).
+ * The one B2C workspace: `Ledger`, `Work queue`, and `Sources` tabs stored in
+ * the URL, defaulting to `Ledger` for every role. The retired reconciliation
+ * route forwards here. Manual bank transfer entry lives on the Ledger tab
+ * (it writes a new financial record, unlike Sources' read-only provider
+ * syncs), not inside Sources.
  */
 export function B2cWorkspace({
   snapshot = null,
@@ -89,7 +92,7 @@ export function B2cWorkspace({
   const searchParams = useSearchParams();
 
   const requestedTab = searchParams.get("tab") as WorkspaceTab | null;
-  const activeTab: WorkspaceTab = requestedTab === "work" && !canManage ? "ledger" : (requestedTab ?? (canManage ? "work" : "ledger"));
+  const activeTab: WorkspaceTab = requestedTab === "work" && !canManage ? "ledger" : (requestedTab ?? "ledger");
   const activeQueue = (searchParams.get("queue") as B2cWorkQueueFilter | null) ?? "all";
   const recordParam = searchParams.get("record");
 
@@ -330,6 +333,7 @@ export function B2cWorkspace({
 
       {activeTab === "ledger" && <div ref={ledgerSectionRef}><SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
         <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} periodMonth={snapshot.period.month} sources={sources} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
+        {canManage && <div className="mb-5"><B2cManualBankTransfer onRecorded={() => void reload()} /></div>}
         {visibleRows.length === 0
           ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." />
           : <motion.div key={pageIndex} variants={reducedMotion ? undefined : fadeTransition} initial={reducedMotion ? false : "initial"} animate={reducedMotion ? undefined : "animate"}>

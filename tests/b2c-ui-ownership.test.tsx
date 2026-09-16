@@ -4,11 +4,10 @@ import { AppShell } from "@/components/app-shell";
 import { AdminPage } from "@/features/admin/admin-page";
 import { RoleProvider } from "@/lib/auth/role-context";
 import B2cReconciliationRoute from "@/app/operations/b2c/reconciliation/page";
-import B2cFinanceAdministrationPage from "@/app/admin/b2c-finance/page";
 
 /**
  * Ownership acceptance tests for Task 4: a live B2C action renders in exactly
- * one place, the two retired front doors redirect rather than duplicate a
+ * one place, the retired front door redirects rather than duplicates a
  * live surface, and Administration keeps no B2C-specific control. See
  * "One Owner Per Workflow" and "Final Admin Experience" in
  * docs/superpowers/plans/2026-08-18-b2c-single-control-flow.md.
@@ -36,16 +35,6 @@ describe("B2C UI ownership", () => {
     expect((caught as { digest?: string } | undefined)?.digest).toBe("NEXT_REDIRECT;replace;/operations/b2c?tab=sources;307;");
   });
 
-  it("redirects the retired B2C Finance URL into the Work queue instead of serving a second live page", () => {
-    let caught: unknown;
-    try {
-      B2cFinanceAdministrationPage();
-    } catch (error) {
-      caught = error;
-    }
-    expect((caught as { digest?: string } | undefined)?.digest).toBe("NEXT_REDIRECT;replace;/operations/b2c?tab=work;307;");
-  });
-
   it("keeps Administration free of B2C correction, mapping, manual-payment, Stripe, and Tap controls", () => {
     render(<RoleProvider role="admin"><AdminPage /></RoleProvider>);
 
@@ -58,8 +47,8 @@ describe("B2C UI ownership", () => {
     expect(screen.queryByText(/historical Tap import/i)).not.toBeInTheDocument();
 
     // Administration keeps only HubSpot and genuinely cross-product sections.
-    expect(screen.getByRole("button", { name: "Targets" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Summit tracker" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Target settings/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Summit tracker/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /User access/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Integration status" })).toBeInTheDocument();
   });

@@ -71,7 +71,7 @@ function isDraftComplete(draft: Draft): boolean {
 }
 
 /**
- * The one `Add bank transfer` flow: Step 1 collects the seven required facts
+ * The one `Add bank transfer` flow: Step 1 collects the six required facts
  * (plus an optional membership tier), Step 2 shows the server's exact
  * reviewed values and duplicate assessment. The only final action is
  * `Record bank transfer`; `Back` preserves the draft. There is no `Add iOS
