@@ -9,6 +9,6 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     // tests/e2e holds Playwright specs (a separate, not-yet-installed runner);
     // Vitest's default *.spec.ts pattern would otherwise try to run them too.
-    exclude: [...configDefaults.exclude, "tests/e2e/**", ".worktrees/**"],
+    exclude: [...configDefaults.exclude, "tests/e2e/**", ".worktrees/**", ".claude/worktrees/**"],
   },
 });

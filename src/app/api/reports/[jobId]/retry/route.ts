@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const paramsSchema = z.object({ jobId: z.string().uuid() });
 
 /** Requeues a failed draft job; the internal worker performs the actual generation. */
-export async function POST(_: NextRequest, context: { params: Promise<{ jobId: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ jobId: string }> }) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
+  if (!user || requireMiddlewareRole(request) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   const parsed = paramsSchema.safeParse(await context.params);
   if (!parsed.success) return NextResponse.json({ error: "Invalid report job." }, { status: 422 });
   const { data: job, error: readError } = await client.from("report_jobs").select("status,retry_count,generation_mode").eq("id", parsed.data.jobId).maybeSingle();

@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { B2cPaymentDuplicateRepository } from "@/server/repositories/b2c-payment-duplicate-repository";
 import { getB2cPaymentDuplicateReview } from "@/server/services/b2c-payment-duplicate-review";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ paymentId: string }> },
 ) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") {
+  if (!user || requireMiddlewareRole(request) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }
 

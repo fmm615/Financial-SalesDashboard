@@ -4,13 +4,14 @@ import { GET } from "@/app/api/b2c/workspace/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const mocks = vi.hoisted(() => ({
-  getApprovedRole: vi.fn(),
+  middlewareRole: vi.fn(),
   page: vi.fn(),
   overview: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: mocks.getApprovedRole, getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
+vi.mock("@/lib/auth/access", () => ({ getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
+vi.mock("@/lib/auth/middleware-role", () => ({ requireMiddlewareRole: mocks.middlewareRole }));
 vi.mock("@/server/repositories/b2c-ledger-repository", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   SupabaseB2cLedgerRepository: class {
@@ -56,7 +57,7 @@ describe("GET /api/b2c/workspace", () => {
 
   it("rejects a user with no approved role", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
-    mocks.getApprovedRole.mockResolvedValue(null);
+    mocks.middlewareRole.mockReturnValue(null);
 
     const response = await GET(new NextRequest("http://localhost/api/b2c/workspace"));
 
@@ -66,7 +67,7 @@ describe("GET /api/b2c/workspace", () => {
 
   it("rejects a page limit above the 100-row maximum before reading the ledger", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
-    mocks.getApprovedRole.mockResolvedValue("viewer");
+    mocks.middlewareRole.mockReturnValue("viewer");
 
     const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?limit=101"));
 
@@ -76,7 +77,7 @@ describe("GET /api/b2c/workspace", () => {
 
   it("rejects an invalid reporting-decision filter", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
-    mocks.getApprovedRole.mockResolvedValue("viewer");
+    mocks.middlewareRole.mockReturnValue("viewer");
 
     const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?reportingDecision=made_up"));
 
@@ -85,7 +86,7 @@ describe("GET /api/b2c/workspace", () => {
 
   it("rejects the retired unmapped-product issue filter while accepting every live issue filter", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
-    mocks.getApprovedRole.mockResolvedValue("viewer");
+    mocks.middlewareRole.mockReturnValue("viewer");
     mocks.page.mockResolvedValue(ledgerPage);
 
     const retiredResponse = await GET(new NextRequest("http://localhost/api/b2c/workspace?issue=Unmapped%20product"));
@@ -99,7 +100,7 @@ describe("GET /api/b2c/workspace", () => {
 
   it("gives a Viewer the safe ledger page without Stripe evidence and without any work item", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
-    mocks.getApprovedRole.mockResolvedValue("viewer");
+    mocks.middlewareRole.mockReturnValue("viewer");
     mocks.page.mockResolvedValue(ledgerPage);
 
     const response = await GET(new NextRequest("http://localhost/api/b2c/workspace"));
@@ -117,7 +118,7 @@ describe("GET /api/b2c/workspace", () => {
 
   it("gives an Admin the same safe ledger page plus the Work queue overview", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
-    mocks.getApprovedRole.mockResolvedValue("admin");
+    mocks.middlewareRole.mockReturnValue("admin");
     mocks.page.mockResolvedValue(ledgerPage);
     mocks.overview.mockResolvedValue(workspaceOverview);
 
@@ -133,7 +134,7 @@ describe("GET /api/b2c/workspace", () => {
 
   it("accepts every exposed ledger filter before it loads the server-filtered page", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
-    mocks.getApprovedRole.mockResolvedValue("viewer");
+    mocks.middlewareRole.mockReturnValue("viewer");
     mocks.page.mockResolvedValue(ledgerPage);
 
     const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?dateFrom=2026-08-01&dateTo=2026-08-31&foreignCurrencyOnly=true&issue=none&paymentStatus=Refunded"));
@@ -150,7 +151,7 @@ describe("GET /api/b2c/workspace", () => {
 
   it("returns a safe error without leaking a raw repository failure", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
-    mocks.getApprovedRole.mockResolvedValue("admin");
+    mocks.middlewareRole.mockReturnValue("admin");
     mocks.page.mockRejectedValue(new Error("raw B2C source content"));
 
     const response = await GET(new NextRequest("http://localhost/api/b2c/workspace"));

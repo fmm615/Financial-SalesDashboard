@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { firstValidationMessage, manualRecognisedSaleSchema } from "@/lib/validation/financial-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SupabaseB2bRecognisedSalesRepository } from "@/server/repositories/b2b-recognised-sales-repository";
@@ -9,7 +10,7 @@ import { recordManualRecognisedSale } from "@/server/services/record-manual-reco
 export async function POST(request: NextRequest) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") {
+  if (!user || requireMiddlewareRole(request) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }
 

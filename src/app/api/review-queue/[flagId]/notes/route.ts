@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { reviewQueueFlagIdSchema, reviewQueueNoteSchema } from "@/lib/validation/review-queue-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SupabaseReviewQueueRepository } from "@/server/repositories/review-queue-repository";
@@ -8,7 +9,7 @@ import { SupabaseReviewQueueRepository } from "@/server/repositories/review-queu
 export async function POST(request: NextRequest, { params }: { params: Promise<{ flagId: string }> }) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") {
+  if (!user || requireMiddlewareRole(request) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }
 

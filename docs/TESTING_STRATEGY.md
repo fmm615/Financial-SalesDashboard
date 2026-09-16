@@ -31,6 +31,10 @@ Test:
 - HubSpot sync/webhook mapping
 - database writes
 - authorization boundaries
+- middleware-to-route role forwarding: anonymous and Viewer header forgery,
+  missing/invalid forwarded roles, disabled-user rejection, independent
+  webhook/internal authentication, and permanent database role checks before
+  every user-triggered service-role operation
 - report data preparation
 - report job failure, stale-job recovery, retry, private archive, and download authorization
 - draft job generation/readiness boundaries and the rule that no delivery attempt is recorded while email is disabled

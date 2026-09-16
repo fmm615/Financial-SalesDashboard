@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { b2cReviewResolutionSchema } from "@/lib/validation/b2c-review-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -8,7 +9,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export async function POST(request: NextRequest, { params }: { params: Promise<{ flagId: string }> }) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") {
+  if (!user || requireMiddlewareRole(request) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }
   const { flagId } = await params;

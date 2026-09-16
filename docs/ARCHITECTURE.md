@@ -74,7 +74,7 @@ The system must never rely on an open browser request to keep a long-running rep
 
 ## Phase 2 data boundary
 
-Database access now enters through `src/server/repositories/` and validation contracts in `src/lib/validation/`. UI components remain independent from Supabase rows and SQL. User-initiated Admin actions must use a request-scoped authenticated Supabase client so RLS and audit triggers have the individual actor; the service-role client is reserved for future trusted jobs.
+Database access now enters through `src/server/repositories/` and validation contracts in `src/lib/validation/`. UI components remain independent from Supabase rows and SQL. Ordinary user-initiated Admin actions use a request-scoped authenticated Supabase client so RLS and audit triggers have the individual actor. The bounded provider sync/backfill orchestrators are the explicit exception: their ingestion repositories require the service-role client, so their routes keep a separate database-backed Admin check and explicitly record the initiating actor.
 
 ## Review Queue boundary
 
@@ -222,4 +222,6 @@ or drawer mapping action.
 
 ## Authentication boundary
 
-Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages render. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.
+Supabase OAuth redirects through `src/app/auth/callback/route.ts`; App Router middleware refreshes sessions and performs the approved-user/role route gate before protected pages or API handlers run. On success it overwrites an internal request role header. Protected handlers re-verify the session user and may reuse that role only through the strict, fail-closed `requireMiddlewareRole()` boundary; PostgreSQL RLS remains authoritative for request-scoped reads and writes.
+
+Webhook and internal-job routes keep their signature or server-secret boundaries and never consume the middleware role header. The six user-triggered provider sync/backfill routes use a service-role client for their trusted ingestion work, so they permanently perform a second database-backed Admin-role lookup before creating that client. Browser, server, and request-scoped clients remain in `src/lib/supabase/` so session handling stays out of UI features.

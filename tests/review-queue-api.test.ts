@@ -4,12 +4,12 @@ import { GET as getReviewQueue } from "@/app/api/review-queue/route";
 import { GET as getReviewQueueDetail } from "@/app/api/review-queue/[flagId]/route";
 import { POST as addReviewQueueNote } from "@/app/api/review-queue/[flagId]/notes/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getApprovedRole } from "@/lib/auth/access";
 
-const mocks = vi.hoisted(() => ({ listFlags: vi.fn(), getFlagDetail: vi.fn() }));
+const mocks = vi.hoisted(() => ({ listFlags: vi.fn(), getFlagDetail: vi.fn(), middlewareRole: vi.fn() }));
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn(), getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
+vi.mock("@/lib/auth/access", () => ({ getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
+vi.mock("@/lib/auth/middleware-role", () => ({ requireMiddlewareRole: mocks.middlewareRole }));
 vi.mock("@/server/repositories/review-queue-repository", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/repositories/review-queue-repository")>();
   return {
@@ -22,7 +22,6 @@ vi.mock("@/server/repositories/review-queue-repository", async (importOriginal) 
 });
 
 const createServerClientMock = vi.mocked(createServerSupabaseClient);
-const getApprovedRoleMock = vi.mocked(getApprovedRole);
 
 describe("Review Queue list API", () => {
   beforeEach(() => {
@@ -43,7 +42,7 @@ describe("Review Queue list API", () => {
   it("deep-links a B2C review flag to its corresponding B2C work item, not a second mutation surface", async () => {
     const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
     createServerClientMock.mockResolvedValue(client as never);
-    getApprovedRoleMock.mockResolvedValue("admin");
+    mocks.middlewareRole.mockReturnValue("admin");
     mocks.listFlags.mockResolvedValue([{
       id: "22222222-2222-4222-8222-222222222222",
       sourceArea: "b2c_payment",
@@ -72,7 +71,7 @@ describe("Review Queue list API", () => {
   it("excludes retained unmapped-product flags from the live API list and metrics", async () => {
     const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
     createServerClientMock.mockResolvedValue(client as never);
-    getApprovedRoleMock.mockResolvedValue("admin");
+    mocks.middlewareRole.mockReturnValue("admin");
     mocks.listFlags.mockResolvedValue([
       {
         id: "44444444-4444-4444-8444-444444444444",
@@ -112,7 +111,7 @@ describe("Review Queue list API", () => {
   it("keeps an exact retained unmapped-product flag readable through the detail API", async () => {
     const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
     createServerClientMock.mockResolvedValue(client as never);
-    getApprovedRoleMock.mockResolvedValue("admin");
+    mocks.middlewareRole.mockReturnValue("admin");
     mocks.getFlagDetail.mockResolvedValue({
       flag: {
         id: "44444444-4444-4444-8444-444444444444",
@@ -152,7 +151,7 @@ describe("Review Queue list API", () => {
   it("rejects an invalid filter before reading the queue", async () => {
     const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
     createServerClientMock.mockResolvedValue(client as never);
-    getApprovedRoleMock.mockResolvedValue("viewer");
+    mocks.middlewareRole.mockReturnValue("viewer");
 
     const response = await getReviewQueue(new NextRequest("http://localhost/api/review-queue?priority=6"));
 
@@ -163,7 +162,7 @@ describe("Review Queue list API", () => {
   it("rejects an invalid review flag identifier before loading its history", async () => {
     const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
     createServerClientMock.mockResolvedValue(client as never);
-    getApprovedRoleMock.mockResolvedValue("admin");
+    mocks.middlewareRole.mockReturnValue("admin");
 
     const response = await getReviewQueueDetail(
       new NextRequest("http://localhost/api/review-queue/not-a-uuid"),
@@ -177,7 +176,7 @@ describe("Review Queue list API", () => {
   it("refuses a Viewer note before it can write review history", async () => {
     const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
     createServerClientMock.mockResolvedValue(client as never);
-    getApprovedRoleMock.mockResolvedValue("viewer");
+    mocks.middlewareRole.mockReturnValue("viewer");
 
     const response = await addReviewQueueNote(
       new NextRequest("http://localhost/api/review-queue/22222222-2222-4222-8222-222222222222/notes", {
@@ -193,7 +192,7 @@ describe("Review Queue list API", () => {
   it("rejects a note payload that tries to resolve a flag", async () => {
     const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "11111111-1111-4111-8111-111111111111" } } }) } };
     createServerClientMock.mockResolvedValue(client as never);
-    getApprovedRoleMock.mockResolvedValue("admin");
+    mocks.middlewareRole.mockReturnValue("admin");
 
     const response = await addReviewQueueNote(
       new NextRequest("http://localhost/api/review-queue/22222222-2222-4222-8222-222222222222/notes", {
@@ -215,7 +214,7 @@ describe("Review Queue list API", () => {
         : { insert },
     };
     createServerClientMock.mockResolvedValue(client as never);
-    getApprovedRoleMock.mockResolvedValue("admin");
+    mocks.middlewareRole.mockReturnValue("admin");
 
     const response = await addReviewQueueNote(
       new NextRequest("http://localhost/api/review-queue/22222222-2222-4222-8222-222222222222/notes", {

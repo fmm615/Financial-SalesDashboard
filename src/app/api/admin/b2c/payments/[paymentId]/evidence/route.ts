@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getB2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
 
@@ -13,10 +14,10 @@ import { getB2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-rep
  * `getB2cDashboardSnapshot` -- the one source read for B2C payments -- rather
  * than duplicating its Stripe evidence query.
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ paymentId: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ paymentId: string }> }) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") {
+  if (!user || requireMiddlewareRole(request) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }
 

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { firstValidationMessage, reportRequestSchema } from "@/lib/validation/financial-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createDraftReportJob, getDraftReportArchive } from "@/server/services/process-draft-report";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || !await getApprovedRole(client, user.id)) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
+  const role = requireMiddlewareRole(request);
+  if (!user || (role !== "admin" && role !== "viewer")) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   try {
     return NextResponse.json({ reports: await getDraftReportArchive(client) });
   } catch {
@@ -19,7 +21,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
+  if (!user || requireMiddlewareRole(request) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   const parsed = reportRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: firstValidationMessage(parsed.error) }, { status: 422 });
   if (parsed.data.deliveryRequested) return NextResponse.json({ error: "Email delivery remains disabled until financial report accuracy is verified." }, { status: 422 });

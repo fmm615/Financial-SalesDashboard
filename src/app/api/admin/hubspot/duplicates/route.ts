@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { NextRequest, NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 /** Returns open B2B duplicate candidates without exposing raw provider payloads. */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") {
+  if (!user || requireMiddlewareRole(request) !== "admin") {
     return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   }
 

@@ -78,8 +78,21 @@ Every important manual financial change must be attributable to the logged-in us
 
 ## Phase 2 enforcement
 
-The database—not the UI—enforces the approved-user and Admin-write boundary through RLS policies. The two allowed roles are `admin` and `viewer`. User-initiated writes must use an authenticated client, not the service-role client, so database triggers record the individual `auth.uid()` in `audit_events`. The service-role key remains server-only and is reserved for future trusted jobs.
+The database—not the UI—enforces the approved-user and Admin-write boundary through RLS policies. The two allowed roles are `admin` and `viewer`. Ordinary user-initiated writes must use an authenticated client, not the service-role client, so database triggers record the individual `auth.uid()` in `audit_events`. The only current user-triggered service-role operations are the bounded provider sync/backfill orchestrators described below; they retain an independent database-backed Admin check and explicitly record the actor. The service-role key remains server-only.
 
 ## Auth session and routes
 
-Application middleware calls Supabase `getUser()` for protected requests, then checks the authenticated profile and role through RLS. It redirects missing sessions to `/login`, unapproved accounts to `/access-denied`, and Viewers away from Admin-only routes. Client-side hiding of controls is presentation only; RLS remains mandatory for every write.
+Application middleware calls Supabase `getUser()` for protected requests, then checks the authenticated profile and role through RLS. It redirects missing sessions to `/login`, unapproved accounts to `/access-denied`, and Viewers away from Admin-only page routes. Client-side hiding of controls is presentation only; RLS remains mandatory for every write.
+
+After those checks succeed, middleware overwrites the internal `x-playbook-role`
+request header with exactly `admin` or `viewer`. Protected route handlers still
+re-verify the session user, then may reuse that per-request role only through
+`requireMiddlewareRole()` and explicit equality comparisons. A missing,
+malformed, or unexpected value always fails closed. The independently
+authenticated `/api/webhooks/**` and `/api/internal/**` routes must never use
+this header or helper.
+
+The six user-triggered HubSpot, Stripe, and Tap sync/backfill routes perform
+work through the service-role client. Because that client bypasses RLS, those
+routes permanently retain an independent `getApprovedRole()` database lookup;
+the middleware role header is not an adequate authorization boundary for them.

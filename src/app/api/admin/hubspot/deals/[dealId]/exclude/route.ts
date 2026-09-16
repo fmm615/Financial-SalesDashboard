@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hubSpotDealExclusionSchema } from "@/lib/validation/hubspot-review-contracts";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { z } from "zod";
 export async function POST(request: NextRequest, { params }: { params: Promise<{ dealId: string }> }) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
+  if (!user || requireMiddlewareRole(request) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   const parsed = hubSpotDealExclusionSchema.safeParse(body);

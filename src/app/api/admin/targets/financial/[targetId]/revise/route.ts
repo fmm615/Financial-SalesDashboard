@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { financialTargetSchema } from "@/lib/validation/target-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ targetId: string }> }) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || await getApprovedRole(client, user.id) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
+  if (!user || requireMiddlewareRole(request) !== "admin") return NextResponse.json({ error: "Admin access is required." }, { status: 403 });
   const parsed = financialTargetSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid financial target revision." }, { status: 422 });
   const { targetId } = await params;

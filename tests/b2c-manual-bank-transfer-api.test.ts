@@ -2,19 +2,20 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as previewRoute } from "@/app/api/admin/b2c/payments/manual-bank-transfer/preview/route";
 import { POST as confirmRoute } from "@/app/api/admin/b2c/payments/manual-bank-transfer/route";
-import { getApprovedRole } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { previewManualBankTransfer, recordManualBankTransfer } from "@/server/services/record-manual-bank-transfer";
 
+const middlewareRoleMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn(), getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
+vi.mock("@/lib/auth/access", () => ({ getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
+vi.mock("@/lib/auth/middleware-role", () => ({ requireMiddlewareRole: middlewareRoleMock }));
 vi.mock("@/server/services/record-manual-bank-transfer", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/services/record-manual-bank-transfer")>();
   return { ...actual, previewManualBankTransfer: vi.fn(), recordManualBankTransfer: vi.fn() };
 });
 
 const createServerClientMock = vi.mocked(createServerSupabaseClient);
-const getApprovedRoleMock = vi.mocked(getApprovedRole);
 const previewManualBankTransferMock = vi.mocked(previewManualBankTransfer);
 const recordManualBankTransferMock = vi.mocked(recordManualBankTransfer);
 const adminUserId = "11111111-1111-4111-8111-111111111111";
@@ -35,7 +36,7 @@ function jsonRequest(url: string, body: unknown): NextRequest {
 function mockAdminClient() {
   const client = { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: adminUserId } } }) } };
   createServerClientMock.mockResolvedValue(client as never);
-  getApprovedRoleMock.mockResolvedValue("admin");
+  middlewareRoleMock.mockReturnValue("admin");
   return client;
 }
 
@@ -44,7 +45,7 @@ describe("Manual bank transfer preview boundary", () => {
 
   it("rejects a Viewer before assessing any duplicate", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: adminUserId } } }) } } as never);
-    getApprovedRoleMock.mockResolvedValue("viewer");
+    middlewareRoleMock.mockReturnValue("viewer");
 
     const response = await previewRoute(jsonRequest("http://localhost/api/admin/b2c/payments/manual-bank-transfer/preview", validRequest));
 
@@ -88,7 +89,7 @@ describe("Manual bank transfer confirmation boundary", () => {
 
   it("rejects a Viewer before recording anything", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: adminUserId } } }) } } as never);
-    getApprovedRoleMock.mockResolvedValue("viewer");
+    middlewareRoleMock.mockReturnValue("viewer");
 
     const response = await confirmRoute(jsonRequest("http://localhost/api/admin/b2c/payments/manual-bank-transfer", { ...validRequest, expectedInputSha256: "a".repeat(64) }));
 

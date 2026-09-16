@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const paramsSchema = z.object({ jobId: z.string().uuid(), fileKind: z.enum(["pdf", "csv_bundle"]) });
 
-export async function GET(_: NextRequest, context: { params: Promise<{ jobId: string; fileKind: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ jobId: string; fileKind: string }> }) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || !await getApprovedRole(client, user.id)) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
+  const role = requireMiddlewareRole(request);
+  if (!user || (role !== "admin" && role !== "viewer")) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   const parsed = paramsSchema.safeParse(await context.params);
   if (!parsed.success) return NextResponse.json({ error: "Invalid report file." }, { status: 422 });
   const { data: report } = await client.from("reports").select("id").eq("job_id", parsed.data.jobId).maybeSingle();

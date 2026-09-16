@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 /**
@@ -11,10 +12,11 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
  * log. Every B2C correction/exception/FX write already records itself here
  * with the payment or refund id as `target_record_id`.
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ paymentId: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ paymentId: string }> }) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || !(await getApprovedRole(client, user.id))) {
+  const role = requireMiddlewareRole(request);
+  if (!user || (role !== "admin" && role !== "viewer")) {
     return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   }
 

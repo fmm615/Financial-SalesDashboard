@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { reviewQueueListQuerySchema } from "@/lib/validation/review-queue-contracts";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SupabaseReviewQueueRepository } from "@/server/repositories/review-queue-repository";
@@ -15,7 +16,8 @@ function validationErrorMessage(issue: { path: PropertyKey[]; message: string } 
 export async function GET(request: NextRequest) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || !await getApprovedRole(client, user.id)) {
+  const role = requireMiddlewareRole(request);
+  if (!user || (role !== "admin" && role !== "viewer")) {
     return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
   }
 

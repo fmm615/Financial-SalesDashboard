@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { b2cWorkspaceLedgerQuerySchema } from "@/lib/validation/b2c-workspace-contracts";
 import { SupabaseB2cLedgerRepository, type B2cDecoratedLedgerRow, type B2cLedgerPage } from "@/server/repositories/b2c-ledger-repository";
@@ -30,8 +31,8 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await getSessionUser(client);
   if (!user) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
 
-  const role = await getApprovedRole(client, user.id);
-  if (!role) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
+  const role = requireMiddlewareRole(request);
+  if (role !== "admin" && role !== "viewer") return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
 
   const parsed = b2cWorkspaceLedgerQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams.entries()));
   if (!parsed.success) return NextResponse.json({ error: validationErrorMessage(parsed.error.issues[0]) }, { status: 422 });

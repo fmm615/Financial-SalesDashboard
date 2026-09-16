@@ -28,24 +28,29 @@ export function getSessionUser(client: SupabaseClient<Database>) {
   return retryTransient(() => client.auth.getUser(), (result) => !result.data.user && Boolean(result.error));
 }
 
+type ProfileRoleJoin = { role_id: string; roles: { code: "admin" | "viewer" } | null };
+
 /**
  * RLS is the authorization authority. This lookup only converts the allowed,
  * authenticated user into an application role for routing and presentation.
+ *
+ * middleware.ts runs this on every single navigation and API call, so its
+ * cost multiplies across the whole app. This used to be 3 sequential round
+ * trips (profiles -> profile_roles -> roles); the separate `profiles`
+ * existence check was redundant (profile_roles.profile_id is itself the
+ * primary key and profile_roles.role_id/profile_id are both FK-enforced, so
+ * a profile_roles row cannot exist for a nonexistent profile or role), and
+ * profile_roles/roles can be read in one PostgREST embedded-resource query
+ * since profile_roles.role_id has a foreign key to the unique roles.id. This
+ * collapses it to a single round trip.
  */
 export async function getApprovedRole(
   client: SupabaseClient<Database>,
   profileId: string,
 ): Promise<AppRole | null> {
-  const { data: profile } = await withRetry<{ id: string }>(() => client.from("profiles").select("id").eq("id", profileId).maybeSingle());
-  if (!profile) return null;
-
-  const { data: assignment } = await withRetry<{ role_id: string }>(() =>
-    client.from("profile_roles").select("role_id").eq("profile_id", profileId).maybeSingle(),
+  const { data } = await withRetry<ProfileRoleJoin>(() =>
+    client.from("profile_roles").select("role_id, roles(code)").eq("profile_id", profileId).maybeSingle() as unknown as PromiseLike<{ data: ProfileRoleJoin | null; error: unknown }>,
   );
-  if (!assignment) return null;
-
-  const { data: role } = await withRetry<{ code: "admin" | "viewer" }>(() =>
-    client.from("roles").select("code").eq("id", assignment.role_id).maybeSingle(),
-  );
-  return role?.code === "admin" || role?.code === "viewer" ? role.code : null;
+  const code = data?.roles?.code;
+  return code === "admin" || code === "viewer" ? code : null;
 }

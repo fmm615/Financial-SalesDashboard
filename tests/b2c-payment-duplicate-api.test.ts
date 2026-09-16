@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getDuplicateGroup } from "@/app/api/admin/b2c/payments/[paymentId]/duplicate-group/route";
 import { POST as saveDuplicateDecision } from "@/app/api/admin/b2c/payment-duplicate-groups/[groupId]/decision/route";
 import { POST as dismissStaleDuplicate } from "@/app/api/admin/b2c/review-flags/[flagId]/dismiss-stale-duplicate/route";
-import { getApprovedRole } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const repositoryMocks = vi.hoisted(() => ({
@@ -11,15 +10,16 @@ const repositoryMocks = vi.hoisted(() => ({
   getOpenGroup: vi.fn(),
   getOpenPossibleDuplicateFlagForPayment: vi.fn(),
 }));
+const middlewareRoleMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabaseClient: vi.fn() }));
-vi.mock("@/lib/auth/access", () => ({ getApprovedRole: vi.fn(), getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
+vi.mock("@/lib/auth/access", () => ({ getSessionUser: (client: { auth: { getUser: () => unknown } }) => client.auth.getUser() }));
+vi.mock("@/lib/auth/middleware-role", () => ({ requireMiddlewareRole: middlewareRoleMock }));
 vi.mock("@/server/repositories/b2c-payment-duplicate-repository", () => ({
   B2cPaymentDuplicateRepository: vi.fn().mockImplementation(() => repositoryMocks),
 }));
 
 const createServerClientMock = vi.mocked(createServerSupabaseClient);
-const getApprovedRoleMock = vi.mocked(getApprovedRole);
 const adminUserId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const paymentId = "11111111-1111-4111-8111-111111111111";
 const otherPaymentId = "22222222-2222-4222-8222-222222222222";
@@ -132,7 +132,7 @@ describe("B2C payment duplicate API authorization", () => {
     const response = await invoke();
 
     expect(response.status).toBe(403);
-    expect(getApprovedRoleMock).not.toHaveBeenCalled();
+    expect(middlewareRoleMock).not.toHaveBeenCalled();
     expect(repositoryMocks.getOpenGroupForPayment).not.toHaveBeenCalled();
     expect(repositoryMocks.getOpenGroup).not.toHaveBeenCalled();
     expect(repositoryMocks.getOpenPossibleDuplicateFlagForPayment).not.toHaveBeenCalled();
@@ -141,7 +141,7 @@ describe("B2C payment duplicate API authorization", () => {
 
   it.each(requests)("rejects a Viewer $name before repository or RPC access", async ({ invoke }) => {
     const client = mockClient();
-    getApprovedRoleMock.mockResolvedValue("viewer");
+    middlewareRoleMock.mockReturnValue("viewer");
 
     const response = await invoke();
 
@@ -157,7 +157,7 @@ describe("B2C payment duplicate group read API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient();
-    getApprovedRoleMock.mockResolvedValue("admin");
+    middlewareRoleMock.mockReturnValue("admin");
   });
 
   it("rejects an invalid payment ID before repository access", async () => {
@@ -236,7 +236,7 @@ describe("B2C payment duplicate decision API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient();
-    getApprovedRoleMock.mockResolvedValue("admin");
+    middlewareRoleMock.mockReturnValue("admin");
   });
 
   it("rejects invalid group IDs and malformed bodies before reads or writes", async () => {
@@ -328,7 +328,7 @@ describe("stale B2C possible-duplicate dismissal API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient();
-    getApprovedRoleMock.mockResolvedValue("admin");
+    middlewareRoleMock.mockReturnValue("admin");
   });
 
   it("rejects an invalid flag ID and a placeholder reason before RPC access", async () => {

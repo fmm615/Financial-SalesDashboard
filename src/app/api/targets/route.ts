@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
-import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
+import { NextRequest, NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/auth/access";
+import { requireMiddlewareRole } from "@/lib/auth/middleware-role";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const client = await createServerSupabaseClient();
   const { data: { user } } = await getSessionUser(client);
-  if (!user || !await getApprovedRole(client, user.id)) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
+  const role = requireMiddlewareRole(request);
+  if (!user || (role !== "admin" && role !== "viewer")) return NextResponse.json({ error: "Approved access is required." }, { status: 403 });
 
   const [financial, operational, progress] = await Promise.all([
     client.from("financial_targets").select("id,metric_code,period_start,period_end,target_amount_usd,status,finance_reference,revision_reason,created_at").in("status", ["draft", "active"]).order("period_start"),
