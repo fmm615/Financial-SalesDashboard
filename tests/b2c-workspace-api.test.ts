@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/b2c/workspace/route";
+import { GET as GET_LEDGER_EXPORT } from "@/app/api/b2c/workspace/export/route";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const mocks = vi.hoisted(() => ({
   middlewareRole: vi.fn(),
   page: vi.fn(),
+  exportRows: vi.fn(),
   overview: vi.fn(),
 }));
 
@@ -16,6 +18,7 @@ vi.mock("@/server/repositories/b2c-ledger-repository", async (importOriginal) =>
   ...(await importOriginal<object>()),
   SupabaseB2cLedgerRepository: class {
     page = mocks.page;
+    exportRows = mocks.exportRows;
   },
 }));
 vi.mock("@/server/repositories/b2c-workspace-repository", () => ({
@@ -184,5 +187,76 @@ describe("GET /api/b2c/workspace", () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: "Could not load the B2C workspace." });
+  });
+});
+
+describe("GET /api/b2c/workspace/export", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("rejects an unauthenticated export before reading the Ledger", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) } } as never);
+    mocks.middlewareRole.mockReturnValue("admin");
+
+    const response = await GET_LEDGER_EXPORT(new NextRequest("http://localhost/api/b2c/workspace/export?period=2026-08"));
+
+    expect(response.status).toBe(403);
+    expect(mocks.exportRows).not.toHaveBeenCalled();
+  });
+
+  it("permanently rejects a Viewer even though the ordinary Ledger is Viewer-readable", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.middlewareRole.mockReturnValue("viewer");
+
+    const response = await GET_LEDGER_EXPORT(new NextRequest("http://localhost/api/b2c/workspace/export?period=2026-08"));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "Admin access is required." });
+    expect(mocks.exportRows).not.toHaveBeenCalled();
+  });
+
+  it("exports the current filters as capped, attachment-safe CSV without provider evidence", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.middlewareRole.mockReturnValue("admin");
+    mocks.exportRows.mockResolvedValue({
+      rows: [{ ...stripeEvidenceRow, customerName: "=CMD()", issue: "Needs follow-up" }],
+      capped: true,
+      totalCount: 5_004,
+    });
+
+    const response = await GET_LEDGER_EXPORT(new NextRequest("http://localhost/api/b2c/workspace/export?period=2026-08&source=stripe&search=Maya"));
+    const csv = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("text/csv; charset=utf-8");
+    expect(response.headers.get("Content-Disposition")).toBe('attachment; filename="b2c-ledger-2026-08.csv"');
+    expect(response.headers.get("X-Playbook-Export-Capped")).toBe("true");
+    expect(response.headers.get("X-Playbook-Export-Row-Count")).toBe("1");
+    expect(response.headers.get("X-Playbook-Export-Total-Count")).toBe("5004");
+    expect(mocks.exportRows).toHaveBeenCalledWith({ period: "2026-08", source: "stripe", search: "Maya" });
+    expect(csv).toContain('"Customer","Email","Mobile","Date","Amount","Source","Status"');
+    expect(csv).toContain('"\'=CMD()","maya@example.com","","Aug 1, 2026","$100.00","Stripe","Completed; Needs follow-up"');
+    expect(csv).not.toContain("Confidential seller note");
+    expect(csv).not.toContain("ch_1");
+  });
+
+  it("rejects pagination controls because the server owns export pagination", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.middlewareRole.mockReturnValue("admin");
+
+    const response = await GET_LEDGER_EXPORT(new NextRequest("http://localhost/api/b2c/workspace/export?period=2026-08&limit=100"));
+
+    expect(response.status).toBe(422);
+    expect(mocks.exportRows).not.toHaveBeenCalled();
+  });
+
+  it("returns a safe export failure without leaking repository details", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.middlewareRole.mockReturnValue("admin");
+    mocks.exportRows.mockRejectedValue(new Error("sensitive source failure"));
+
+    const response = await GET_LEDGER_EXPORT(new NextRequest("http://localhost/api/b2c/workspace/export?period=all"));
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: "Could not export the B2C Ledger." });
   });
 });

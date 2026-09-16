@@ -62,7 +62,11 @@ export function buildB2cWorkspaceOverview(input: {
   return { items, counts: summarizeB2cWorkItemCounts(items) };
 }
 
-type FailedSyncRun = { id: string; provider: "stripe" | "tap" };
+type FailedSyncRun = {
+  id: string;
+  provider: "stripe" | "tap";
+  operation_type: "reconciliation" | "historical_backfill";
+};
 
 /** Loads the Admin Work queue overview. Reuses the dashboard snapshot for every source read. */
 export class SupabaseB2cWorkspaceRepository {
@@ -71,7 +75,7 @@ export class SupabaseB2cWorkspaceRepository {
   private async listFailedSourceRuns(): Promise<B2cSourceFailureRecord[]> {
     const { data, error } = await this.client
       .from("integration_sync_runs")
-      .select("id,provider")
+      .select("id,provider,operation_type")
       .in("provider", ["stripe", "tap"])
       .eq("status", "failed")
       .order("created_at", { ascending: false })
@@ -87,8 +91,8 @@ export class SupabaseB2cWorkspaceRepository {
     return runs.map((run) => ({
       id: run.id,
       provider: run.provider,
+      operationType: run.operation_type,
       reason: `The last ${run.provider === "stripe" ? "Stripe" : "Tap"} sync failed. Retry it from Sources.`,
-      href: "/operations/b2c?tab=sources",
     }));
   }
 

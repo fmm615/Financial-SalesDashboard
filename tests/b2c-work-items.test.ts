@@ -150,7 +150,7 @@ describe("chunkB2cWorkspaceQueryValues", () => {
 
 describe("buildB2cSourceFailureWorkItems", () => {
   it("surfaces a failed sync run as a reconciliation-visible source_failure item without writing to the provider", () => {
-    const items = buildB2cSourceFailureWorkItems([{ id: "run-1", provider: "stripe", reason: "The last Stripe sync failed.", href: "/operations/b2c?tab=sources" }]);
+    const items = buildB2cSourceFailureWorkItems([{ id: "run-1", provider: "stripe", operationType: "reconciliation", reason: "The last Stripe sync failed." }]);
     expect(items).toEqual([{
       id: "run-1:source_failure",
       recordId: "run-1",
@@ -162,8 +162,14 @@ describe("buildB2cSourceFailureWorkItems", () => {
       explanation: "The last Stripe sync failed.",
       financialImpactUsd: null,
       nextAction: "retry_source",
-      href: "/operations/b2c?tab=sources",
+      href: "/operations/b2c?tab=sources&provider=stripe",
     }]);
+  });
+
+  it("deep-links a failed historical backfill to the provider's expanded backfill controls", () => {
+    const items = buildB2cSourceFailureWorkItems([{ id: "run-2", provider: "tap", operationType: "historical_backfill", reason: "The Tap backfill failed." }]);
+
+    expect(items[0].href).toBe("/operations/b2c?tab=sources&provider=tap&action=backfill");
   });
 });
 
@@ -171,7 +177,7 @@ describe("buildB2cWorkItems", () => {
   it("composes record items and source failures together", () => {
     const items = buildB2cWorkItems({
       records: [record({ decision: decision(["missing_customer_email"]) })],
-      sourceFailures: [{ id: "run-1", provider: "tap", reason: "The last Tap sync failed.", href: "/operations/b2c?tab=sources" }],
+      sourceFailures: [{ id: "run-1", provider: "tap", operationType: "reconciliation", reason: "The last Tap sync failed." }],
     });
     expect(items.map((item) => item.queue).sort()).toEqual(["data_quality", "source_failure"]);
   });

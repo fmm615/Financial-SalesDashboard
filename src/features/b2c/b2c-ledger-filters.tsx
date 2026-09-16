@@ -1,7 +1,8 @@
 "use client";
 
-import type { ChangeEvent } from "react";
+import { useState, type ChangeEvent } from "react";
 import { B2cPeriodSelector } from "@/features/b2c/b2c-period-selector";
+import { useCanManage } from "@/lib/auth/role-context";
 
 export type B2cLedgerFiltersState = {
   search: string;
@@ -31,7 +32,7 @@ const FINANCE_STATUS_OPTIONS: Option[] = [
 ];
 
 /** Display-only controls for narrowing the already-loaded B2C source ledger. */
-export function B2cLedgerFilters({ filters, onChange, periodMonth, sources, issues, shownCount, totalCount, foreignCurrencyCount }: {
+export function B2cLedgerFilters({ filters, onChange, periodMonth, sources, issues, shownCount, totalCount, foreignCurrencyCount, exportHref }: {
   filters: B2cLedgerFiltersState;
   onChange: (filters: B2cLedgerFiltersState) => void;
   periodMonth: string;
@@ -40,9 +41,49 @@ export function B2cLedgerFilters({ filters, onChange, periodMonth, sources, issu
   shownCount: number;
   totalCount: number;
   foreignCurrencyCount: number;
+  exportHref: string;
 }) {
+  const canManage = useCanManage();
+  const [exporting, setExporting] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState<{ href: string; kind: "success" | "error"; message: string } | null>(null);
+
   function update(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     onChange({ ...filters, [event.target.name]: event.target.value });
+  }
+
+  async function exportCsv() {
+    setExporting(true);
+    setExportFeedback(null);
+    try {
+      const response = await fetch(exportHref, { cache: "no-store" });
+      if (!response.ok) throw new Error("The filtered Ledger could not be exported.");
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const filename = /filename="([^"]+)"/i.exec(disposition)?.[1] ?? `b2c-ledger-${periodMonth}.csv`;
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      link.hidden = true;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      const rowCount = response.headers.get("X-Playbook-Export-Row-Count") ?? "0";
+      const capped = response.headers.get("X-Playbook-Export-Capped") === "true";
+      setExportFeedback({
+        href: exportHref,
+        kind: "success",
+        message: capped
+          ? `Exported the first ${Number(rowCount).toLocaleString()} matching records. Narrow the filters to export records beyond the 5,000-row cap.`
+          : `Exported ${Number(rowCount).toLocaleString()} matching records.`,
+      });
+    } catch {
+      setExportFeedback({ href: exportHref, kind: "error", message: "The filtered Ledger could not be exported. Please try again." });
+    } finally {
+      setExporting(false);
+    }
   }
   const inputClass = "mt-1 h-10 w-full rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
   const hasFilters = Object.entries(filters).some(([key, value]) => {
@@ -93,8 +134,10 @@ export function B2cLedgerFilters({ filters, onChange, periodMonth, sources, issu
         >
           {filters.foreignCurrencyOnly ? "Show all source records" : `Needs FX review (${foreignCurrencyCount.toLocaleString()})`}
         </button>
+        {canManage && <button type="button" onClick={() => void exportCsv()} disabled={exporting} className="rounded-input border border-border bg-surface px-3 py-2 font-medium text-brand-accent transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:text-text-muted">{exporting ? "Exporting…" : "Export CSV"}</button>}
         <button type="button" onClick={() => onChange(initialB2cLedgerFilters)} disabled={!hasFilters} className="font-medium text-brand-accent disabled:cursor-not-allowed disabled:text-text-muted">Clear filters</button>
       </div>
     </div>
+    {exportFeedback?.href === exportHref && <p role={exportFeedback.kind === "error" ? "alert" : "status"} className={`mt-3 text-sm ${exportFeedback.kind === "error" ? "text-danger" : "text-text-secondary"}`}>{exportFeedback.message}</p>}
   </div>;
 }

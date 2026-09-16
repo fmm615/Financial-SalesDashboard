@@ -51,6 +51,27 @@ function sourceStatusQueryValue(status: string): "succeeded" | "failed" | "pendi
   return null;
 }
 
+function ledgerFilterQueryParams(filters: B2cLedgerFiltersState, period: string | undefined): URLSearchParams {
+  const params = new URLSearchParams();
+  if (period) params.set("period", period);
+  const search = filters.search.trim();
+  const source = sourceQueryValue(filters.source);
+  const sourceStatus = sourceStatusQueryValue(filters.status);
+  const issue = filters.issue !== "all" ? filters.issue : null;
+  if (search) params.set("search", search);
+  if (source) params.set("source", source);
+  if (sourceStatus) params.set("sourceStatus", sourceStatus);
+  if (filters.status !== "all") params.set("paymentStatus", filters.status);
+  if (issue) params.set("issue", issue);
+  if (filters.financeStatus !== "all") params.set("reportingDecision", filters.financeStatus);
+  if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) params.set("dateTo", filters.dateTo);
+  if (filters.foreignCurrencyOnly) params.set("foreignCurrencyOnly", "true");
+  if (filters.minAmount) params.set("minAmountUsd", filters.minAmount);
+  if (filters.maxAmount) params.set("maxAmountUsd", filters.maxAmount);
+  return params;
+}
+
 function TabBar({ active, onSelect, showWork }: { active: WorkspaceTab; onSelect: (tab: WorkspaceTab) => void; showWork: boolean }) {
   const visible = TABS.filter((tab) => !tab.adminOnly || showWork);
   function handleKeyDown(event: KeyboardEvent, index: number) {
@@ -95,6 +116,9 @@ export function B2cWorkspace({
   const activeTab: WorkspaceTab = requestedTab === "work" && !canManage ? "ledger" : (requestedTab ?? "ledger");
   const activeQueue = (searchParams.get("queue") as B2cWorkQueueFilter | null) ?? "all";
   const recordParam = searchParams.get("record");
+  const providerParam = searchParams.get("provider");
+  const focusedSourceProvider = providerParam === "stripe" || providerParam === "tap" ? providerParam : null;
+  const focusedSourceAction = searchParams.get("action") === "backfill" ? "backfill" : null;
 
   function setQuery(next: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -125,27 +149,10 @@ export function B2cWorkspace({
   const period = snapshot?.period.month;
 
   const loadLedgerPage = useCallback(async (cursor: string | null, signal: AbortSignal) => {
-    const params = new URLSearchParams({
-      limit: String(B2C_LEDGER_PAGE_SIZE),
-      includeWorkItems: activeTab === "work" && canManage ? "true" : "false",
-    });
-    if (period) params.set("period", period);
+    const params = ledgerFilterQueryParams(filters, period);
+    params.set("limit", String(B2C_LEDGER_PAGE_SIZE));
+    params.set("includeWorkItems", activeTab === "work" && canManage ? "true" : "false");
     if (cursor) params.set("cursor", cursor);
-    const search = filters.search.trim();
-    const source = sourceQueryValue(filters.source);
-    const sourceStatus = sourceStatusQueryValue(filters.status);
-    const issue = filters.issue !== "all" ? filters.issue : null;
-    if (search) params.set("search", search);
-    if (source) params.set("source", source);
-    if (sourceStatus) params.set("sourceStatus", sourceStatus);
-    if (filters.status !== "all") params.set("paymentStatus", filters.status);
-    if (issue) params.set("issue", issue);
-    if (filters.financeStatus !== "all") params.set("reportingDecision", filters.financeStatus);
-    if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
-    if (filters.dateTo) params.set("dateTo", filters.dateTo);
-    if (filters.foreignCurrencyOnly) params.set("foreignCurrencyOnly", "true");
-    if (filters.minAmount) params.set("minAmountUsd", filters.minAmount);
-    if (filters.maxAmount) params.set("maxAmountUsd", filters.maxAmount);
     const response = await fetch(`/api/b2c/workspace?${params.toString()}`, { cache: "no-store", signal });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok || !payload || typeof payload !== "object" || !("ledger" in payload)) throw new Error("Workspace data unavailable");
@@ -333,7 +340,7 @@ export function B2cWorkspace({
         : <EmptyState title="Loading the Work queue" description="Preparing prioritized B2C records." />)}
 
       {activeTab === "ledger" && <div ref={ledgerSectionRef}><SectionCard title={`B2C ledger · ${snapshot.period.monthLabel}`} description="Customer, date, amount, source, and status. Open a record to see full detail, evidence, and its next safe action.">
-        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} periodMonth={snapshot.period.month} sources={sources} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} />
+        <B2cLedgerFilters filters={filters} onChange={handleFiltersChange} periodMonth={snapshot.period.month} sources={sources} issues={issues} shownCount={visibleRows.length} totalCount={ledgerTotalCount} foreignCurrencyCount={foreignCurrencyCount} exportHref={`/api/b2c/workspace/export?${ledgerFilterQueryParams(filters, period).toString()}`} />
         {canManage && <div className="mb-5"><B2cManualBankTransfer onRecorded={() => void reload()} /></div>}
         {visibleRows.length === 0
           ? <EmptyState title="No B2C records match these filters" description="Change or clear a filter to see the remaining records." />
@@ -360,7 +367,7 @@ export function B2cWorkspace({
         </details>
       </SectionCard></div>}
 
-      {activeTab === "sources" && <B2cSourceManagement />}
+      {activeTab === "sources" && <B2cSourceManagement focusProvider={focusedSourceProvider} focusAction={focusedSourceAction} />}
     </div>
 
     <B2cPaymentReviewDrawer

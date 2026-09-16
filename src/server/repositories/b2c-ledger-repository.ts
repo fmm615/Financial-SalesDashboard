@@ -5,6 +5,7 @@ import type { DatabaseClient } from "@/lib/supabase/server";
 
 export const B2C_LEDGER_MAX_LIMIT = 100;
 export const B2C_LEDGER_DEFAULT_LIMIT = 25;
+export const B2C_LEDGER_EXPORT_ROW_CAP = 5_000;
 
 export type B2cLedgerSort = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 
@@ -43,6 +44,12 @@ export type B2cLedgerPage = {
   hasMore: boolean;
   totalCount: number;
   filterMetadata: B2cLedgerFilterMetadata;
+};
+
+export type B2cLedgerExport = {
+  rows: B2cDecoratedLedgerRow[];
+  capped: boolean;
+  totalCount: number;
 };
 
 export type B2cLedgerCursor = {
@@ -286,6 +293,32 @@ function rpcFilters(query: B2cLedgerQuery, period: string, today: string) {
 
 export class SupabaseB2cLedgerRepository {
   constructor(private readonly client: DatabaseClient) {}
+
+  /** Loads one server-side export up to the fixed safety cap while preserving the Ledger's keyset order and filters. */
+  async exportRows(query: Omit<B2cLedgerQuery, "cursor" | "limit">, today = new Date()): Promise<B2cLedgerExport> {
+    const rows: B2cDecoratedLedgerRow[] = [];
+    let cursor: string | null = null;
+    let totalCount = 0;
+
+    do {
+      const page = await this.page({
+        ...query,
+        cursor: cursor ?? undefined,
+        limit: Math.min(B2C_LEDGER_MAX_LIMIT, B2C_LEDGER_EXPORT_ROW_CAP - rows.length),
+      }, today);
+      totalCount = page.totalCount;
+      rows.push(...page.rows);
+      cursor = page.nextCursor;
+      if (!page.hasMore) break;
+      if (!cursor) throw new Error("The B2C Ledger export cursor was missing.");
+    } while (rows.length < B2C_LEDGER_EXPORT_ROW_CAP);
+
+    return {
+      rows,
+      capped: totalCount > rows.length,
+      totalCount,
+    };
+  }
 
   async page(query: B2cLedgerQuery, today = new Date()): Promise<B2cLedgerPage> {
     const sort = query.sort ?? "date_desc";

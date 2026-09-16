@@ -17,6 +17,9 @@ vi.mock("next/navigation", () => ({
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(URL, "createObjectURL");
+  Reflect.deleteProperty(URL, "revokeObjectURL");
   pushMock.mockClear();
   replaceMock.mockClear();
   currentSearch = new URLSearchParams();
@@ -45,7 +48,7 @@ const workItems = {
   items: [
     { id: "payment-2:missing_amount", recordId: "payment-2", recordKind: "provider_payment" as const, queue: "data_quality" as const, visibleGroup: "data" as const, financeMethod: null, title: "Enter the missing amount for Sam", explanation: "This record has no available USD amount.", financialImpactUsd: null, nextAction: "correct" as const, href: "/operations/b2c?tab=work&record=payment-2" },
     { id: "payment-3:possible_duplicate", recordId: "payment-3", recordKind: "provider_payment" as const, queue: "duplicate" as const, visibleGroup: "duplicates" as const, financeMethod: null, title: "Choose the duplicate for Noor", explanation: "This record has an unresolved possible duplicate.", financialImpactUsd: "$40.00", nextAction: "choose_payment_duplicate" as const, href: "/operations/b2c?tab=work&record=payment-3" },
-    { id: "run-1:source_failure", recordId: "run-1", recordKind: "source_run" as const, queue: "source_failure" as const, visibleGroup: "reconciliation" as const, financeMethod: null, title: "Retry the Stripe sync", explanation: "The last Stripe sync failed. Retry it from Sources.", financialImpactUsd: null, nextAction: "retry_source" as const, href: "/operations/b2c?tab=sources" },
+    { id: "run-1:source_failure", recordId: "run-1", recordKind: "source_run" as const, queue: "source_failure" as const, visibleGroup: "reconciliation" as const, financeMethod: null, title: "Retry the Stripe sync", explanation: "The last Stripe sync failed. Retry it from Sources.", financialImpactUsd: null, nextAction: "retry_source" as const, href: "/operations/b2c?tab=sources&provider=stripe" },
   ],
   counts: { all: 3, data: 1, duplicates: 1, reconciliation: 1 },
 };
@@ -364,6 +367,53 @@ describe("Ledger", () => {
     await expectQuery("foreignCurrencyOnly", "true");
   });
 
+  it("downloads the current Admin filters and explains when the CSV is capped", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    const createObjectUrl = vi.fn(() => "blob:b2c-ledger");
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/api/b2c/workspace/export")) {
+        return new Response("Customer,Email", {
+          status: 200,
+          headers: {
+            "Content-Disposition": 'attachment; filename="b2c-ledger-2026-08.csv"',
+            "Content-Type": "text/csv; charset=utf-8",
+            "X-Playbook-Export-Capped": "true",
+            "X-Playbook-Export-Row-Count": "5000",
+          },
+        });
+      }
+      return new Response(JSON.stringify({
+        role: "admin",
+        ledger: { rows: [ledgerRow], nextCursor: null, hasMore: false, totalCount: 1, filterMetadata: filterMetadataForRows([ledgerRow]) },
+        workItems,
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    const fetchMock = vi.mocked(global.fetch);
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+    await screen.findByRole("table", { name: "B2C ledger" });
+    fireEvent.change(screen.getByLabelText("Source"), { target: { value: "Stripe" } });
+    fireEvent.change(screen.getByPlaceholderText("Name, email, mobile, or ID"), { target: { value: "Maya" } });
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    const filterRegion = screen.getByRole("region", { name: "B2C ledger filters" });
+    expect(await within(filterRegion).findByRole("status")).toHaveTextContent("first 5,000 matching records");
+    const exportCall = fetchMock.mock.calls.find(([input]) => String(input).includes("/api/b2c/workspace/export"));
+    expect(exportCall).toBeDefined();
+    const exportUrl = new URL(String(exportCall![0]), "https://playbook.test");
+    expect(Object.fromEntries(exportUrl.searchParams.entries())).toMatchObject({ period: "2026-08", source: "stripe", search: "Maya" });
+    expect(exportUrl.searchParams.has("cursor")).toBe(false);
+    expect(exportUrl.searchParams.has("limit")).toBe(false);
+    expect(createObjectUrl).toHaveBeenCalled();
+    expect(anchorClick).toHaveBeenCalled();
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:b2c-ledger");
+  });
+
   it("shows customer, email, mobile, date, amount, source, description, status, and one Review action", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
     stubFetch({ role: "admin" });
@@ -506,6 +556,28 @@ describe("Sources", () => {
     const sourcesPanel = await screen.findByRole("tabpanel", { name: "Sources" });
     expect(within(sourcesPanel).queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("highlights and scrolls to the linked provider and expands a failed backfill", async () => {
+    currentSearch = new URLSearchParams("tab=sources&provider=tap&action=backfill");
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    stubFetch({ role: "admin" });
+
+    try {
+      render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+
+      const tapCard = await screen.findByRole("region", { name: "Tap source controls" });
+      const stripeCard = screen.getByRole("region", { name: "Stripe source controls" });
+      expect(tapCard).toHaveClass("ring-2", "ring-warning");
+      expect(stripeCard).not.toHaveClass("ring-2");
+      expect(within(tapCard).getByRole("status")).toHaveTextContent("Failed source run selected");
+      expect((within(tapCard).getByText("Historical Tap B2C backfill").closest("details") as HTMLDetailsElement).open).toBe(true);
+      expect((within(stripeCard).getByText("Historical Stripe B2C backfill").closest("details") as HTMLDetailsElement).open).toBe(false);
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" }));
+    } finally {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
 });
 
 describe("Manual bank transfer entry point", () => {
@@ -539,6 +611,7 @@ describe("No B2C write control ever reaches a Viewer", () => {
     // separate write button (correct/map/FX/exception/post) exists anywhere.
     expect(screen.queryByRole("button", { name: "Add iOS payment" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Post approved Finance payments" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export CSV" })).not.toBeInTheDocument();
     expect(within(table).getByRole("button", { name: "Review" })).toBeInTheDocument();
   });
 });

@@ -176,6 +176,38 @@ describe("SupabaseB2cLedgerRepository", () => {
     expect(page.rows[0].sourceAmountUsd).toBe("23 BHD");
     expect(page.rows[0].amountUsd).toBe("23 BHD");
   });
+
+  it("loads every matching export page with the same filters and no client-visible pagination", async () => {
+    const repository = new SupabaseB2cLedgerRepository({} as never);
+    const firstRows = Array.from({ length: 100 }, (_, index) => ({ id: `first-${index}` }));
+    const finalRows = Array.from({ length: 25 }, (_, index) => ({ id: `final-${index}` }));
+    const page = vi.spyOn(repository, "page")
+      .mockResolvedValueOnce({ rows: firstRows, nextCursor: "next-page", hasMore: true, totalCount: 125, filterMetadata: { sources: [], issues: [], foreignCurrencyCount: 0 } } as never)
+      .mockResolvedValueOnce({ rows: finalRows, nextCursor: null, hasMore: false, totalCount: 125, filterMetadata: { sources: [], issues: [], foreignCurrencyCount: 0 } } as never);
+
+    const result = await repository.exportRows({ period: "2026-08", source: "stripe", search: "Maya" }, new Date("2026-08-31T00:00:00.000Z"));
+
+    expect(result).toMatchObject({ capped: false, totalCount: 125 });
+    expect(result.rows).toHaveLength(125);
+    expect(page).toHaveBeenNthCalledWith(1, { period: "2026-08", source: "stripe", search: "Maya", cursor: undefined, limit: 100 }, expect.any(Date));
+    expect(page).toHaveBeenNthCalledWith(2, { period: "2026-08", source: "stripe", search: "Maya", cursor: "next-page", limit: 100 }, expect.any(Date));
+  });
+
+  it("reports when an export stops at the fixed 5,000-row cap", async () => {
+    const repository = new SupabaseB2cLedgerRepository({} as never);
+    vi.spyOn(repository, "page").mockResolvedValue({
+      rows: Array.from({ length: 5_000 }, (_, index) => ({ id: `row-${index}` })),
+      nextCursor: "more-rows",
+      hasMore: true,
+      totalCount: 5_001,
+      filterMetadata: { sources: [], issues: [], foreignCurrencyCount: 0 },
+    } as never);
+
+    const result = await repository.exportRows({ period: "all" });
+
+    expect(result).toMatchObject({ capped: true, totalCount: 5_001 });
+    expect(result.rows).toHaveLength(5_000);
+  });
 });
 
 describe("decorateB2cLedgerRow", () => {

@@ -27,4 +27,11 @@ export const b2cWorkspaceLedgerQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
 }).strict();
 
+/** The CSV export accepts every Ledger filter, but never client-controlled pagination. */
+export const b2cWorkspaceLedgerExportQuerySchema = b2cWorkspaceLedgerQuerySchema.omit({
+  cursor: true,
+  includeWorkItems: true,
+  limit: true,
+});
+
 export type B2cWorkspaceLedgerQuery = z.infer<typeof b2cWorkspaceLedgerQuerySchema>;

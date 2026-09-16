@@ -34,8 +34,8 @@ export type B2cWorkItemRecord = {
 export type B2cSourceFailureRecord = {
   id: string;
   provider: "stripe" | "tap";
+  operationType: "reconciliation" | "historical_backfill";
   reason: string;
-  href: string;
 };
 
 type ReasonPlan = {
@@ -117,19 +117,23 @@ export function buildB2cRecordWorkItems(record: B2cWorkItemRecord): B2cWorkItem[
 
 /** Builds the read-only work items surfacing a failed Stripe/Tap sync run. Never touches provider data. */
 export function buildB2cSourceFailureWorkItems(runs: B2cSourceFailureRecord[]): B2cWorkItem[] {
-  return runs.map((run) => ({
-    id: `${run.id}:source_failure`,
-    recordId: run.id,
-    recordKind: "source_run",
-    queue: "source_failure",
-    visibleGroup: "reconciliation",
-    financeMethod: null,
-    title: `Retry the ${run.provider === "stripe" ? "Stripe" : "Tap"} sync`,
-    explanation: run.reason,
-    financialImpactUsd: null,
-    nextAction: "retry_source",
-    href: run.href,
-  }));
+  return runs.map((run) => {
+    const params = new URLSearchParams({ tab: "sources", provider: run.provider });
+    if (run.operationType === "historical_backfill") params.set("action", "backfill");
+    return {
+      id: `${run.id}:source_failure`,
+      recordId: run.id,
+      recordKind: "source_run",
+      queue: "source_failure",
+      visibleGroup: "reconciliation",
+      financeMethod: null,
+      title: `Retry the ${run.provider === "stripe" ? "Stripe" : "Tap"} sync`,
+      explanation: run.reason,
+      financialImpactUsd: null,
+      nextAction: "retry_source",
+      href: `/operations/b2c?${params.toString()}`,
+    };
+  });
 }
 
 /** Composes every granular work item into one list, grouped internally by domain, before UI filtering. */
