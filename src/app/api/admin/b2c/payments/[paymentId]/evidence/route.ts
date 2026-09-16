@@ -2,16 +2,49 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getB2cDashboardSnapshot } from "@/server/repositories/b2c-dashboard-repository";
+
+const decimalText = z.union([z.string(), z.number().finite()]).transform(String);
+const nullableDecimalText = z.union([z.string(), z.number().finite()]).transform(String).nullable();
+const stripeRefundEvidenceSchema = z.object({
+  refundId: z.string().uuid(),
+  originalAmount: decimalText,
+  originalCurrency: z.string().length(3),
+  settlementRefundAmount: nullableDecimalText,
+  settlementCurrency: z.string().length(3).nullable(),
+  settlementExchangeRate: nullableDecimalText,
+}).strict();
+const stripeEvidenceSchema = z.object({
+  originalAmount: decimalText,
+  originalCurrency: z.string().length(3),
+  amountRefunded: nullableDecimalText,
+  description: z.string().nullable(),
+  sellerMessage: z.string().nullable(),
+  cardholderName: z.string().nullable(),
+  settlementGrossAmount: nullableDecimalText,
+  settlementFeeAmount: nullableDecimalText,
+  settlementFeeTaxAmount: nullableDecimalText,
+  settlementNetAmount: nullableDecimalText,
+  settlementCurrency: z.string().length(3).nullable(),
+  settlementExchangeRate: nullableDecimalText,
+  refunds: z.array(stripeRefundEvidenceSchema),
+}).strict();
+const evidenceSchema = z.object({
+  payment_id: z.string().uuid(),
+  source: z.string(),
+  source_system: z.enum(["stripe", "tap", "manual_bank_transfer", "finance_tracker"]),
+  provider_reference: z.string().nullable(),
+  date_value: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  stripe_evidence: stripeEvidenceSchema.nullable(),
+}).strict();
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "UTC" })
+    .format(new Date(`${value}T00:00:00.000Z`));
+}
 
 /**
- * The Admin-only full-evidence read the shared record drawer's source
- * evidence panel uses. `/api/b2c/workspace` (Task 3) deliberately strips
- * `stripeEvidence` from every row so a Viewer-safe response never carries
- * Admin-only provider evidence; this route is that dedicated Admin read,
- * gated the same way every other Admin-only B2C route is gated. It reuses
- * `getB2cDashboardSnapshot` -- the one source read for B2C payments -- rather
- * than duplicating its Stripe evidence query.
+ * Admin-only, single-payment provider evidence for the shared record drawer.
+ * The database read is scoped by payment ID and never materializes history.
  */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ paymentId: string }> }) {
   const client = await createServerSupabaseClient();
@@ -26,16 +59,17 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    const snapshot = await getB2cDashboardSnapshot(client, new Date(), "all");
-    const row = snapshot.rows.find((candidate) => candidate.id === paymentId && candidate.recordType === "Payment");
-    if (!row) return NextResponse.json({ error: "This B2C payment is unavailable." }, { status: 404 });
+    const { data, error } = await client.rpc("get_b2c_payment_evidence", { p_payment_id: paymentId });
+    if (error) throw new Error("B2C evidence RPC failed.");
+    if (data === null) return NextResponse.json({ error: "This B2C payment is unavailable." }, { status: 404 });
+    const row = evidenceSchema.parse(data);
     return NextResponse.json({
-      paymentId: row.id,
+      paymentId: row.payment_id,
       source: row.source,
-      sourceSystem: row.sourceSystem,
-      providerReference: row.providerReference,
-      date: row.date,
-      stripeEvidence: row.sourceSystem === "stripe" ? row.stripeEvidence ?? null : null,
+      sourceSystem: row.source_system,
+      providerReference: row.provider_reference,
+      date: formatDate(row.date_value),
+      stripeEvidence: row.stripe_evidence,
     });
   } catch {
     return NextResponse.json({ error: "Could not load B2C source evidence." }, { status: 500 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApprovedRole, getSessionUser } from "@/lib/auth/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { b2cWorkspaceLedgerQuerySchema } from "@/lib/validation/b2c-workspace-contracts";
-import { SupabaseB2cLedgerRepository, type B2cDecoratedLedgerRow, type B2cLedgerPage } from "@/server/repositories/b2c-ledger-repository";
+import { B2cLedgerCursorError, SupabaseB2cLedgerRepository, type B2cDecoratedLedgerRow, type B2cLedgerPage } from "@/server/repositories/b2c-ledger-repository";
 import { SupabaseB2cWorkspaceRepository } from "@/server/repositories/b2c-workspace-repository";
 
 /** The Work queue and Ready-to-post panel are Admin-only surfaces; a Viewer never receives them. */
@@ -37,11 +37,16 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: validationErrorMessage(parsed.error.issues[0]) }, { status: 422 });
 
   try {
-    const page = await new SupabaseB2cLedgerRepository(client).page(parsed.data);
+    const { includeWorkItems, ...ledgerQuery } = parsed.data;
+    const page = await new SupabaseB2cLedgerRepository(client).page(ledgerQuery);
     const ledger: SafeLedgerPage = { ...page, rows: page.rows.map(toSafeLedgerRow) };
-    const workItems = role === "admin" ? (await new SupabaseB2cWorkspaceRepository(client).overview()) : null;
+    const shouldLoadWorkItems = role === "admin" && includeWorkItems !== false;
+    const workItems = shouldLoadWorkItems ? (await new SupabaseB2cWorkspaceRepository(client).overview()) : null;
     return NextResponse.json({ role, ledger, workItems });
-  } catch {
+  } catch (error) {
+    if (error instanceof B2cLedgerCursorError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
     return NextResponse.json({ error: "Could not load the B2C workspace." }, { status: 500 });
   }
 }

@@ -98,7 +98,7 @@ export class SupabaseB2cWorkspaceRepository {
       this.listFailedSourceRuns(),
     ]);
     return buildB2cWorkspaceOverview({
-      ledgerRows: snapshot.rows.map((row) => decorateB2cLedgerRow(row, today)),
+      ledgerRows: snapshot.rows.map((row) => decorateB2cLedgerRow(row)),
       sourceFailures,
     });
   }
