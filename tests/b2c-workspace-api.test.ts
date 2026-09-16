@@ -131,6 +131,32 @@ describe("GET /api/b2c/workspace", () => {
     expect(mocks.page).toHaveBeenCalledWith({ source: "stripe", sort: "amount_desc" });
   });
 
+  it("lets an Admin load a Ledger page without materializing the Work queue", async () => {
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.getApprovedRole.mockResolvedValue("admin");
+    mocks.page.mockResolvedValue(ledgerPage);
+
+    const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?includeWorkItems=false&cursor=opaque-keyset-token"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.workItems).toBeNull();
+    expect(mocks.overview).not.toHaveBeenCalled();
+    expect(mocks.page).toHaveBeenCalledWith({ cursor: "opaque-keyset-token" });
+  });
+
+  it("returns a validation response for an invalid repository cursor", async () => {
+    const { B2cLedgerCursorError } = await import("@/server/repositories/b2c-ledger-repository");
+    createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
+    mocks.getApprovedRole.mockResolvedValue("viewer");
+    mocks.page.mockRejectedValue(new B2cLedgerCursorError());
+
+    const response = await GET(new NextRequest("http://localhost/api/b2c/workspace?cursor=malformed-but-opaque"));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({ error: "The B2C Ledger page cursor is invalid." });
+  });
+
   it("accepts every exposed ledger filter before it loads the server-filtered page", async () => {
     createServerClientMock.mockResolvedValue({ auth: { getUser: vi.fn().mockResolvedValue({ data: { user: approvedUser } }) } } as never);
     mocks.getApprovedRole.mockResolvedValue("viewer");

@@ -1,100 +1,55 @@
 import { describe, expect, it } from "vitest";
-import { b2cPaymentExclusionReasons, isReportableB2cPayment } from "@/lib/b2c/payment-reportability";
+import { parseB2cSqlPaymentDecision } from "@/lib/b2c/payment-reportability";
 
-describe("B2C payment reportability", () => {
-  const completePayment = {
-    paymentStatus: "succeeded" as const,
-    customerEmail: "member@example.com",
-    openFlagTypes: new Set<string>(),
-  };
+const completeSqlDecision = {
+  source_status: "succeeded",
+  reconciliation_status: "not_required",
+  reporting_decision: "reportable",
+  posting_status: "not_applicable",
+  exclusion_reasons: [],
+  blocking_reasons: [],
+};
 
-  it("counts a completed, non-reviewable source payment regardless of category metadata", () => {
-    expect(isReportableB2cPayment(completePayment)).toBe(true);
-    expect(b2cPaymentExclusionReasons(completePayment)).toEqual([]);
-  });
-
-  it("does not block a provider payment on optional category metadata", () => {
-    const input = {
-      paymentStatus: "succeeded" as const,
-      customerEmail: "member@example.com",
-      categoryCode: "unmapped",
-      openFlagTypes: new Set(["unmapped_product"]),
-      originalCurrency: "USD",
-      amountUsd: "120.000000",
-    };
-
-    expect(b2cPaymentExclusionReasons(input)).toEqual([]);
-    expect(isReportableB2cPayment(input)).toBe(true);
-  });
-
-  it.each([
-    ["missing email", { customerEmail: null }, ["missing_customer_email"]],
-    ["failed status", { paymentStatus: "failed" as const }, ["not_succeeded"]],
-    ["pending status", { paymentStatus: "pending" as const }, ["not_succeeded"]],
-    ["missing FX", { originalCurrency: "BHD", amountUsd: null }, ["needs_fx_review"]],
-    ["possible duplicate", { openFlagTypes: new Set(["possible_duplicate"]) }, ["possible_duplicate"]],
-    ["duplicate exclusion", { hasDuplicateExclusion: true }, ["duplicate_exclusion"]],
-    ["blocking follow-up", { hasBlockingNeedsFollowUp: true }, ["needs_follow_up"]],
-  ] as const)("keeps a source payment out of totals for %s", (_caseName, overrides, expectedReasons) => {
-    const input = { ...completePayment, ...overrides };
-    expect(b2cPaymentExclusionReasons(input)).toEqual(expectedReasons);
-    expect(isReportableB2cPayment(input)).toBe(false);
-  });
-
-  it("allows only the documented missing-data exception while preserving duplicate and failed blocks", () => {
-    const approvedException = {
-      ...completePayment,
-      customerEmail: null,
-      openFlagTypes: new Set(["needs_follow_up", "unmapped_product"]),
-      hasFinanceException: true,
-      hasBlockingNeedsFollowUp: false,
-    };
-    expect(isReportableB2cPayment(approvedException)).toBe(true);
-    expect(isReportableB2cPayment({ ...approvedException, openFlagTypes: new Set(["possible_duplicate"]) })).toBe(false);
-    expect(isReportableB2cPayment({ ...approvedException, paymentStatus: "failed" })).toBe(false);
-  });
-
-  it("allows a missing e-mail only for a payment with immutable approved Finance provenance", () => {
-    const approvedFinancePayment = {
-      ...completePayment,
-      customerEmail: null,
-      isApprovedFinancePayment: true,
-    };
-    expect(isReportableB2cPayment(approvedFinancePayment)).toBe(true);
-    expect(isReportableB2cPayment({ ...approvedFinancePayment, isApprovedFinancePayment: false })).toBe(false);
-    expect(isReportableB2cPayment({ ...approvedFinancePayment, openFlagTypes: new Set(["possible_duplicate"]) })).toBe(false);
-    expect(isReportableB2cPayment({ ...approvedFinancePayment, paymentStatus: "pending" })).toBe(false);
-  });
-
-  it("keeps foreign-currency source activity out of USD financial totals until Finance has an approved conversion", () => {
-    const foreignCurrencyPayment = {
-      ...completePayment,
-      originalCurrency: "BHD",
-      amountUsd: null,
-      hasFinanceException: true,
-    };
-    expect(b2cPaymentExclusionReasons(foreignCurrencyPayment)).toContain("needs_fx_review");
-    expect(isReportableB2cPayment(foreignCurrencyPayment)).toBe(false);
-  });
-
-  it("allows a foreign-currency payment into USD totals only after its local USD conversion exists", () => {
-    const convertedForeignCurrencyPayment = {
-      ...completePayment,
-      originalCurrency: "BHD",
-      amountUsd: "132.94",
-    };
-
-    expect(b2cPaymentExclusionReasons(convertedForeignCurrencyPayment)).not.toContain("needs_fx_review");
-    expect(isReportableB2cPayment(convertedForeignCurrencyPayment)).toBe(true);
-  });
-
-  it("keeps a payment with a resolved duplicate exclusion out of totals even with no open raw flag", () => {
-    const reasons = b2cPaymentExclusionReasons({
-      ...completePayment,
-      hasDuplicateExclusion: true,
+describe("B2C SQL payment decision validation", () => {
+  it("maps the complete database decision contract to typed application fields", () => {
+    expect(parseB2cSqlPaymentDecision(completeSqlDecision)).toEqual({
+      sourceStatus: "succeeded",
+      reconciliationStatus: "not_required",
+      reportingDecision: "reportable",
+      postingStatus: "not_applicable",
+      exclusionReasons: [],
+      blockingReasons: [],
     });
+  });
 
-    expect(reasons).toEqual(["duplicate_exclusion"]);
-    expect(isReportableB2cPayment({ ...completePayment, hasDuplicateExclusion: true })).toBe(false);
+  it("accepts every canonical ordered reason emitted by PostgreSQL", () => {
+    expect(parseB2cSqlPaymentDecision({
+      ...completeSqlDecision,
+      reconciliation_status: "duplicate_pending",
+      reporting_decision: "excluded",
+      exclusion_reasons: ["needs_fx_review", "not_succeeded", "missing_customer_email", "possible_duplicate", "duplicate_exclusion", "needs_follow_up"],
+      blocking_reasons: ["missing_business_date", "implausible_future_date", "missing_fx", "failed_payment", "missing_customer_email", "possible_duplicate", "duplicate_exclusion", "other_open_review"],
+    })).toMatchObject({
+      reportingDecision: "excluded",
+      blockingReasons: ["missing_business_date", "implausible_future_date", "missing_fx", "failed_payment", "missing_customer_email", "possible_duplicate", "duplicate_exclusion", "other_open_review"],
+    });
+  });
+
+  it("rejects an unknown database reason instead of guessing its meaning", () => {
+    expect(() => parseB2cSqlPaymentDecision({
+      ...completeSqlDecision, reporting_decision: "blocked", blocking_reasons: ["invented_reason"],
+    })).toThrow(/invalid B2C payment decision/i);
+  });
+
+  it("rejects a reportable database decision that also claims blockers", () => {
+    expect(() => parseB2cSqlPaymentDecision({
+      ...completeSqlDecision, blocking_reasons: ["possible_duplicate"],
+    })).toThrow(/invalid B2C payment decision/i);
+  });
+
+  it("rejects a blocked database decision with no blocking reason", () => {
+    expect(() => parseB2cSqlPaymentDecision({
+      ...completeSqlDecision, reporting_decision: "blocked",
+    })).toThrow(/invalid B2C payment decision/i);
   });
 });
