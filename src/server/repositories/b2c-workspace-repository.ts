@@ -88,12 +88,16 @@ export class SupabaseB2cWorkspaceRepository {
       seenProviders.add(run.provider);
       runs.push(run);
     }
-    return runs.map((run) => ({
-      id: run.id,
-      provider: run.provider,
-      operationType: run.operation_type,
-      reason: `The last ${run.provider === "stripe" ? "Stripe" : "Tap"} sync failed. Retry it from Sources.`,
-    }));
+    return runs.map((run) => {
+      const providerLabel = run.provider === "stripe" ? "Stripe" : "Tap";
+      const runLabel = run.operation_type === "historical_backfill" ? "historical import" : "sync";
+      return {
+        id: run.id,
+        provider: run.provider,
+        operationType: run.operation_type,
+        reason: `The last ${providerLabel} ${runLabel} failed. Retry it from Sources.`,
+      };
+    });
   }
 
   async overview(today = new Date()): Promise<B2cWorkspaceOverview> {

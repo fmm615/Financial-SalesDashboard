@@ -58,6 +58,14 @@ export function B2cSourceManagement({ focusProvider = null, focusAction = null }
     }
     const target = focusProvider === "stripe" ? stripeCardRef.current : tapCardRef.current;
     target?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    // preventScroll: true -- the card's own tabIndex={-1} makes it
+    // programmatically focusable so a keyboard/screen-reader user gets the
+    // same "you're here" cue a sighted user gets from the highlight ring,
+    // without the browser's default focus-triggered scroll fighting the
+    // explicit smooth scrollIntoView above (which, like the Ledger's own
+    // pagination scroll, would otherwise risk being silently cancelled by a
+    // second, competing scroll in the same tick).
+    target?.focus?.({ preventScroll: true });
   }, [focusAction, focusProvider]);
 
   return <div className="space-y-4">

@@ -166,10 +166,11 @@ describe("buildB2cSourceFailureWorkItems", () => {
     }]);
   });
 
-  it("deep-links a failed historical backfill to the provider's expanded backfill controls", () => {
+  it("deep-links a failed historical backfill to the provider's expanded backfill controls and labels it a historical import, not a sync", () => {
     const items = buildB2cSourceFailureWorkItems([{ id: "run-2", provider: "tap", operationType: "historical_backfill", reason: "The Tap backfill failed." }]);
 
     expect(items[0].href).toBe("/operations/b2c?tab=sources&provider=tap&action=backfill");
+    expect(items[0].title).toBe("Retry the Tap historical import");
   });
 });
 

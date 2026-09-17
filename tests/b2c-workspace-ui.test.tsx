@@ -514,6 +514,18 @@ describe("Ledger", () => {
     expect(moreFilters.open).toBe(true);
   });
 
+  it("always offers Manual bank transfer as a Source filter, even with zero matching records", async () => {
+    currentSearch = new URLSearchParams("tab=ledger");
+    stubFetch({ role: "admin" }); // default fixture rows are all Stripe -- no manual_bank_transfer row exists
+    render(<RoleProvider role="admin"><B2cWorkspace snapshot={snapshot} /></RoleProvider>);
+    await screen.findByRole("table", { name: "B2C ledger" });
+
+    const sourceSelect = screen.getByLabelText("Source") as HTMLSelectElement;
+    const optionLabels = Array.from(sourceSelect.options).map((option) => option.textContent);
+    expect(optionLabels).toContain("Manual bank transfer");
+    expect(optionLabels).not.toContain("iOS");
+  });
+
   it("opens the shared drawer from Review, returns focus to the trigger on Escape, and shows no per-row evidence/edit/refund-FX buttons", async () => {
     currentSearch = new URLSearchParams("tab=ledger");
     stubFetch({ role: "admin" });
@@ -574,6 +586,11 @@ describe("Sources", () => {
       expect((within(tapCard).getByText("Historical Tap B2C backfill").closest("details") as HTMLDetailsElement).open).toBe(true);
       expect((within(stripeCard).getByText("Historical Stripe B2C backfill").closest("details") as HTMLDetailsElement).open).toBe(false);
       await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" }));
+      // A keyboard/screen-reader user gets the same "you're here" cue a
+      // sighted user gets from the highlight ring -- preventScroll avoids
+      // fighting the explicit smooth scroll above with the browser's own
+      // default focus-triggered scroll.
+      await waitFor(() => expect(tapCard).toHaveFocus());
     } finally {
       delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     }

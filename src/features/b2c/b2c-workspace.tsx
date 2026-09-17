@@ -249,7 +249,17 @@ export function B2cWorkspace({
   }
 
   const visibleRows = ledgerRows;
-  const sources = useMemo(() => (ledgerFilterMetadata?.sources ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
+  // "Manual bank transfer" stays filterable even with zero matching records
+  // today -- it's a real, currently-creatable source (see the Ledger's own
+  // "Add bank transfer" button), unlike "iOS", which has no creation path in
+  // this app at all (the old Finance workbook that could produce
+  // finance_tracker rows was removed entirely) and would be a dead filter
+  // option with nothing it could ever match.
+  const sources = useMemo(() => {
+    const fromData = ledgerFilterMetadata?.sources ?? [];
+    const withManualTransfer = fromData.includes("Manual bank transfer") ? fromData : [...fromData, "Manual bank transfer"].sort();
+    return withManualTransfer.map((value) => ({ value, label: value }));
+  }, [ledgerFilterMetadata]);
   const issues = useMemo(() => (ledgerFilterMetadata?.issues ?? []).map((value) => ({ value, label: value })), [ledgerFilterMetadata]);
   const foreignCurrencyCount = ledgerFilterMetadata?.foreignCurrencyCount ?? 0;
   const totalPages = Math.max(1, Math.ceil(ledgerTotalCount / B2C_LEDGER_PAGE_SIZE));

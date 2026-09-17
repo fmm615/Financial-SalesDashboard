@@ -119,7 +119,9 @@ export function buildB2cRecordWorkItems(record: B2cWorkItemRecord): B2cWorkItem[
 export function buildB2cSourceFailureWorkItems(runs: B2cSourceFailureRecord[]): B2cWorkItem[] {
   return runs.map((run) => {
     const params = new URLSearchParams({ tab: "sources", provider: run.provider });
-    if (run.operationType === "historical_backfill") params.set("action", "backfill");
+    const isBackfill = run.operationType === "historical_backfill";
+    if (isBackfill) params.set("action", "backfill");
+    const providerLabel = run.provider === "stripe" ? "Stripe" : "Tap";
     return {
       id: `${run.id}:source_failure`,
       recordId: run.id,
@@ -127,7 +129,7 @@ export function buildB2cSourceFailureWorkItems(runs: B2cSourceFailureRecord[]): 
       queue: "source_failure",
       visibleGroup: "reconciliation",
       financeMethod: null,
-      title: `Retry the ${run.provider === "stripe" ? "Stripe" : "Tap"} sync`,
+      title: `Retry the ${providerLabel} ${isBackfill ? "historical import" : "sync"}`,
       explanation: run.reason,
       financialImpactUsd: null,
       nextAction: "retry_source",
