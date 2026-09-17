@@ -74,16 +74,6 @@ function useLocalCorrection({
   return { value, setValue, reason, setReason, message, saving, changed, save };
 }
 
-function QuickFillButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button
-    type="button"
-    onClick={onClick}
-    className="mt-2 inline-flex min-h-8 items-center rounded-pill border border-brand-accent/30 bg-brand-accent/5 px-3 text-xs font-semibold text-brand-accent hover:bg-brand-accent/10"
-  >
-    {label}
-  </button>;
-}
-
 function ReasonField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return <label className={`${fieldClass} mt-4`}>
     Reason / evidence <span className="font-normal text-text-muted">(required)</span>
@@ -179,13 +169,6 @@ export function B2cPaymentEmailCorrection({ row, onSaved }: { row: B2cReviewRow;
       />
     </label>
     {row.customerEmailEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-text-muted">From {row.customerEmailEvidenceLabel} — no action needed</span>}
-    {row.customerEmailEvidenceLabel && <QuickFillButton
-      label={`Use the ${row.customerEmailEvidenceLabel} email`}
-      onClick={() => {
-        correction.setValue(suggestedValue);
-        correction.setReason(`Adopted the verified ${row.customerEmailEvidenceLabel} email; no charge-level contact was captured for this payment.`);
-      }}
-    />}
     <ReasonField value={correction.reason} onChange={correction.setReason} />
     <div className="mt-4 flex flex-wrap items-center gap-3">
       <PrimaryButton onClick={() => void correction.save()} disabled={correction.saving || !correction.changed || !hasMeaningfulAuditReason(correction.reason)}>{correction.saving ? "Saving…" : "Save email"}</PrimaryButton>
@@ -259,14 +242,6 @@ export function B2cPaymentOtherDetailsCorrection({ row, onSaved }: { row: B2cRev
         <input className={inputClass} value={membershipTier} onChange={(event) => setMembershipTier(event.target.value)} placeholder={`Unavailable from ${row.source}`} />
       </label>
     </div>
-    {(row.customerNameEvidenceLabel || row.customerPhoneEvidenceLabel) && <QuickFillButton
-      label={`Use the ${row.customerNameEvidenceLabel ?? row.customerPhoneEvidenceLabel} details`}
-      onClick={() => {
-        if (row.customerNameEvidenceLabel) setCustomerName(editableValue(row.customerName));
-        if (row.customerPhoneEvidenceLabel) setCustomerPhone(editableValue(row.customerPhone));
-        setReason(`Adopted the verified ${row.customerNameEvidenceLabel ?? row.customerPhoneEvidenceLabel} contact details; no charge-level contact was captured for this payment.`);
-      }}
-    />}
     <ReasonField value={reason} onChange={setReason} />
     <div className="mt-4 flex flex-wrap items-center gap-3">
       <PrimaryButton onClick={() => void save()} disabled={saving || !hasInput || !hasMeaningfulAuditReason(reason)}>{saving ? "Saving…" : "Save details"}</PrimaryButton>
