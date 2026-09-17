@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const config = getTapConfig();
     const serviceClient = createServiceDatabaseClient();
     const result = await runTapHistoricalBackfillBatch({ source: new TapClient(config), productReferenceMetadataKey: config.productReferenceMetadataKey, repository: new SupabaseTapSyncRepository(serviceClient), restartCompleted: parsed.data.restartCompleted });
-    await serviceClient.from("audit_events").insert({ actor_profile_id: user.id, actor_email: user.email ?? null, area: "tap_historical_backfill", action: "insert", request_context: { run_id: result.runId, processed: result.processed, failed: result.failed, has_more: result.hasMore } });
+    await serviceClient.from("audit_events").insert({ actor_profile_id: user.id, actor_email: user.email ?? null, area: "tap_historical_backfill", action: "insert", after_value: { run_id: result.runId, processed: result.processed, failed: result.failed }, request_context: { run_id: result.runId, processed: result.processed, failed: result.failed, has_more: result.hasMore } });
     return NextResponse.json(result);
   } catch (error) {
     console.error("Tap historical backfill failed:", error instanceof Error ? error.message : "Unknown failure");

@@ -18,7 +18,7 @@ export async function POST() {
   try {
     const serviceClient = createServiceDatabaseClient();
     const result = await runStripeReconciliation({ source: new StripeClient(config), productReferenceMetadataKey: config.productReferenceMetadataKey, repository: new SupabaseStripeSyncRepository(serviceClient) });
-    await serviceClient.from("audit_events").insert({ actor_profile_id: user.id, actor_email: user.email ?? null, area: "stripe_sync", action: "insert", request_context: { trigger: "admin_manual_reconciliation", processed: result.processed, failed: result.failed, inserted: result.inserted } });
+    await serviceClient.from("audit_events").insert({ actor_profile_id: user.id, actor_email: user.email ?? null, area: "stripe_sync", action: "insert", after_value: { processed: result.processed, failed: result.failed, inserted: result.inserted }, request_context: { trigger: "admin_manual_reconciliation", processed: result.processed, failed: result.failed, inserted: result.inserted } });
     return NextResponse.json(result);
   } catch (error) {
     console.error("Stripe manual sync failed:", error instanceof Error ? error.message : "Unknown failure");

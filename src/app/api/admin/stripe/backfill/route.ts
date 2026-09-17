@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       actor_email: user.email ?? null,
       area: "stripe_historical_backfill",
       action: "insert",
+      after_value: { run_id: result.runId, processed: result.processed, failed: result.failed },
       request_context: { run_id: result.runId, processed: result.processed, failed: result.failed, has_more: result.hasMore },
     });
     return NextResponse.json(result);

@@ -37,6 +37,7 @@ export async function POST() {
       actor_email: user.email ?? null,
       area: "hubspot_sync",
       action: "insert",
+      after_value: { processed: result.processed, failed: result.failed },
       request_context: { trigger: "admin_manual_reconciliation", processed: result.processed, failed: result.failed },
     });
     return NextResponse.json(result);
