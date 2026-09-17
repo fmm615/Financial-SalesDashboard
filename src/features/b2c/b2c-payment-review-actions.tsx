@@ -178,7 +178,7 @@ export function B2cPaymentEmailCorrection({ row, onSaved }: { row: B2cReviewRow;
         placeholder={`Unavailable from ${row.source}`}
       />
     </label>
-    {row.customerEmailEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-warning">Suggested from {row.customerEmailEvidenceLabel} — not yet verified</span>}
+    {row.customerEmailEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-text-muted">From {row.customerEmailEvidenceLabel} — no action needed</span>}
     {row.customerEmailEvidenceLabel && <QuickFillButton
       label={`Use the ${row.customerEmailEvidenceLabel} email`}
       onClick={() => {
@@ -247,13 +247,13 @@ export function B2cPaymentOtherDetailsCorrection({ row, onSaved }: { row: B2cRev
         <label className={fieldClass}>Customer name
           <input className={inputClass} value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder={`Unavailable from ${row.source}`} />
         </label>
-        {row.customerNameEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-warning">Suggested from {row.customerNameEvidenceLabel} — not yet verified</span>}
+        {row.customerNameEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-text-muted">From {row.customerNameEvidenceLabel} — no action needed</span>}
       </div>
       <div>
         <label className={fieldClass}>Customer mobile
           <input className={inputClass} value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} inputMode="tel" placeholder={`Unavailable from ${row.source}`} />
         </label>
-        {row.customerPhoneEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-warning">Suggested from {row.customerPhoneEvidenceLabel} — not yet verified</span>}
+        {row.customerPhoneEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-text-muted">From {row.customerPhoneEvidenceLabel} — no action needed</span>}
       </div>
       <label className={fieldClass}>Plan / tier
         <input className={inputClass} value={membershipTier} onChange={(event) => setMembershipTier(event.target.value)} placeholder={`Unavailable from ${row.source}`} />

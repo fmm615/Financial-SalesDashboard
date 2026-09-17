@@ -308,8 +308,8 @@ export function B2cPaymentReviewDrawer({ target, onClose, onPaymentDuplicateReso
 
 function RowSummary({ row }: { row: B2cReviewRow }) {
   return <dl className="mt-6 grid gap-4 rounded-card border border-border bg-surface-muted/35 p-4 text-sm sm:grid-cols-2">
-    <div><dt className="text-text-muted">Customer</dt><dd className="mt-1 font-medium text-text-primary">{row.customerName ?? "—"}</dd>{row.customerNameEvidenceLabel && <p className="mt-0.5 text-xs font-medium text-warning">From {row.customerNameEvidenceLabel} — not yet verified</p>}</div>
-    <div><dt className="text-text-muted">Email</dt><dd className="mt-1 text-text-secondary">{row.customerEmail ?? "—"}</dd>{row.customerEmailEvidenceLabel && <p className="mt-0.5 text-xs font-medium text-warning">From {row.customerEmailEvidenceLabel} — not yet verified</p>}</div>
+    <div><dt className="text-text-muted">Customer</dt><dd className="mt-1 font-medium text-text-primary">{row.customerName ?? "—"}</dd>{row.customerNameEvidenceLabel && <p className="mt-0.5 text-xs font-medium text-text-muted">From {row.customerNameEvidenceLabel} — no action needed</p>}</div>
+    <div><dt className="text-text-muted">Email</dt><dd className="mt-1 text-text-secondary">{row.customerEmail ?? "—"}</dd>{row.customerEmailEvidenceLabel && <p className="mt-0.5 text-xs font-medium text-text-muted">From {row.customerEmailEvidenceLabel} — no action needed</p>}</div>
     <div><dt className="text-text-muted">Date</dt><dd className="mt-1 text-text-secondary">{row.date}</dd></div>
     <div><dt className="text-text-muted">Amount</dt><dd className="mt-1 font-medium tabular-nums text-text-primary">{row.amountUsd}</dd></div>
     <div><dt className="text-text-muted">Source</dt><dd className="mt-1 text-text-secondary">{row.source}</dd></div>
