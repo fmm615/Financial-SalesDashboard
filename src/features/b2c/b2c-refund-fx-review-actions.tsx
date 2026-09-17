@@ -15,7 +15,7 @@ function validReason(value: string): boolean {
 }
 
 /**
- * The drawer's "Finance decision" section for a foreign-currency Refund row.
+ * The drawer's currency-conversion card body for a foreign-currency Refund.
  * A refund is immutable source activity; Finance can only add a local USD
  * conversion. Dialog-free -- the shared drawer owns opening, closing, focus,
  * errors, and refresh.

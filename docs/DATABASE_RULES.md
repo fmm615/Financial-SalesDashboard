@@ -91,8 +91,11 @@ configured window rather than hardcoding their own copy of the number.
 history. An open group blocks reporting. An Admin-only atomic RPC resolves it
 as `keep_all` (every member included) or `keep_one` (exactly one member
 included); a resolved exclusion always wins over an include when reporting
-eligibility is calculated. Only Admins can read membership or make decisions;
-approved reporting consumers receive only safe per-payment state booleans.
+eligibility is calculated. Only Admins can read membership or make decisions.
+Viewer-facing reporting reads receive only safe per-payment state booleans;
+Admin presentation reads may additionally retrieve the resolved group's
+audited `resolution_reason` for an excluded payment without exposing other
+group members.
 Historical backfill is guarded:
 unprovable flags remain open, while only a stale orphaned duplicate flag with
 no current candidate can be dismissed by the protected Admin function.

@@ -59,6 +59,8 @@ describe("B2C payment duplicate drawer actions", () => {
     expect(await within(dialog).findByText("Payment duplicate review")).toBeInTheDocument();
     expect(within(dialog).getByText("bank-ref-2")).toBeInTheDocument();
     expect(within(dialog).getByText("Effective comparison value:")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Keep all payments" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Keep only this one" })).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/reconciliation/exact-duplicates"), expect.anything());
   });
 

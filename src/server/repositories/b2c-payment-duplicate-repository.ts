@@ -34,6 +34,17 @@ type OpenGroupQueryRow = B2cPaymentDuplicateGroupRow & {
   target_members?: Array<{ payment_id: string }>;
 };
 
+type ResolvedExclusionQueryRow = {
+  payment_id: string;
+  group: {
+    status: "open" | "resolved";
+    resolution_reason: string | null;
+  } | Array<{
+    status: "open" | "resolved";
+    resolution_reason: string | null;
+  }> | null;
+};
+
 const openGroupSelection = `
   id,
   detection_reason,
@@ -60,6 +71,40 @@ const openGroupSelection = `
     )
   )
 `;
+
+/**
+ * Adds Admin-only audit context to rows that already carry the safe exclusion
+ * boolean. RLS deliberately returns no member rows to Viewers, and lookup
+ * failures degrade to an empty map so this optional presentation detail never
+ * blocks the authoritative Ledger read.
+ */
+export async function getB2cDuplicateExclusionReasons(
+  client: DatabaseClient,
+  paymentIds: string[],
+): Promise<Map<string, string>> {
+  const uniquePaymentIds = [...new Set(paymentIds)];
+  if (uniquePaymentIds.length === 0) return new Map();
+
+  const { data, error } = await client
+    .from("b2c_payment_duplicate_group_members")
+    .select(`
+      payment_id,
+      group:b2c_payment_duplicate_groups!inner(status,resolution_reason)
+    `)
+    .in("payment_id", uniquePaymentIds)
+    .eq("decision", "exclude")
+    .eq("group.status", "resolved");
+
+  if (error) return new Map();
+
+  const reasons = new Map<string, string>();
+  for (const row of (data ?? []) as unknown as ResolvedExclusionQueryRow[]) {
+    const group = Array.isArray(row.group) ? row.group[0] : row.group;
+    const reason = group?.status === "resolved" ? group.resolution_reason?.trim() : null;
+    if (reason && !reasons.has(row.payment_id)) reasons.set(row.payment_id, reason);
+  }
+  return reasons;
+}
 
 export class B2cPaymentDuplicateRepository {
   constructor(private readonly client: DatabaseClient) {}

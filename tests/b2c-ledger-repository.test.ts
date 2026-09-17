@@ -99,6 +99,71 @@ describe("B2C ledger equivalence fixture", () => {
 });
 
 describe("SupabaseB2cLedgerRepository", () => {
+  it("adds the audited reason for each excluded payment without changing the ledger RPC payload", async () => {
+    const id = "55555555-5555-4555-8555-555555555555";
+    const exclusionReason = "Finance confirmed the other payment is the canonical charge.";
+    const excludedDecision = {
+      ...reportableDecision,
+      reporting_decision: "excluded",
+      reconciliation_status: "not_required",
+      exclusion_reasons: ["duplicate_exclusion"],
+      blocking_reasons: ["duplicate_exclusion"],
+    };
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "get_b2c_ledger_page") return { data: [{ record_type: "Payment", record_id: id, sort_value: "2026-08-20", decision: excludedDecision }], error: null };
+      if (name === "get_b2c_ledger_metadata") return { data: { total_count: 1, sources: ["Stripe"], issues: [], foreign_currency_count: 0 }, error: null };
+      if (name === "get_b2c_ledger_rows") return { data: [{ record_type: "Payment", record_id: id, row_data: { ...rawPayment(id, "Excluded"), has_duplicate_exclusion: true }, decision: excludedDecision }], error: null };
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+    const inFilter = vi.fn(() => query);
+    const eqFilter = vi.fn(() => query);
+    const query = {
+      select: vi.fn(() => query),
+      in: inFilter,
+      eq: eqFilter,
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve({
+        data: [{ payment_id: id, group: { status: "resolved", resolution_reason: exclusionReason } }],
+        error: null,
+      }).then(resolve),
+    };
+    const from = vi.fn(() => query);
+
+    const page = await new SupabaseB2cLedgerRepository({ rpc, from } as never).page({ period: "all" });
+
+    expect(page.rows[0].duplicateExclusionReason).toBe(exclusionReason);
+    expect(from).toHaveBeenCalledWith("b2c_payment_duplicate_group_members");
+    expect(inFilter).toHaveBeenCalledWith("payment_id", [id]);
+    expect(eqFilter).toHaveBeenCalledWith("decision", "exclude");
+    expect(eqFilter).toHaveBeenCalledWith("group.status", "resolved");
+  });
+
+  it("keeps an excluded ledger row usable when its optional reason lookup fails", async () => {
+    const id = "66666666-6666-4666-8666-666666666666";
+    const excludedDecision = {
+      ...reportableDecision,
+      reporting_decision: "excluded",
+      reconciliation_status: "not_required",
+      exclusion_reasons: ["duplicate_exclusion"],
+      blocking_reasons: ["duplicate_exclusion"],
+    };
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "get_b2c_ledger_page") return { data: [{ record_type: "Payment", record_id: id, sort_value: "2026-08-20", decision: excludedDecision }], error: null };
+      if (name === "get_b2c_ledger_metadata") return { data: { total_count: 1, sources: ["Stripe"], issues: [], foreign_currency_count: 0 }, error: null };
+      if (name === "get_b2c_ledger_rows") return { data: [{ record_type: "Payment", record_id: id, row_data: { ...rawPayment(id, "Excluded"), has_duplicate_exclusion: true }, decision: excludedDecision }], error: null };
+      throw new Error(`Unexpected RPC ${name}`);
+    });
+    const query = {
+      select: () => query,
+      in: () => query,
+      eq: () => query,
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: null, error: { message: "not available" } }).then(resolve),
+    };
+
+    const page = await new SupabaseB2cLedgerRepository({ rpc, from: () => query } as never).page({ period: "all" });
+
+    expect(page.rows[0].duplicateExclusionReason).toBeNull();
+  });
+
   it("requests limit plus one identities and hydrates only the returned page IDs", async () => {
     const ids = [
       "11111111-1111-4111-8111-111111111111",

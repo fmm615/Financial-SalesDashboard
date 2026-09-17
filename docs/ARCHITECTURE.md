@@ -207,12 +207,17 @@ The shared record drawer (`b2c-payment-review-drawer.tsx`) is the one place
 every B2C correction, FX conversion, Finance exception, refund FX, and
 payment-duplicate decision is reachable from -- Work queue and Ledger both
 open it, and it owns opening, closing, focus, errors, and refresh; there is no
-separate per-row dialog. It picks one primary action from a work item's
-`nextAction` (or, for a full ledger row, the same reason-to-action mapping
-applied to the row's own decision) and renders every other available action
-under "More actions". Because `/api/b2c/workspace` never carries
-`stripeEvidence`, the drawer's Source evidence panel reads full Stripe
-evidence itself, only for an Admin, through a dedicated
+separate per-row dialog. A loaded row maps every database-authoritative
+`blockingReasons` entry, in canonical order, to its own visible card. The
+first card starts expanded, later cards remain visible by title, and each
+actionable card owns only the correction or decision controls for that one
+reason. Read-only source evidence and audit history share one closed-by-default
+disclosure below those cards. For an audited duplicate exclusion, the Admin
+read path adds only that payment's resolved-group `resolution_reason` through
+the existing Admin-only duplicate-table RLS; Viewer rows and Viewer rendering
+retain only the generic decision explanation. Because `/api/b2c/workspace` never carries
+`stripeEvidence`, the drawer's source-evidence panel reads full Stripe evidence
+itself, only for an Admin, through a dedicated
 `/api/admin/b2c/payments/[paymentId]/evidence` route built on the same
 dashboard snapshot. Provider descriptions are source evidence and the visible
 product label; optional local category/tier metadata does not enter the

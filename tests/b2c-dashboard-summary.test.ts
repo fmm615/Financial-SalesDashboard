@@ -4,7 +4,11 @@ import {
   getB2cDashboardSummary,
 } from "@/server/repositories/b2c-dashboard-repository";
 
-function fullSnapshotClientWithSqlDecision(decision: Record<string, unknown>) {
+function fullSnapshotClientWithSqlDecision(
+  decision: Record<string, unknown>,
+  duplicateState: { has_open_duplicate: boolean; has_duplicate_exclusion: boolean } | null = null,
+  duplicateExclusionReason: string | null = null,
+) {
   const payment = {
     id: "90000000-0000-4000-8000-000000000001",
     source_system: "stripe",
@@ -29,6 +33,10 @@ function fullSnapshotClientWithSqlDecision(decision: Record<string, unknown>) {
     b2c_payment_fx_conversions: [],
     b2c_refund_fx_conversions: [],
     b2c_payment_finance_exception_decisions: [],
+    b2c_payment_duplicate_group_members: duplicateExclusionReason === null ? [] : [{
+      payment_id: payment.id,
+      group: { status: "resolved", resolution_reason: duplicateExclusionReason },
+    }],
     integration_sync_runs: [],
   };
   const queryFor = (table: string) => {
@@ -36,6 +44,7 @@ function fullSnapshotClientWithSqlDecision(decision: Record<string, unknown>) {
     const query = {
       select: () => query,
       eq: () => query,
+      in: () => query,
       order: () => query,
       limit: () => query,
       maybeSingle: async () => ({ data: null, error: null }),
@@ -49,7 +58,9 @@ function fullSnapshotClientWithSqlDecision(decision: Record<string, unknown>) {
     rpc: async (name: string) => ({
       data: name === "get_b2c_ledger_decisions"
         ? [{ record_type: "Payment", record_id: payment.id, decision }]
-        : [],
+        : name === "get_b2c_payment_duplicate_reporting_states" && duplicateState
+          ? [{ payment_id: payment.id, ...duplicateState }]
+          : [],
       error: null,
     }),
   };
@@ -159,6 +170,30 @@ describe("getB2cDashboardSummary", () => {
       reportablePaymentCount: 0,
       excludedCompletedPaymentCount: 1,
       missingCustomerEmailCount: 1,
+    });
+  });
+
+  it("adds the audited duplicate-exclusion reason to the unpaginated dashboard row", async () => {
+    const exclusionReason = "Finance retained the earlier settled payment as canonical.";
+    const snapshot = await getB2cDashboardSnapshot(
+      fullSnapshotClientWithSqlDecision({
+        source_status: "succeeded",
+        reconciliation_status: "not_required",
+        reporting_decision: "excluded",
+        posting_status: "not_applicable",
+        exclusion_reasons: ["duplicate_exclusion"],
+        blocking_reasons: ["duplicate_exclusion"],
+      }, {
+        has_open_duplicate: false,
+        has_duplicate_exclusion: true,
+      }, exclusionReason) as never,
+      new Date("2026-09-16T00:00:00.000Z"),
+      "2026-09",
+    );
+
+    expect(snapshot.rows[0]).toMatchObject({
+      hasDuplicateExclusion: true,
+      duplicateExclusionReason: exclusionReason,
     });
   });
 });

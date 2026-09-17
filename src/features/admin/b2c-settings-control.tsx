@@ -86,7 +86,7 @@ export function B2cSettingsControl() {
     <div className="border border-line bg-stone p-6">
       <p className="font-medium text-ink">B2C duplicate-detection window</p>
       <p className="mt-2 max-w-2xl text-sm text-slate-600">
-        Controls how close together (in hours) two succeeded B2C payments with the same effective customer email, USD amount, and business date must be to open a "possible duplicate" review case. Applies immediately to the manual-bank-transfer preview and to the ledger&apos;s possible-duplicate flagging. Default and historical value: 48 hours.
+        Controls how close together (in hours) two succeeded B2C payments with the same effective customer email, USD amount, and business date must be to open a &quot;possible duplicate&quot; review case. Applies immediately to the manual-bank-transfer preview and to the ledger&apos;s possible-duplicate flagging. Default and historical value: 48 hours.
       </p>
 
       {isLoading ? (

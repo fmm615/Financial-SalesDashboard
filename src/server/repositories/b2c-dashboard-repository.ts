@@ -4,6 +4,7 @@ import { resolveB2cSourceCoverage, type B2cSourceCoverage } from "@/lib/b2c/sour
 import { resolveEffectiveB2cPayment } from "@/lib/b2c/effective-payment";
 import { retryTransient } from "@/lib/resilience";
 import type { DatabaseClient } from "@/lib/supabase/server";
+import { getB2cDuplicateExclusionReasons } from "@/server/repositories/b2c-payment-duplicate-repository";
 
 /**
  * Compatibility facade. `getB2cDashboardSnapshot` remains the one source
@@ -63,6 +64,8 @@ export type B2cLedgerRow = {
   hasOpenPaymentDuplicate: boolean;
   /** Safe retained duplicate exclusion state; never exposes a group or another payment. */
   hasDuplicateExclusion: boolean;
+  /** Admin-only audited reason; null/absent for Viewers or when the additive lookup is unavailable. */
+  duplicateExclusionReason?: string | null;
   openReviewFlags: B2cOpenReviewFlag[];
   issue: "Possible duplicate" | "Failed" | "Missing customer email" | "Needs follow-up" | "Needs FX review" | "Refunded" | null;
   /** Safe, read-only Stripe evidence. It never participates in reportability. */
@@ -469,6 +472,10 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
     if (state.has_open_duplicate) openDuplicatePaymentIds.add(state.payment_id);
     if (state.has_duplicate_exclusion) excludedDuplicatePaymentIds.add(state.payment_id);
   }
+  const duplicateExclusionReasons = await getB2cDuplicateExclusionReasons(
+    client,
+    [...excludedDuplicatePaymentIds],
+  );
   const sourceCoverage = resolveB2cSourceCoverage({ providers: [
     { provider: "stripe", active: payments.some((payment) => payment.source_system === "stripe") || refunds.some((refund) => refund.source_system === "stripe") || Boolean(stripeHistoricalResult.data), historicalBackfill: stripeHistoricalResult.data ? { status: stripeHistoricalResult.data.status, recordsFailed: stripeHistoricalResult.data.records_failed, completedAt: stripeHistoricalResult.data.completed_at } : null, latestReconciliation: stripeReconciliationResult.data ? { status: stripeReconciliationResult.data.status, requestedRangeEnd: stripeReconciliationResult.data.requested_range_end, completedAt: stripeReconciliationResult.data.completed_at } : null },
     { provider: "tap", active: payments.some((payment) => payment.source_system === "tap") || refunds.some((refund) => refund.source_system === "tap") || Boolean(tapHistoricalResult.data), historicalBackfill: tapHistoricalResult.data ? { status: tapHistoricalResult.data.status, recordsFailed: tapHistoricalResult.data.records_failed, completedAt: tapHistoricalResult.data.completed_at } : null, latestReconciliation: tapReconciliationResult.data ? { status: tapReconciliationResult.data.status, requestedRangeEnd: tapReconciliationResult.data.requested_range_end, completedAt: tapReconciliationResult.data.completed_at } : null },
@@ -674,6 +681,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       hasFinanceException: latestFinanceDecisionByPayment.get(payment.id)?.decision === "include",
       hasOpenPaymentDuplicate: openDuplicatePaymentIds.has(payment.id),
       hasDuplicateExclusion: excludedDuplicatePaymentIds.has(payment.id),
+      duplicateExclusionReason: duplicateExclusionReasons.get(payment.id) ?? null,
       openReviewFlags: reviewFlags,
       issue: flagLabel(paymentFlags),
     };
@@ -726,6 +734,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
         hasFinanceException: Boolean(payment && latestFinanceDecisionByPayment.get(payment.id)?.decision === "include"),
         hasOpenPaymentDuplicate: Boolean(payment && openDuplicatePaymentIds.has(payment.id)),
         hasDuplicateExclusion: Boolean(payment && excludedDuplicatePaymentIds.has(payment.id)),
+        duplicateExclusionReason: payment ? duplicateExclusionReasons.get(payment.id) ?? null : null,
         openReviewFlags: reviewFlags,
         issue: flagLabel(flagsByRecord.get(refund.id) ?? []),
       };

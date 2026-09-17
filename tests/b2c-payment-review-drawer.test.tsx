@@ -46,15 +46,17 @@ function renderDrawer(target: B2cPaymentReviewDrawerTarget | null, role: "admin"
 }
 
 describe("B2C payment review drawer", () => {
-  it("renders every drawer section for an Admin and moves focus to Close", async () => {
+  it("shows a ready card and reporting status for a reportable row, then moves focus to Close", async () => {
     stubFetchByUrl([]);
     renderDrawer({ kind: "row", row: baseRow() });
 
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("Source evidence")).toBeInTheDocument();
-    expect(within(dialog).getByText("Local values")).toBeInTheDocument();
-    expect(within(dialog).getByText("Finance decision")).toBeInTheDocument();
-    expect(within(dialog).getByText("Audit history")).toBeInTheDocument();
+    expect(within(dialog).getByText("What this record needs")).toBeInTheDocument();
+    expect(within(dialog).getByText("Ready to report — nothing needed")).toBeInTheDocument();
+    expect(within(dialog).getByText("Reportable")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Every approved reporting rule passed, so this record is reportable.")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Local values")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Finance decision")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Close record drawer" })).toHaveFocus());
   });
 
@@ -87,16 +89,19 @@ describe("B2C payment review drawer", () => {
     expect(dialog.className).toContain("overflow-y-auto");
   });
 
-  it("shows source and local values as visually separate sections", () => {
+  it("puts source evidence and audit history inside one closed disclosure", () => {
     stubFetchByUrl([]);
     renderDrawer({ kind: "row", row: baseRow() });
     const dialog = screen.getByRole("dialog");
-    // The Stripe reference lives only under Source evidence, never repeated inside Local values.
-    const sourceHeading = within(dialog).getByText("Source evidence");
-    const localHeading = within(dialog).getByText("Local values");
-    expect(sourceHeading).not.toBe(localHeading);
-    expect(within(dialog).getAllByText("ch_123").length).toBeGreaterThanOrEqual(1);
-    expect(within(localHeading.closest("div") as HTMLElement).queryByText("ch_123")).not.toBeInTheDocument();
+    const summary = within(dialog).getByText("Show source evidence & history");
+    const disclosure = summary.closest("details");
+
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(within(disclosure as HTMLElement).getByText("Source evidence")).toBeInTheDocument();
+    expect(within(disclosure as HTMLElement).getByText("Audit history")).toBeInTheDocument();
+    expect(within(disclosure as HTMLElement).getByText("ch_123")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Source evidence")).toHaveLength(1);
+    expect(within(dialog).getAllByText("Audit history")).toHaveLength(1);
   });
 
   it("exposes exactly one drawer action instead of separate evidence/edit triggers", () => {
@@ -107,19 +112,145 @@ describe("B2C payment review drawer", () => {
     expect(within(dialog).queryByRole("button", { name: "View Stripe details" })).not.toBeInTheDocument();
   });
 
-  it("uses the FX conversion action when that remains the unresolved financial blocker", () => {
+  it("renders every blocking reason as a visible card and expands only the first by default", () => {
+    stubFetchByUrl([]);
+    const row = baseRow({
+      customerEmail: null,
+      amountValueUsd: null,
+      amountUsd: "—",
+      openReviewFlags: [{ id: "missing-email", type: "Missing customer email", reason: "Stripe did not provide a customer email." }],
+      decision: {
+        sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable",
+        blockingReasons: ["missing_amount", "missing_business_date", "missing_customer_email"],
+        explanation: "Blocked by an unavailable USD amount, an unavailable business date, a missing customer email.",
+      },
+    });
+    renderDrawer({ kind: "row", row });
+    const dialog = screen.getByRole("dialog");
+    const amountCard = within(dialog).getByText("Missing amount").closest("details") as HTMLElement;
+    const dateCard = within(dialog).getByText("Missing business date").closest("details") as HTMLElement;
+    const emailCard = within(dialog).getByText("Missing customer email").closest("details") as HTMLElement;
+
+    expect(within(dialog).getByText("Blocked")).toBeInTheDocument();
+    expect(amountCard).toHaveAttribute("open");
+    expect(dateCard).not.toHaveAttribute("open");
+    expect(emailCard).not.toHaveAttribute("open");
+    expect(within(amountCard).getByLabelText("Local B2C amount (USD)")).toBeInTheDocument();
+    expect(within(amountCard).getByRole("button", { name: "Save amount" })).toBeInTheDocument();
+    expect(within(amountCard).queryByLabelText("Local business date")).not.toBeInTheDocument();
+    expect(within(dateCard).getByLabelText("Local business date")).toBeInTheDocument();
+    expect(within(dateCard).getByRole("button", { name: "Save date" })).toBeInTheDocument();
+    expect(within(emailCard).getByLabelText("Customer email")).toBeInTheDocument();
+    expect(within(emailCard).getByRole("button", { name: "Save email" })).toBeInTheDocument();
+    expect(within(emailCard).getByText("Include without email")).toBeInTheDocument();
+  });
+
+  it.each([
+    { reason: "failed_payment" as const, title: "Payment failed", tag: "No action needed", paymentStatus: "Failed" as const, reportingDecision: "blocked" as const },
+    { reason: "pending_payment" as const, title: "Payment pending", tag: "No action needed", paymentStatus: "Pending" as const, reportingDecision: "blocked" as const },
+    { reason: "duplicate_exclusion" as const, title: "Excluded as duplicate", tag: "No action needed", paymentStatus: "Completed" as const, reportingDecision: "excluded" as const },
+    { reason: "other_open_review" as const, title: "Open review item", tag: "No action needed here yet", paymentStatus: "Completed" as const, reportingDecision: "blocked" as const },
+  ])("shows $title honestly without an action button", ({ reason, title, tag, paymentStatus, reportingDecision }) => {
+    stubFetchByUrl([]);
+    const reviewReason = "Finance needs the provider discrepancy investigated before reporting.";
+    const row = baseRow({
+      paymentStatus,
+      duplicateExclusionReason: reason === "duplicate_exclusion" ? "Finance kept the settled Stripe charge and excluded this duplicate." : null,
+      openReviewFlags: reason === "other_open_review" ? [{ id: "follow-up", type: "Needs follow-up", reason: reviewReason }] : [],
+      decision: {
+        sourceStatus: reason === "failed_payment" ? "failed" : reason === "pending_payment" ? "pending" : "succeeded",
+        reconciliationStatus: "not_required", reportingDecision, postingStatus: "not_applicable",
+        blockingReasons: [reason], explanation: "This record is not currently reportable.",
+      },
+    });
+    renderDrawer({ kind: "row", row });
+    const card = screen.getByText(title).closest("details") as HTMLElement;
+
+    expect(within(card).getByText(tag)).toBeInTheDocument();
+    expect(within(card).queryByRole("button")).not.toBeInTheDocument();
+    if (reason === "other_open_review") expect(within(card).getByText(reviewReason)).toBeInTheDocument();
+    if (reason === "duplicate_exclusion") {
+      expect(screen.getByText("Excluded")).toBeInTheDocument();
+      expect(within(card).getByText("Finance kept the settled Stripe charge and excluded this duplicate.")).toBeInTheDocument();
+    }
+  });
+
+  it("falls back to the decision explanation when an audited duplicate-exclusion reason is unavailable", () => {
+    stubFetchByUrl([]);
+    const explanation = "This payment was excluded by an audited duplicate decision.";
+    renderDrawer({ kind: "row", row: baseRow({
+      duplicateExclusionReason: null,
+      decision: {
+        sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "excluded", postingStatus: "not_applicable",
+        blockingReasons: ["duplicate_exclusion"], explanation,
+      },
+    }) });
+
+    const card = screen.getByText("Excluded as duplicate").closest("details") as HTMLElement;
+    expect(within(card).getByText(explanation)).toBeInTheDocument();
+  });
+
+  it("does not reveal the Admin-only duplicate-exclusion reason to a Viewer", () => {
+    stubFetchByUrl([]);
+    const auditedReason = "Finance selected another provider charge as canonical.";
+    const explanation = "This payment was excluded by an audited duplicate decision.";
+    renderDrawer({ kind: "row", row: baseRow({
+      duplicateExclusionReason: auditedReason,
+      decision: {
+        sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "excluded", postingStatus: "not_applicable",
+        blockingReasons: ["duplicate_exclusion"], explanation,
+      },
+    }) }, "viewer");
+
+    const card = screen.getByText("Excluded as duplicate").closest("details") as HTMLElement;
+    expect(within(card).queryByText(auditedReason)).not.toBeInTheDocument();
+    expect(within(card).getByText(explanation)).toBeInTheDocument();
+  });
+
+  it("uses the shared one-card disclosure for a refund with no further Finance decision", () => {
+    stubFetchByUrl([]);
+    renderDrawer({ kind: "row", row: baseRow({
+      recordType: "Refund",
+      paymentStatus: "Refunded",
+      amountUsd: "−$100.00",
+      decision: {
+        sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "reportable", postingStatus: "not_applicable",
+        blockingReasons: [], explanation: "This refund is ready for reporting.",
+      },
+    }) });
+
+    const card = screen.getByText("Refund review complete").closest("details") as HTMLElement;
+    expect(card).toHaveAttribute("open");
+    expect(within(card).getByText("This refund needs no further Finance decision.")).toBeInTheDocument();
+  });
+
+  it("shows the included-by-exception reporting status", () => {
+    stubFetchByUrl([]);
+    renderDrawer({ kind: "row", row: baseRow({
+      hasFinanceException: true,
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "exception_included", postingStatus: "not_applicable", blockingReasons: [], explanation: "Included by an audited Finance exception; every other blocking rule still passed." },
+    }) });
+
+    expect(screen.getByText("Included by exception")).toBeInTheDocument();
+  });
+
+  it("uses the focused FX conversion action when that remains the unresolved financial blocker", () => {
     stubFetchByUrl([]);
     const row = baseRow({
       isForeignCurrency: true,
-      foreignCurrencyReview: false,
-      hasFxConversion: true,
+      foreignCurrencyReview: true,
+      hasFxConversion: false,
+      sourceOriginalCurrency: "BHD",
+      sourceAmountUsd: "37.70 BHD",
       openReviewFlags: [],
       decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_fx"], explanation: "Blocked by a foreign-currency amount awaiting an approved conversion." },
     });
     renderDrawer({ kind: "row", row });
     const dialog = screen.getByRole("dialog");
 
-    expect(within(dialog).getByText(/Finance USD conversion/)).toBeInTheDocument();
+    expect(within(dialog).getByText("Needs currency conversion")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("USD per 1 BHD")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save conversion" })).toBeInTheDocument();
   });
 
   it("keeps an unmapped provider payment reviewable without offering a reusable mapping", async () => {
@@ -143,7 +274,11 @@ describe("B2C payment review drawer", () => {
     const dialog = screen.getByRole("dialog");
 
     await screen.findByText("Founding Membership");
-    expect(within(dialog).getByText("Count in Finance despite missing source details")).toBeInTheDocument();
+    const includeSummary = within(dialog).getByText("Include without email");
+    const includeDisclosure = includeSummary.closest("details") as HTMLElement;
+    expect(includeDisclosure).not.toHaveAttribute("open");
+    fireEvent.click(includeSummary);
+    expect(includeDisclosure).toHaveAttribute("open");
     expect(within(dialog).queryByText("Create reusable product mapping")).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText("Internal product code")).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Save local product mapping" })).not.toBeInTheDocument();
@@ -153,35 +288,39 @@ describe("B2C payment review drawer", () => {
     expect(includeButton).toBeDisabled();
     fireEvent.click(within(dialog).getByLabelText(/exact provider payment ID/i));
     fireEvent.click(within(dialog).getByLabelText(/found no known duplicate/i));
-    fireEvent.change(within(dialog).getAllByLabelText(/Reason \/ evidence/)[1], { target: { value: "Finance verified the missing email cannot be recovered." } });
+    fireEvent.change(within(includeDisclosure).getByLabelText(/Reason \/ evidence/), { target: { value: "Finance verified the missing email cannot be recovered." } });
     expect(includeButton).toBeEnabled();
     expect(fetchMock).not.toHaveBeenCalledWith("/api/admin/b2c/products/map", expect.anything());
   });
 
   it("preserves the draft and shows an error when a save fails, without closing the drawer", async () => {
     stubFetchByUrl([["/correct", () => ({ ok: false, json: async () => ({ error: "The local B2C correction could not be saved." }) })]]);
-    const onClose = renderDrawer({ kind: "row", row: baseRow() });
+    const onClose = renderDrawer({ kind: "row", row: baseRow({
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_amount"], explanation: "Blocked by an unavailable USD amount." },
+    }) });
     const dialog = screen.getByRole("dialog");
 
-    const nameInput = within(dialog).getByLabelText("Customer name");
-    fireEvent.change(nameInput, { target: { value: "Corrected Name" } });
+    const amountInput = within(dialog).getByLabelText("Local B2C amount (USD)");
+    fireEvent.change(amountInput, { target: { value: "125.50" } });
     fireEvent.change(within(dialog).getByLabelText(/Reason \/ evidence/), { target: { value: "Verified against Finance evidence." } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save audited local correction" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save amount" }));
 
     await screen.findByText("The local B2C correction could not be saved.");
-    expect(nameInput).toHaveValue("Corrected Name");
+    expect(amountInput).toHaveValue(125.5);
     expect(onClose).not.toHaveBeenCalled();
   });
 
   it("only signals the queue to refresh after the server confirms a successful save", async () => {
     stubFetchByUrl([["/correct", () => ({ ok: true, json: async () => ({ ok: true }) })]]);
-    const onClose = renderDrawer({ kind: "row", row: baseRow() });
+    const onClose = renderDrawer({ kind: "row", row: baseRow({
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_amount"], explanation: "Blocked by an unavailable USD amount." },
+    }) });
     const dialog = screen.getByRole("dialog");
 
-    fireEvent.change(within(dialog).getByLabelText("Customer name"), { target: { value: "Corrected Name" } });
+    fireEvent.change(within(dialog).getByLabelText("Local B2C amount (USD)"), { target: { value: "125.50" } });
     fireEvent.change(within(dialog).getByLabelText(/Reason \/ evidence/), { target: { value: "Verified against Finance evidence." } });
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save audited local correction" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save amount" }));
 
     expect(onClose).not.toHaveBeenCalled();
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
@@ -189,10 +328,13 @@ describe("B2C payment review drawer", () => {
 
   it("hides Admin write sections and never fetches Admin-only evidence for a Viewer", () => {
     const fetchMock = stubFetchByUrl([]);
-    renderDrawer({ kind: "row", row: baseRow() }, "viewer");
+    renderDrawer({ kind: "row", row: baseRow({
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_amount"], explanation: "Blocked by an unavailable USD amount." },
+    }) }, "viewer");
     const dialog = screen.getByRole("dialog");
 
-    expect(within(dialog).getAllByText("Viewer access is read-only. Only an Admin can take this action.").length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).getByText("Viewer access is read-only. Only an Admin can take this action.")).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Local B2C amount (USD)")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Full Stripe charge and settlement evidence is Admin-only.")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/evidence"), expect.anything());
   });
@@ -213,7 +355,9 @@ describe("B2C payment review drawer", () => {
     renderDrawer({ kind: "row", row });
     const dialog = screen.getByRole("dialog");
 
-    expect(within(dialog).getByLabelText("Customer name")).toBeInTheDocument();
+    expect(within(dialog).getByText("Business date looks wrong")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Local business date")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save corrected date" })).toBeInTheDocument();
     expect(within(dialog).queryByText(/already posted to Finance/)).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Record posted Finance adjustment" })).not.toBeInTheDocument();
   });

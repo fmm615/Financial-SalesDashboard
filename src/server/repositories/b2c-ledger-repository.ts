@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { presentB2cPaymentDecision, type B2cPaymentDecision } from "@/lib/b2c/payment-decision";
 import { resolveB2cReportingPeriod, type B2cLedgerRow } from "@/server/repositories/b2c-dashboard-repository";
+import { getB2cDuplicateExclusionReasons } from "@/server/repositories/b2c-payment-duplicate-repository";
 import type { DatabaseClient } from "@/lib/supabase/server";
 
 export const B2C_LEDGER_MAX_LIMIT = 100;
@@ -372,7 +373,19 @@ export class SupabaseB2cLedgerRepository {
     if (hydrationResult.error) throw new Error("Could not hydrate the B2C Ledger page.");
 
     const hydrated = z.array(hydrationSchema).parse(hydrationResult.data ?? []);
-    const hydratedByKey = new Map(hydrated.map((row) => [`${row.record_type}:${row.record_id}`, mapHydratedRow(row)]));
+    const mappedRows = hydrated.map(mapHydratedRow);
+    const duplicateExclusionReasons = await getB2cDuplicateExclusionReasons(
+      this.client,
+      mappedRows
+        .filter((row) => row.recordType === "Payment" && row.hasDuplicateExclusion)
+        .map((row) => row.id),
+    );
+    const hydratedByKey = new Map(mappedRows.map((row) => [`${row.recordType}:${row.id}`, {
+      ...row,
+      duplicateExclusionReason: row.recordType === "Payment"
+        ? duplicateExclusionReasons.get(row.id) ?? null
+        : null,
+    }]));
     const rows = selected.map((identity) => {
       const row = hydratedByKey.get(`${identity.record_type}:${identity.record_id}`);
       if (!row) throw new Error("The B2C Ledger page hydration was incomplete.");

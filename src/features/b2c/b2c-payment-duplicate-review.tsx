@@ -195,7 +195,7 @@ export function B2cPaymentDuplicateReview({ paymentId, onSaved }: Props) {
     {reasonInput}
     <div className="mt-4 flex flex-wrap gap-3">
       <button type="button" disabled={!canSaveReason} onClick={() => void saveGroup(review.group, "keep_all")} className="rounded-pill bg-brand-primary px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">{saving === "keep_all" ? "Saving…" : "Keep all payments"}</button>
-      <button type="button" disabled={!canSaveReason || !selectedPaymentId} onClick={() => void saveGroup(review.group, "keep_one")} className="rounded-pill border border-border px-4 py-2 text-sm font-semibold text-text-primary disabled:cursor-not-allowed disabled:opacity-60">{saving === "keep_one" ? "Saving…" : "Keep selected payment"}</button>
+      <button type="button" disabled={!canSaveReason || !selectedPaymentId} onClick={() => void saveGroup(review.group, "keep_one")} className="rounded-pill border border-border px-4 py-2 text-sm font-semibold text-text-primary disabled:cursor-not-allowed disabled:opacity-60">{saving === "keep_one" ? "Saving…" : "Keep only this one"}</button>
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
   </section>;
