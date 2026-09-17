@@ -1,6 +1,6 @@
 begin;
 
-select plan(27);
+select plan(29);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -242,6 +242,13 @@ insert into public.b2c_stripe_payment_details (
   'complete'
 );
 
+insert into public.review_flags (
+  source_area, source_record_id, flag_type, status, priority, reason
+) values (
+  'b2c_payment', '92000000-0000-4000-8000-000000000003', 'needs_follow_up', 'open', 2,
+  'Stripe payment is missing a valid customer email. It is retained for traceability and excluded from financial totals until an Admin records a verified local correction.'
+);
+
 insert into public.b2c_payment_finance_exception_decisions (
   payment_id, decision, reason, confirmed_provider_transaction,
   confirmed_no_known_duplicate, created_by
@@ -315,6 +322,32 @@ select is(
   ),
   'blocked',
   'non-transaction Stripe fallback email is display context and never satisfies reportability'
+);
+
+select is(
+  (
+    select row_data ->> 'issue'
+    from public.get_b2c_ledger_rows(
+      array['92000000-0000-4000-8000-000000000003'::uuid],
+      array[]::uuid[],
+      '2026-09-30'
+    )
+  ),
+  'Missing customer email',
+  'an available Stripe-profile fallback display email never hides the Missing customer email issue -- it only supplies display context'
+);
+
+select is(
+  (
+    select row_data -> 'open_review_flags' -> 0 ->> 'type'
+    from public.get_b2c_ledger_rows(
+      array['92000000-0000-4000-8000-000000000003'::uuid],
+      array[]::uuid[],
+      '2026-09-30'
+    )
+  ),
+  'Missing customer email',
+  'the open review flag itself is not suppressed by an available fallback email, so the drawer''s Finance-exception panel (gated on finding this exact flag) can still appear'
 );
 
 select is(

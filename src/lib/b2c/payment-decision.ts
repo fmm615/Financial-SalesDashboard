@@ -41,7 +41,13 @@ function explain(
     implausible_future_date: "a business date that has not happened yet",
     other_open_review: "an open review item",
   };
-  return `Blocked by ${blockingReasons.map((reason) => reasonText[reason]).join(", ")}.`;
+  const base = `Blocked by ${blockingReasons.map((reason) => reasonText[reason]).join(", ")}.`;
+  // The "Include in PLAYBOOK Finance" exception (b2c-payment-review-actions.tsx)
+  // is the one blocking reason it actually resolves -- say so here, since a
+  // flat "Blocked" reads as a dead end otherwise.
+  return blockingReasons.includes("missing_customer_email")
+    ? `${base} An Admin can still include it in Finance through an audited exception below.`
+    : base;
 }
 
 /**

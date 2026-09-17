@@ -113,9 +113,9 @@ export function B2cPaymentLocalValuesFragment({ row, onSaved }: { row: B2cReview
     <div className="mt-4">
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Customer</p>
       <div className="mt-3 grid gap-x-5 gap-y-4 md:grid-cols-2">
-        <label className={fieldClass}>Customer name<input className={inputClass} value={draft.customerName} onChange={(event) => setDraft((current) => ({ ...current, customerName: event.target.value }))} placeholder="Unavailable from Stripe" /></label>
-        <label className={fieldClass}>Customer email<input className={inputClass} value={draft.customerEmail} onChange={(event) => setDraft((current) => ({ ...current, customerEmail: event.target.value }))} inputMode="email" placeholder="Unavailable from Stripe" /></label>
-        <label className={fieldClass}>Customer mobile<input className={inputClass} value={draft.customerPhone} onChange={(event) => setDraft((current) => ({ ...current, customerPhone: event.target.value }))} inputMode="tel" placeholder="Unavailable from Stripe" /></label>
+        <label className={fieldClass}>Customer name<input className={inputClass} value={draft.customerName} onChange={(event) => setDraft((current) => ({ ...current, customerName: event.target.value }))} placeholder="Unavailable from Stripe" />{row.customerNameEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-warning">Suggested from {row.customerNameEvidenceLabel} — not yet verified</span>}</label>
+        <label className={fieldClass}>Customer email<input className={inputClass} value={draft.customerEmail} onChange={(event) => setDraft((current) => ({ ...current, customerEmail: event.target.value }))} inputMode="email" placeholder="Unavailable from Stripe" />{row.customerEmailEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-warning">Suggested from {row.customerEmailEvidenceLabel} — not yet verified</span>}</label>
+        <label className={fieldClass}>Customer mobile<input className={inputClass} value={draft.customerPhone} onChange={(event) => setDraft((current) => ({ ...current, customerPhone: event.target.value }))} inputMode="tel" placeholder="Unavailable from Stripe" />{row.customerPhoneEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-warning">Suggested from {row.customerPhoneEvidenceLabel} — not yet verified</span>}</label>
       </div>
     </div>
     <div className="mt-5 border-t border-border pt-5">

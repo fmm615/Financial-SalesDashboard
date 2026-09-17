@@ -148,6 +148,9 @@ describe("B2C Stripe enrichment presentation", () => {
     fireEvent.click(within(table).getByRole("button", { name: "Review" }));
     const drawer = screen.getByRole("dialog");
     expect(within(drawer).getByText("current-profile@example.com")).toBeInTheDocument();
+    // The fallback is a display convenience, not verified data -- an Admin
+    // must be able to tell the two apart without asking anyone.
+    expect(within(drawer).getAllByText("From Stripe profile — not yet verified").length).toBeGreaterThan(0);
   });
 
   it("keeps a local correction ahead of Stripe fallbacks", () => {

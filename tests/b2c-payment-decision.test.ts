@@ -52,6 +52,22 @@ describe("presentB2cPaymentDecision", () => {
     });
   });
 
+  it("points to the Finance exception when missing customer email is the blocker, since that's the one path that actually resolves it", () => {
+    expect(presentB2cPaymentDecision(sqlDecision({
+      reporting_decision: "blocked",
+      exclusion_reasons: ["missing_customer_email"],
+      blocking_reasons: ["missing_customer_email"],
+    })).explanation).toBe("Blocked by a missing customer email. An Admin can still include it in Finance through an audited exception below.");
+  });
+
+  it("does not add the Finance-exception hint for a blocker the exception can't resolve", () => {
+    expect(presentB2cPaymentDecision(sqlDecision({
+      reporting_decision: "blocked",
+      exclusion_reasons: ["needs_fx_review"],
+      blocking_reasons: ["missing_fx"],
+    })).explanation).toBe("Blocked by a foreign-currency amount awaiting an approved conversion.");
+  });
+
   it("joins multiple SQL-produced blockers in canonical order", () => {
     expect(presentB2cPaymentDecision(sqlDecision({
       source_status: "failed",
