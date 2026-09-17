@@ -264,14 +264,18 @@ function sourceMetadataText(value: unknown, key: string): string | null {
   return typeof candidate === "string" && candidate.trim() ? candidate.trim() : null;
 }
 
-/** Labels the retained source without suggesting a provider relationship that does not exist. */
-export function resolveB2cLedgerSourceLabel(sourceSystem: B2cLedgerRow["sourceSystem"], sourceMetadata: unknown): string {
+/**
+ * Labels the retained source without suggesting a provider relationship that
+ * does not exist. finance_tracker has no per-method sub-label (no "Finance —
+ * iOS"/"Finance — Bank transfer") -- the old Finance workbook that could
+ * produce those rows with a finance_payment_method was removed entirely, so
+ * no finance_tracker row can exist with one set. Not to be confused with the
+ * unrelated, currently-creatable "Manual bank transfer" source above.
+ */
+export function resolveB2cLedgerSourceLabel(sourceSystem: B2cLedgerRow["sourceSystem"]): string {
   if (sourceSystem === "stripe") return "Stripe";
   if (sourceSystem === "tap") return "Tap";
   if (sourceSystem === "manual_bank_transfer") return "Manual bank transfer";
-  const financeMethod = sourceMetadataText(sourceMetadata, "finance_payment_method");
-  if (financeMethod === "bank_transfer") return "Finance — Bank transfer";
-  if (financeMethod === "ios") return "Finance — iOS";
   return "Finance";
 }
 
@@ -658,7 +662,7 @@ export async function getB2cDashboardSnapshot(client: DatabaseClient, today = ne
       sourceDateValue: payment.occurred_on,
       membershipTier: effective.membershipTier,
       billingInterval: billingIntervalLabel(payment.source_metadata),
-      source: resolveB2cLedgerSourceLabel(payment.source_system, payment.source_metadata),
+      source: resolveB2cLedgerSourceLabel(payment.source_system),
       paymentStatus: displayPaymentStatus(payment.payment_status),
       providerReference: payment.provider_transaction_id,
       sourceSystem: payment.source_system,

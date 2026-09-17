@@ -202,7 +202,7 @@ describe("B2C payment review drawer", () => {
     const row = baseRow({
       id: "85edf4fe-346b-483a-8053-199e6b1e2961",
       customerName: "Hoor Alshubbar",
-      source: "Finance — iOS",
+      source: "Finance",
       sourceSystem: "finance_tracker",
       providerReference: null,
       productReference: null,

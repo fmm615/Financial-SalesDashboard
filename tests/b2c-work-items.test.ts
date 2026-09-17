@@ -51,7 +51,6 @@ function record(overrides: Partial<B2cWorkItemRecord> & { decision: B2cWorkItemR
   return {
     id: "payment-1",
     recordKind: "provider_payment",
-    financeMethod: null,
     customerLabel: "Maya Al Khalifa",
     financialImpactUsd: "100.00",
     href: "/operations/b2c?tab=work&record=payment-1",
@@ -132,7 +131,6 @@ describe("buildB2cRecordWorkItems", () => {
     const items = buildB2cRecordWorkItems(record({
       id: "manual-1",
       decision: decision(["possible_duplicate"], { reconciliationStatus: "duplicate_pending" }),
-      financeMethod: "bank_transfer",
     }));
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ queue: "duplicate", nextAction: "choose_payment_duplicate", recordId: "manual-1" });
@@ -157,7 +155,6 @@ describe("buildB2cSourceFailureWorkItems", () => {
       recordKind: "source_run",
       queue: "source_failure",
       visibleGroup: "reconciliation",
-      financeMethod: null,
       title: "Retry the Stripe sync",
       explanation: "The last Stripe sync failed.",
       financialImpactUsd: null,

@@ -33,7 +33,6 @@ export function chunkB2cWorkspaceQueryValues<T>(values: T[], size = WORKSPACE_QU
 
 /** Maps one decorated ledger row into the record shape the pure work-item builder expects. */
 export function toB2cWorkItemRecord(row: B2cDecoratedLedgerRow): B2cWorkItemRecord {
-  const financeMethod = row.source === "Finance — iOS" ? "ios" : row.source === "Finance — Bank transfer" ? "bank_transfer" : null;
   const recordKind: B2cWorkItemRecord["recordKind"] = row.recordType === "Refund"
     ? "provider_refund"
     : row.sourceSystem === "finance_tracker"
@@ -43,7 +42,6 @@ export function toB2cWorkItemRecord(row: B2cDecoratedLedgerRow): B2cWorkItemReco
     id: row.id,
     recordKind,
     decision: row.decision,
-    financeMethod,
     customerLabel: row.customerName ?? row.customerEmail ?? "this record",
     financialImpactUsd: row.amountValueUsd,
     href: `/operations/b2c?tab=work&record=${row.id}`,

@@ -96,10 +96,11 @@ describe("B2C Stripe enrichment presentation", () => {
     ]));
   });
 
-  it("labels approved Finance rows by their retained payment method", () => {
-    expect(resolveB2cLedgerSourceLabel("finance_tracker", { finance_payment_method: "bank_transfer" })).toBe("Finance — Bank transfer");
-    expect(resolveB2cLedgerSourceLabel("finance_tracker", { finance_payment_method: "ios" })).toBe("Finance — iOS");
-    expect(resolveB2cLedgerSourceLabel("finance_tracker", {})).toBe("Finance");
+  it("labels every Finance row plainly -- no per-method sub-label, since the workbook that could set one is gone", () => {
+    expect(resolveB2cLedgerSourceLabel("finance_tracker")).toBe("Finance");
+    expect(resolveB2cLedgerSourceLabel("stripe")).toBe("Stripe");
+    expect(resolveB2cLedgerSourceLabel("tap")).toBe("Tap");
+    expect(resolveB2cLedgerSourceLabel("manual_bank_transfer")).toBe("Manual bank transfer");
   });
 
   it("shows mutable Stripe contacts as labelled fallbacks without making the payment reportable", async () => {

@@ -11,7 +11,6 @@ export type B2cWorkItem = {
   recordKind: "provider_payment" | "provider_refund" | "finance_row" | "source_run";
   queue: "data_quality" | "duplicate" | "fx" | "reconciliation" | "source_failure";
   visibleGroup: "data" | "duplicates" | "reconciliation";
-  financeMethod: "ios" | "bank_transfer" | null;
   title: string;
   explanation: string;
   financialImpactUsd: string | null;
@@ -24,7 +23,6 @@ export type B2cWorkItemRecord = {
   id: string;
   recordKind: Exclude<B2cWorkItem["recordKind"], "source_run">;
   decision: B2cPaymentDecision;
-  financeMethod: B2cWorkItem["financeMethod"];
   customerLabel: string;
   financialImpactUsd: string | null;
   href: string;
@@ -105,7 +103,6 @@ export function buildB2cRecordWorkItems(record: B2cWorkItemRecord): B2cWorkItem[
       recordKind: record.recordKind,
       queue: plan.queue,
       visibleGroup: visibleGroupForQueue(plan.queue),
-      financeMethod: record.financeMethod,
       title: plan.title(record.customerLabel),
       explanation: plan.explanation,
       financialImpactUsd: record.financialImpactUsd,
@@ -128,7 +125,6 @@ export function buildB2cSourceFailureWorkItems(runs: B2cSourceFailureRecord[]): 
       recordKind: "source_run",
       queue: "source_failure",
       visibleGroup: "reconciliation",
-      financeMethod: null,
       title: `Retry the ${providerLabel} ${isBackfill ? "historical import" : "sync"}`,
       explanation: run.reason,
       financialImpactUsd: null,
