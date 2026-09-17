@@ -1,6 +1,6 @@
 begin;
 
-select plan(29);
+select plan(35);
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
 
@@ -263,12 +263,105 @@ insert into public.b2c_refunds (
   original_currency, exchange_rate_to_usd, amount_usd, occurred_at
 ) values
   ('93000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000001', 'stripe', 'summary-refund-eligible', 10, 'USD', 1, 10, '2026-09-07 10:00:00+00'),
-  ('93000000-0000-4000-8000-000000000002', '92000000-0000-4000-8000-000000000003', 'stripe', 'summary-refund-ineligible', 5, 'USD', 1, 5, '2026-09-08 10:00:00+00');
+  ('93000000-0000-4000-8000-000000000002', '92000000-0000-4000-8000-000000000003', 'stripe', 'summary-refund-now-eligible', 5, 'USD', 1, 5, '2026-09-08 10:00:00+00');
+
+-- Two dedicated fixtures for the fallback-email reportability rule, dated
+-- outside September so they never affect the summary assertions above.
+insert into public.b2c_payments (
+  id, source_system, provider_transaction_id, customer_email, customer_name,
+  payment_status, original_amount, original_currency,
+  exchange_rate_to_usd, amount_usd, gross_amount_usd,
+  occurred_at, occurred_on, duplicate_fingerprint
+) values
+  ('92000000-0000-4000-8000-000000000007', 'stripe', 'profile-only-email', null, 'Profile Only', 'succeeded', 42, 'USD', 1, 42, 42, '2026-10-01 10:00:00+00', '2026-10-01', repeat('b', 64)),
+  ('92000000-0000-4000-8000-000000000008', 'stripe', 'no-email-anywhere', null, 'No Email Anywhere', 'succeeded', 15, 'USD', 1, 15, 15, '2026-10-02 10:00:00+00', '2026-10-02', repeat('c', 64));
+
+insert into public.b2c_stripe_payment_details (
+  payment_id, customer_profile_email, enrichment_status
+) values (
+  '92000000-0000-4000-8000-000000000007',
+  'arshiya@arshiyakherani.com',
+  'complete'
+);
+
+insert into public.review_flags (
+  source_area, source_record_id, flag_type, status, priority, reason
+) values
+  ('b2c_payment', '92000000-0000-4000-8000-000000000007', 'needs_follow_up', 'open', 2,
+    'Stripe payment is missing a valid customer email. It is retained for traceability and excluded from financial totals until an Admin records a verified local correction.'),
+  ('b2c_payment', '92000000-0000-4000-8000-000000000008', 'needs_follow_up', 'open', 2,
+    'Stripe payment is missing a valid customer email. It is retained for traceability and excluded from financial totals until an Admin records a verified local correction.');
+
+select is(
+  (
+    select decision ->> 'reporting_decision'
+    from public.get_b2c_ledger_rows(
+      array['92000000-0000-4000-8000-000000000007'::uuid], array[]::uuid[], '2026-10-31'
+    )
+  ),
+  'reportable',
+  'a customer-profile-only email (Arshiya''s real scenario -- nothing on the charge, checkout, invoice, or payment method) is enough to satisfy reportability'
+);
+
+select is(
+  (
+    select row_data ->> 'issue'
+    from public.get_b2c_ledger_rows(
+      array['92000000-0000-4000-8000-000000000007'::uuid], array[]::uuid[], '2026-10-31'
+    )
+  ),
+  null,
+  'no Ledger issue badge once a customer-profile email is available'
+);
+
+select is(
+  (
+    select row_data -> 'open_review_flags'
+    from public.get_b2c_ledger_rows(
+      array['92000000-0000-4000-8000-000000000007'::uuid], array[]::uuid[], '2026-10-31'
+    )
+  ),
+  '[]'::jsonb,
+  'the missing-email flag is not surfaced as open once a customer-profile email resolves it'
+);
+
+select is(
+  (
+    select decision ->> 'reporting_decision'
+    from public.get_b2c_ledger_rows(
+      array['92000000-0000-4000-8000-000000000008'::uuid], array[]::uuid[], '2026-10-31'
+    )
+  ),
+  'blocked',
+  'a payment with no email anywhere -- not even a customer profile -- still blocks exactly as before'
+);
+
+select is(
+  (
+    select row_data ->> 'issue'
+    from public.get_b2c_ledger_rows(
+      array['92000000-0000-4000-8000-000000000008'::uuid], array[]::uuid[], '2026-10-31'
+    )
+  ),
+  'Missing customer email',
+  'the Ledger issue badge still fires when no Stripe source has any email at all'
+);
+
+select is(
+  (
+    select row_data -> 'open_review_flags' -> 0 ->> 'type'
+    from public.get_b2c_ledger_rows(
+      array['92000000-0000-4000-8000-000000000008'::uuid], array[]::uuid[], '2026-10-31'
+    )
+  ),
+  'Missing customer email',
+  'the open review flag still surfaces, and the Finance-exception panel stays reachable, when there is truly no email anywhere'
+);
 
 select is(
   public.get_b2c_dashboard_summary('2026-09', '2026-09-30')->>'eligible_payments_usd',
-  '180.000000',
-  'summary totals use effective payment USD amounts'
+  '210.000000',
+  'a Stripe payment-method/customer-profile email now satisfies reportability, adding the $30 payment to the total'
 );
 
 select is(
@@ -279,20 +372,20 @@ select is(
 
 select is(
   public.get_b2c_dashboard_summary('2026-09', '2026-09-30')->>'refunds_usd',
-  '10.000000',
-  'only refunds linked to a reportable payment reduce the financial total'
+  '15.000000',
+  'a refund linked to a payment now reportable through its Stripe-profile email fallback also counts'
 );
 
 select is(
   public.get_b2c_dashboard_summary('2026-09', '2026-09-30')->'calculation',
   jsonb_build_object(
     'completed_source_payment_count', 5,
-    'reportable_payment_count', 3,
-    'excluded_completed_payment_count', 2,
-    'excluded_completed_payments_usd', '30.000000',
+    'reportable_payment_count', 4,
+    'excluded_completed_payment_count', 1,
+    'excluded_completed_payments_usd', '0.000000',
     'source_refund_count', 2,
-    'eligible_refund_count', 1,
-    'missing_customer_email_count', 1,
+    'eligible_refund_count', 2,
+    'missing_customer_email_count', 0,
     'possible_duplicate_count', 0,
     'other_review_count', 0,
     'non_succeeded_payment_count', 1,
@@ -308,7 +401,7 @@ select is(
     where value ->> 'record_type' = 'Payment'
       and value ->> 'record_id' = '92000000-0000-4000-8000-000000000003'
   ),
-  'blocked',
+  'reportable',
   'the Work queue receives the canonical SQL decision for every payment'
 );
 
@@ -320,8 +413,8 @@ select is(
       p_sort => 'date_desc', p_search => 'summary-missing-email'
     )
   ),
-  'blocked',
-  'non-transaction Stripe fallback email is display context and never satisfies reportability'
+  'reportable',
+  'a Stripe payment-method fallback email satisfies reportability without any Admin action'
 );
 
 select is(
@@ -333,21 +426,21 @@ select is(
       '2026-09-30'
     )
   ),
-  'Missing customer email',
-  'an available Stripe-profile fallback display email never hides the Missing customer email issue -- it only supplies display context'
+  null,
+  'the Ledger issue badge agrees with reportability -- no issue once a Stripe fallback email is available'
 );
 
 select is(
   (
-    select row_data -> 'open_review_flags' -> 0 ->> 'type'
+    select row_data -> 'open_review_flags'
     from public.get_b2c_ledger_rows(
       array['92000000-0000-4000-8000-000000000003'::uuid],
       array[]::uuid[],
       '2026-09-30'
     )
   ),
-  'Missing customer email',
-  'the open review flag itself is not suppressed by an available fallback email, so the drawer''s Finance-exception panel (gated on finding this exact flag) can still appear'
+  '[]'::jsonb,
+  'the stored missing-email review flag is not surfaced once a Stripe fallback email resolves it -- it stays open in history, just not shown as current'
 );
 
 select is(
