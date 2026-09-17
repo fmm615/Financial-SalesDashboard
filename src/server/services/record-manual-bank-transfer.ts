@@ -12,7 +12,7 @@ export type PreparedManualBankTransfer = {
   bankReference: string;
   customerEmail: string;
   customerName: string;
-  membershipTier: string | null;
+  description: string | null;
   /** Canonicalized to exactly six decimal places. */
   amountUsd: string;
   /** The exact reviewed ISO timestamp string, unmodified -- used for hashing and as the RPC's raw source of truth. */
@@ -60,7 +60,7 @@ export function prepareManualBankTransfer(input: ManualBankTransferRequest): Pre
     bankReference: input.bankReference.trim(),
     customerEmail: input.customerEmail.trim().toLowerCase(),
     customerName: input.customerName.trim(),
-    membershipTier: input.membershipTier?.trim() || null,
+    description: input.description?.trim() || null,
     amountUsd: canonicalAmount(input.amountUsd),
     receivedAtRaw: input.receivedAt.trim(),
     occurredOn: bahrainBusinessDate(new Date(input.receivedAt)),
@@ -79,7 +79,7 @@ export function hashPreparedManualBankTransfer(prepared: PreparedManualBankTrans
     prepared.bankReference,
     prepared.customerEmail,
     prepared.customerName,
-    prepared.membershipTier ?? "",
+    prepared.description ?? "",
     prepared.amountUsd,
     prepared.receivedAtRaw,
     prepared.reason,

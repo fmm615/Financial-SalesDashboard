@@ -174,7 +174,7 @@ describe("SupabaseB2cPaymentsRepository reads the configured window (not a hardc
       bankReference: "IBAN-TEST",
       customerEmail: "member@playbook.test",
       customerName: "Ada Founder",
-      membershipTier: null,
+      description: null,
       amountUsd: "100.000000",
       receivedAtRaw: "2027-01-05T08:00:00+03:00",
       occurredOn: "2027-01-05",

@@ -371,7 +371,7 @@ export interface Database {
       record_b2c_manual_bank_transfer: {
         Args: {
           p_bank_reference: string; p_customer_email: string; p_customer_name: string;
-          p_membership_tier: string | null; p_amount_usd_text: string; p_received_at_raw: string; p_reason: string;
+          p_description: string | null; p_amount_usd_text: string; p_received_at_raw: string; p_reason: string;
           p_expected_input_sha256: string;
         };
         Returns: B2cPaymentRow;

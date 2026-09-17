@@ -120,7 +120,7 @@ export class SupabaseB2cPaymentsRepository implements B2cPaymentsRepository {
       p_bank_reference: input.bankReference,
       p_customer_email: input.customerEmail,
       p_customer_name: input.customerName,
-      p_membership_tier: input.membershipTier,
+      p_description: input.description,
       p_amount_usd_text: input.amountUsd,
       p_received_at_raw: input.receivedAtRaw,
       p_reason: input.reason,

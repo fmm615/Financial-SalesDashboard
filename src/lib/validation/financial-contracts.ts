@@ -10,19 +10,20 @@ const nonEmpty = z.string().trim().min(1);
 
 /**
  * Manual bank-transfer entry is USD-only in B2C v1: the browser supplies only
- * the six required facts (plus an optional membership tier). It never
- * sends `sourceSystem`, status, original currency, exchange rate, gross/net/
- * tax amounts, duplicate fingerprint, actor, or reportability -- the server
- * derives `occurred_on` in Asia/Bahrain and stores currency `USD`, exchange
- * rate `1`, `succeeded` status, `manual_bank_transfer` source, actor, and
- * fingerprint. `receivedAt` is the bank's own transfer date/time, not an
- * invented timestamp from a bare date.
+ * the six required facts (plus an optional description, shown in the Ledger
+ * the same way a Stripe/Tap description is). It never sends `sourceSystem`,
+ * status, original currency, exchange rate, gross/net/tax amounts, duplicate
+ * fingerprint, actor, or reportability -- the server derives `occurred_on` in
+ * Asia/Bahrain and stores currency `USD`, exchange rate `1`, `succeeded`
+ * status, `manual_bank_transfer` source, actor, and fingerprint. `receivedAt`
+ * is the bank's own transfer date/time, not an invented timestamp from a bare
+ * date.
  */
 export const manualBankTransferSchema = z.object({
   bankReference: nonEmpty.max(200),
   customerEmail: z.string().trim().toLowerCase().email(),
   customerName: nonEmpty.max(200),
-  membershipTier: z.string().trim().min(1).max(100).optional(),
+  description: z.string().trim().min(1).max(200).optional(),
   amountUsd: money,
   receivedAt: z.string().datetime({ offset: true }),
   reason: nonEmpty.max(1000),

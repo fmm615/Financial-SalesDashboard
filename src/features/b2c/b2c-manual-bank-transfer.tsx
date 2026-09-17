@@ -11,13 +11,13 @@ type Draft = {
   bankReference: string;
   customerName: string;
   customerEmail: string;
-  membershipTier: string;
+  description: string;
   amountUsd: string;
   receivedAtLocal: string;
   reason: string;
 };
 
-const EMPTY_DRAFT: Draft = { bankReference: "", customerName: "", customerEmail: "", membershipTier: "", amountUsd: "", receivedAtLocal: "", reason: "" };
+const EMPTY_DRAFT: Draft = { bankReference: "", customerName: "", customerEmail: "", description: "", amountUsd: "", receivedAtLocal: "", reason: "" };
 
 const inputClass = "mt-1 block h-10 w-full min-w-0 rounded-input border border-border bg-surface px-3 text-sm text-text-primary outline-none focus:border-brand-accent";
 const textareaClass = "mt-1 block min-h-20 w-full min-w-0 resize-y rounded-input border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-accent";
@@ -56,7 +56,7 @@ function draftToRequest(draft: Draft): ManualBankTransferRequest | null {
     bankReference: draft.bankReference.trim(),
     customerEmail: draft.customerEmail.trim(),
     customerName: draft.customerName.trim(),
-    membershipTier: draft.membershipTier.trim() || undefined,
+    description: draft.description.trim() || undefined,
     amountUsd: draft.amountUsd.trim(),
     receivedAt,
     reason: draft.reason.trim(),
@@ -72,7 +72,8 @@ function isDraftComplete(draft: Draft): boolean {
 
 /**
  * The one `Add bank transfer` flow: Step 1 collects the six required facts
- * (plus an optional membership tier), Step 2 shows the server's exact
+ * (plus an optional description, shown in the Ledger like a Stripe/Tap
+ * description), Step 2 shows the server's exact
  * reviewed values and duplicate assessment. The only final action is
  * `Record bank transfer`; `Back` preserves the draft. There is no `Add iOS
  * payment` action anywhere -- iOS manual entry has no implementation yet.
@@ -198,7 +199,7 @@ export function B2cManualBankTransfer({ onRecorded }: { onRecorded?: () => void 
       <label className={fieldClass}>Customer email<input required type="email" value={draft.customerEmail} onChange={(event) => setField("customerEmail", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Bank transfer date/time (your browser time zone: an explicit UTC offset will be recorded)<input required type="datetime-local" value={draft.receivedAtLocal} onChange={(event) => setField("receivedAtLocal", event.target.value)} className={inputClass} /></label>
       <label className={fieldClass}>Amount (USD)<input required inputMode="decimal" value={draft.amountUsd} onChange={(event) => setField("amountUsd", event.target.value)} className={inputClass} /></label>
-      <label className={fieldClass}>Membership tier (optional)<input value={draft.membershipTier} onChange={(event) => setField("membershipTier", event.target.value)} className={inputClass} /></label>
+      <label className={fieldClass}>Description (optional)<input value={draft.description} onChange={(event) => setField("description", event.target.value)} className={inputClass} /></label>
     </div>
     <label className={fieldClass}>Reason<textarea required value={draft.reason} onChange={(event) => setField("reason", event.target.value)} className={textareaClass} /></label>
 

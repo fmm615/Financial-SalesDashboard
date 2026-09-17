@@ -48,8 +48,8 @@ describe("prepareManualBankTransfer", () => {
     expect(prepared.customerName).toBe("Ada Founder");
   });
 
-  it("keeps membershipTier null rather than an empty string when omitted", () => {
-    expect(prepareManualBankTransfer(baseInput).membershipTier).toBeNull();
+  it("keeps description null rather than an empty string when omitted", () => {
+    expect(prepareManualBankTransfer(baseInput).description).toBeNull();
   });
 });
 
@@ -73,8 +73,8 @@ describe("manualBankTransferSchema", () => {
     expect(manualBankTransferSchema.safeParse({ ...baseInput, receivedAt: "2026-08-12T08:00:00" }).success).toBe(false);
   });
 
-  it("accepts a clean request with an optional membership tier", () => {
-    expect(manualBankTransferSchema.safeParse({ ...baseInput, membershipTier: "gold" }).success).toBe(true);
+  it("accepts a clean request with an optional description", () => {
+    expect(manualBankTransferSchema.safeParse({ ...baseInput, description: "gold" }).success).toBe(true);
   });
 });
 

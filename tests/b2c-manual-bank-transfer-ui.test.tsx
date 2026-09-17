@@ -20,14 +20,14 @@ describe("B2cManualBankTransfer", () => {
     expect(screen.queryByRole("button", { name: /add ios payment/i })).not.toBeInTheDocument();
   });
 
-  it("collects the seven required facts plus an optional membership tier in Step 1", () => {
+  it("collects the six required facts plus an optional description in Step 1", () => {
     render(<B2cManualBankTransfer onRecorded={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "Add bank transfer" }));
 
     for (const label of ["Bank reference", "Customer name", "Customer email", /Bank transfer date\/time \(your browser time zone:/i, "Amount (USD)", "Reason"]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
-    expect(screen.getByLabelText("Membership tier (optional)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Description (optional)")).toBeInTheDocument();
   });
 
   it("keeps Preview disabled until every required field is entered", () => {

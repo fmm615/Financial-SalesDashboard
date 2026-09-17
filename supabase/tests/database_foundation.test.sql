@@ -238,20 +238,23 @@ select has_column('public', 'b2c_payments', 'membership_tier', 'membership_tier 
 
 -- The duplicate fingerprint is email + USD amount + business date. Two
 -- succeeded payments that agree on those three facts group together; nothing
--- about a category is consulted any more. MANUAL-TIER-1 also proves the
--- surviving optional membership_tier parameter still round-trips.
+-- about a category is consulted any more. MANUAL-DESCRIPTION-1 also proves
+-- the optional description round-trips into source_metadata (so the Ledger
+-- picks it up the same way a Stripe charge_description does) without ever
+-- touching membership_tier, which manual transfers no longer set
+-- (20270101000800_b2c_manual_transfer_description.sql).
 select public.record_b2c_manual_bank_transfer(
-  'MANUAL-TIER-1', 'content.duplicate@playbook.test', 'Tier Member', 'annual', '75.000000', '2027-01-06T13:00:00+03:00', 'Third payment sharing the duplicate facts.',
-  encode(extensions.digest('MANUAL-TIER-1|content.duplicate@playbook.test|Tier Member|annual|75.000000|2027-01-06T13:00:00+03:00|Third payment sharing the duplicate facts.', 'sha256'), 'hex')
+  'MANUAL-DESCRIPTION-1', 'content.duplicate@playbook.test', 'Description Member', 'annual', '75.000000', '2027-01-06T13:00:00+03:00', 'Third payment sharing the duplicate facts.',
+  encode(extensions.digest('MANUAL-DESCRIPTION-1|content.duplicate@playbook.test|Description Member|annual|75.000000|2027-01-06T13:00:00+03:00|Third payment sharing the duplicate facts.', 'sha256'), 'hex')
 );
 select ok(
-  (select membership_tier = 'annual' from public.b2c_payments where provider_transaction_id = 'MANUAL-TIER-1')
+  (select source_metadata ->> 'description' = 'annual' and membership_tier is null from public.b2c_payments where provider_transaction_id = 'MANUAL-DESCRIPTION-1')
   and exists (
     select 1 from public.b2c_payment_duplicate_group_members member
     join public.b2c_payments payment on payment.id = member.payment_id
-    where payment.provider_transaction_id = 'MANUAL-TIER-1'
+    where payment.provider_transaction_id = 'MANUAL-DESCRIPTION-1'
   ),
-  'a manual transfer keeps its optional tier and still groups on email, amount, and business date alone'
+  'a manual transfer stores its optional description in source_metadata, never membership_tier, and still groups on email, amount, and business date alone'
 );
 
 select * from finish();
