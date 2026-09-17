@@ -12,6 +12,7 @@ import {
   B2cPaymentEmailCorrection,
   B2cPaymentFinanceException,
   B2cPaymentFxConversion,
+  B2cPaymentOtherDetailsCorrection,
   type B2cReviewRow,
 } from "@/features/b2c/b2c-payment-review-actions";
 import { B2cRefundFxReviewActions } from "@/features/b2c/b2c-refund-fx-review-actions";
@@ -181,10 +182,22 @@ function BlockingReasonCards({ row, onSaved, onPaymentDuplicateSaved }: {
   }
 
   const reasons = row.decision.blockingReasons;
+  const otherDetailsCard = <NeedCard
+    key="other-details"
+    title="Other details"
+    explanation="Optional metadata that isn't required for this record to be reportable."
+    defaultOpen={false}
+  >
+    {canManage ? <B2cPaymentOtherDetailsCorrection row={row} onSaved={onSaved} /> : <ViewerReadOnlyNote />}
+  </NeedCard>;
+
   if (reasons.length === 0) {
-    return <div className="rounded-card border border-success/25 bg-success/5 p-4">
-      <p className="font-semibold text-success">Ready to report — nothing needed</p>
-      <p className="mt-2 text-sm leading-6 text-text-secondary">This record has no unresolved blocking reasons.</p>
+    return <div className="space-y-3">
+      <div className="rounded-card border border-success/25 bg-success/5 p-4">
+        <p className="font-semibold text-success">Ready to report — nothing needed</p>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">This record has no unresolved blocking reasons.</p>
+      </div>
+      {otherDetailsCard}
     </div>;
   }
 
@@ -197,6 +210,7 @@ function BlockingReasonCards({ row, onSaved, onPaymentDuplicateSaved }: {
     >
       <PaymentReasonAction row={row} reason={reason} onSaved={onSaved} onPaymentDuplicateSaved={onPaymentDuplicateSaved} />
     </NeedCard>)}
+    {otherDetailsCard}
   </div>;
 }
 

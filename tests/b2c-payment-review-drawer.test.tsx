@@ -299,11 +299,12 @@ describe("B2C payment review drawer", () => {
       decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_amount"], explanation: "Blocked by an unavailable USD amount." },
     }) });
     const dialog = screen.getByRole("dialog");
+    const card = within(dialog).getByText("Missing amount").closest("details") as HTMLElement;
 
-    const amountInput = within(dialog).getByLabelText("Local B2C amount (USD)");
+    const amountInput = within(card).getByLabelText("Local B2C amount (USD)");
     fireEvent.change(amountInput, { target: { value: "125.50" } });
-    fireEvent.change(within(dialog).getByLabelText(/Reason \/ evidence/), { target: { value: "Verified against Finance evidence." } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save amount" }));
+    fireEvent.change(within(card).getByLabelText(/Reason \/ evidence/), { target: { value: "Verified against Finance evidence." } });
+    fireEvent.click(within(card).getByRole("button", { name: "Save amount" }));
 
     await screen.findByText("The local B2C correction could not be saved.");
     expect(amountInput).toHaveValue(125.5);
@@ -316,11 +317,12 @@ describe("B2C payment review drawer", () => {
       decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_amount"], explanation: "Blocked by an unavailable USD amount." },
     }) });
     const dialog = screen.getByRole("dialog");
+    const card = within(dialog).getByText("Missing amount").closest("details") as HTMLElement;
 
-    fireEvent.change(within(dialog).getByLabelText("Local B2C amount (USD)"), { target: { value: "125.50" } });
-    fireEvent.change(within(dialog).getByLabelText(/Reason \/ evidence/), { target: { value: "Verified against Finance evidence." } });
+    fireEvent.change(within(card).getByLabelText("Local B2C amount (USD)"), { target: { value: "125.50" } });
+    fireEvent.change(within(card).getByLabelText(/Reason \/ evidence/), { target: { value: "Verified against Finance evidence." } });
     expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save amount" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Save amount" }));
 
     expect(onClose).not.toHaveBeenCalled();
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
@@ -333,10 +335,48 @@ describe("B2C payment review drawer", () => {
     }) }, "viewer");
     const dialog = screen.getByRole("dialog");
 
-    expect(within(dialog).getByText("Viewer access is read-only. Only an Admin can take this action.")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Viewer access is read-only. Only an Admin can take this action.").length).toBeGreaterThan(0);
     expect(within(dialog).queryByLabelText("Local B2C amount (USD)")).not.toBeInTheDocument();
     expect(within(dialog).getByText("Full Stripe charge and settlement evidence is Admin-only.")).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/evidence"), expect.anything());
+  });
+
+  it("always offers an Other details card for optional metadata, closed by default, regardless of blocking reasons", () => {
+    stubFetchByUrl([]);
+    renderDrawer({ kind: "row", row: baseRow() });
+    const dialog = screen.getByRole("dialog");
+    const card = within(dialog).getByText("Other details").closest("details") as HTMLElement;
+
+    expect(card).not.toHaveAttribute("open");
+    expect(within(card).getByLabelText("Customer name")).toBeInTheDocument();
+    expect(within(card).getByLabelText("Customer mobile")).toBeInTheDocument();
+    expect(within(card).getByLabelText("Plan / tier")).toBeInTheDocument();
+  });
+
+  it("saves an audited correction to customer name, mobile, and plan/tier from the Other details card", async () => {
+    const fetchMock = stubFetchByUrl([["/correct", () => ({ ok: true, json: async () => ({ ok: true }) })]]);
+    const onClose = renderDrawer({ kind: "row", row: baseRow({ customerPhone: null }) });
+    const dialog = screen.getByRole("dialog");
+    const card = within(dialog).getByText("Other details").closest("details") as HTMLElement;
+
+    fireEvent.change(within(card).getByLabelText("Customer mobile"), { target: { value: "+973 3000 0000" } });
+    fireEvent.change(within(card).getByLabelText(/Reason \/ evidence/), { target: { value: "Finance confirmed the customer's mobile number." } });
+    fireEvent.click(within(card).getByRole("button", { name: "Save details" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/b2c/payments/payment-1/correct", expect.objectContaining({
+      body: JSON.stringify({ customerPhone: "+973 3000 0000", reason: "Finance confirmed the customer's mobile number." }),
+    }));
+  });
+
+  it("hides the Other details save controls from a Viewer", () => {
+    stubFetchByUrl([]);
+    renderDrawer({ kind: "row", row: baseRow() }, "viewer");
+    const dialog = screen.getByRole("dialog");
+    const card = within(dialog).getByText("Other details").closest("details") as HTMLElement;
+
+    expect(within(card).getByText("Viewer access is read-only. Only an Admin can take this action.")).toBeInTheDocument();
+    expect(within(card).queryByLabelText("Customer name")).not.toBeInTheDocument();
   });
 
   it("treats a historical Finance-Tracker row the same as any other payment for local correction (the posted-adjustment path was removed with Payment Tracker)", () => {

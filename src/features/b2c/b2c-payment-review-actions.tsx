@@ -178,6 +178,75 @@ export function B2cPaymentEmailCorrection({ row, onSaved }: { row: B2cReviewRow;
   </div>;
 }
 
+/** Optional metadata not tied to any blocking reason. Always available for a Payment row, independent of what it needs to become reportable. */
+export function B2cPaymentOtherDetailsCorrection({ row, onSaved }: { row: B2cReviewRow; onSaved: () => void }) {
+  const canManage = useCanManage();
+  const router = useRouter();
+  const verifiedName = row.customerNameEvidenceLabel ? "" : editableValue(row.customerName);
+  const verifiedPhone = row.customerPhoneEvidenceLabel ? "" : editableValue(row.customerPhone);
+  const verifiedTier = editableValue(row.membershipTier);
+  const [customerName, setCustomerName] = useState(editableValue(row.customerName));
+  const [customerPhone, setCustomerPhone] = useState(editableValue(row.customerPhone));
+  const [membershipTier, setMembershipTier] = useState(verifiedTier);
+  const [reason, setReason] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  if (!canManage || row.recordType !== "Payment") return null;
+
+  const correction = {
+    customerName: editableValue(customerName) !== verifiedName ? editableValue(customerName) || undefined : undefined,
+    customerPhone: editableValue(customerPhone) !== verifiedPhone ? editableValue(customerPhone) || undefined : undefined,
+    membershipTier: editableValue(membershipTier) !== verifiedTier ? editableValue(membershipTier) || undefined : undefined,
+  };
+  const hasInput = Object.values(correction).some(Boolean);
+
+  async function save() {
+    if (!hasInput || !hasMeaningfulAuditReason(reason)) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/admin/b2c/payments/${row.id}/correct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...correction, reason }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "The local B2C correction could not be saved.");
+      setReason("");
+      router.refresh();
+      onSaved();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "The local B2C correction could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <div>
+    <p className={`${copyClass} text-sm leading-6 text-text-muted`}>Optional metadata. Update only values Finance has verified; {row.source} is never changed.</p>
+    <div className="mt-4 grid gap-x-5 gap-y-4 md:grid-cols-2">
+      <label className={fieldClass}>Customer name
+        <input className={inputClass} value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder={`Unavailable from ${row.source}`} />
+        {row.customerNameEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-warning">Suggested from {row.customerNameEvidenceLabel} — not yet verified</span>}
+      </label>
+      <label className={fieldClass}>Customer mobile
+        <input className={inputClass} value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} inputMode="tel" placeholder={`Unavailable from ${row.source}`} />
+        {row.customerPhoneEvidenceLabel && <span className="mt-1 block text-xs font-normal normal-case text-warning">Suggested from {row.customerPhoneEvidenceLabel} — not yet verified</span>}
+      </label>
+      <label className={fieldClass}>Plan / tier
+        <input className={inputClass} value={membershipTier} onChange={(event) => setMembershipTier(event.target.value)} placeholder={`Unavailable from ${row.source}`} />
+      </label>
+    </div>
+    <ReasonField value={reason} onChange={setReason} />
+    <div className="mt-4 flex flex-wrap items-center gap-3">
+      <PrimaryButton onClick={() => void save()} disabled={saving || !hasInput || !hasMeaningfulAuditReason(reason)}>{saving ? "Saving…" : "Save details"}</PrimaryButton>
+      <p className="text-xs leading-5 text-text-muted">{hasInput ? "This creates an audited local correction in PLAYBOOK." : "Change at least one value and enter a reason to save."}</p>
+    </div>
+    {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
+  </div>;
+}
+
 export function B2cPaymentFinanceException({ row, onSaved }: { row: B2cReviewRow; onSaved: () => void }) {
   const canManage = useCanManage();
   const router = useRouter();
