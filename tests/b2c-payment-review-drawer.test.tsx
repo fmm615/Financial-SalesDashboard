@@ -379,6 +379,48 @@ describe("B2C payment review drawer", () => {
     expect(within(card).queryByLabelText("Customer name")).not.toBeInTheDocument();
   });
 
+  it("fills in the email and a reason with one click when a Stripe-profile fallback is available", async () => {
+    const fetchMock = stubFetchByUrl([["/correct", () => ({ ok: true, json: async () => ({ ok: true }) })]]);
+    const onClose = renderDrawer({ kind: "row", row: baseRow({
+      customerEmail: "arshiya@arshiyakherani.com",
+      customerEmailEvidenceLabel: "Stripe profile",
+      decision: { sourceStatus: "succeeded", reconciliationStatus: "not_required", reportingDecision: "blocked", postingStatus: "not_applicable", blockingReasons: ["missing_customer_email"], explanation: "Blocked by a missing customer email." },
+    }) });
+    const dialog = screen.getByRole("dialog");
+    const card = within(dialog).getByText("Missing customer email").closest("details") as HTMLElement;
+
+    const saveButton = within(card).getByRole("button", { name: "Save email" });
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(within(card).getByRole("button", { name: "Use the Stripe profile email" }));
+
+    expect(within(card).getByLabelText("Customer email")).toHaveValue("arshiya@arshiyakherani.com");
+    expect(saveButton).toBeEnabled();
+    fireEvent.click(saveButton);
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/b2c/payments/payment-1/correct", expect.objectContaining({
+      body: JSON.stringify({ customerEmail: "arshiya@arshiyakherani.com", reason: "Adopted the verified Stripe profile email; no charge-level contact was captured for this payment." }),
+    }));
+  });
+
+  it("fills in the name/mobile and a reason with one click from the Other details card", () => {
+    stubFetchByUrl([]);
+    renderDrawer({ kind: "row", row: baseRow({
+      customerName: "Arshiya Kherani",
+      customerNameEvidenceLabel: "Stripe profile",
+      customerPhone: "+973 00000000",
+      customerPhoneEvidenceLabel: "Stripe profile",
+    }) });
+    const dialog = screen.getByRole("dialog");
+    const card = within(dialog).getByText("Other details").closest("details") as HTMLElement;
+
+    fireEvent.click(within(card).getByRole("button", { name: "Use the Stripe profile details" }));
+
+    expect(within(card).getByLabelText("Customer name")).toHaveValue("Arshiya Kherani");
+    expect(within(card).getByLabelText("Customer mobile")).toHaveValue("+973 00000000");
+    expect(within(card).getByLabelText(/Reason \/ evidence/)).toHaveValue("Adopted the verified Stripe profile contact details; no charge-level contact was captured for this payment.");
+  });
+
   it("treats a historical Finance-Tracker row the same as any other payment for local correction (the posted-adjustment path was removed with Payment Tracker)", () => {
     stubFetchByUrl([]);
     const row = baseRow({
