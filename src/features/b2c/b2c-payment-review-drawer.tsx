@@ -13,6 +13,7 @@ import {
   B2cPaymentFinanceException,
   B2cPaymentFxConversion,
   B2cPaymentOtherDetailsCorrection,
+  B2cRefreshStripeEvidenceButton,
   type B2cReviewRow,
 } from "@/features/b2c/b2c-payment-review-actions";
 import { B2cRefundFxReviewActions } from "@/features/b2c/b2c-refund-fx-review-actions";
@@ -214,7 +215,7 @@ function BlockingReasonCards({ row, onSaved, onPaymentDuplicateSaved }: {
   </div>;
 }
 
-function EvidenceAndHistoryDisclosure({ row }: { row: B2cReviewRow }) {
+function EvidenceAndHistoryDisclosure({ row, onRefreshed }: { row: B2cReviewRow; onRefreshed: () => void }) {
   return <details className="group mt-6 overflow-hidden rounded-card border border-border bg-surface-muted/25">
     <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-primary marker:content-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-accent">
       <span>Show source evidence &amp; history</span>
@@ -226,6 +227,7 @@ function EvidenceAndHistoryDisclosure({ row }: { row: B2cReviewRow }) {
         <div className="mt-3">
           <B2cSourceEvidencePanel paymentId={row.id} recordType={row.recordType} source={row.source} sourceSystem={row.sourceSystem} providerReference={row.providerReference} date={row.date} />
         </div>
+        {row.recordType === "Payment" && <div className="mt-4"><B2cRefreshStripeEvidenceButton row={row} onRefreshed={onRefreshed} /></div>}
       </section>
       <section className="border-t border-border pt-5" aria-labelledby="b2c-audit-history-title">
         <h3 id="b2c-audit-history-title" className="text-sm font-semibold text-text-primary">Audit history</h3>
@@ -296,7 +298,7 @@ export function B2cPaymentReviewDrawer({ target, onClose, onPaymentDuplicateReso
         <Section title="What this record needs">
           <BlockingReasonCards row={target.row} onSaved={handleSaved} onPaymentDuplicateSaved={handlePaymentDuplicateSaved} />
         </Section>
-        <EvidenceAndHistoryDisclosure row={target.row} />
+        <EvidenceAndHistoryDisclosure row={target.row} onRefreshed={handleSaved} />
       </>}
 
       {target.kind === "workItem" && <Section title="Finance decision">

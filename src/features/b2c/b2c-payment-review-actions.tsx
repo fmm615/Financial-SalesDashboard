@@ -364,3 +364,49 @@ export function B2cPaymentFxConversion({ row, onSaved }: { row: B2cReviewRow; on
     {message && <p role="alert" className="mt-3 text-sm text-danger">{message}</p>}
   </div>;
 }
+
+/**
+ * Re-fetches this payment's Stripe evidence right now -- a customer's Stripe
+ * profile or payment method can change after import (e.g. a phone number
+ * added days later), and nothing else notices once the 48-hour reconciliation
+ * window closes. Never changes b2c_payments.customer_email/name/phone or
+ * reportability; only refreshes the same optional display evidence already
+ * collected at import time.
+ */
+export function B2cRefreshStripeEvidenceButton({ row, onRefreshed }: { row: B2cReviewRow; onRefreshed: () => void }) {
+  const canManage = useCanManage();
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  if (!canManage || row.sourceSystem !== "stripe") return null;
+
+  async function refresh() {
+    setRefreshing(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/admin/b2c/payments/${row.id}/refresh-stripe-evidence`, { method: "POST" });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Could not refresh this payment's Stripe evidence.");
+      router.refresh();
+      onRefreshed();
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "Could not refresh this payment's Stripe evidence.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  return <div className="flex flex-col items-start gap-2">
+    <button
+      type="button"
+      onClick={() => void refresh()}
+      disabled={refreshing}
+      className="inline-flex min-h-9 items-center rounded-pill border border-border px-3 text-sm font-semibold text-text-secondary hover:border-brand-accent/30 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {refreshing ? "Refreshing…" : "Refresh from Stripe"}
+    </button>
+    <p className="text-xs leading-5 text-text-muted">Re-checks Stripe&apos;s current charge, checkout, invoice, payment method, and customer profile data for this payment. Never changes what already counts financially.</p>
+    {message && <p role="alert" className="text-sm text-danger">{message}</p>}
+  </div>;
+}

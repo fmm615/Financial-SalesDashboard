@@ -8,7 +8,7 @@ import { assertHubSpotReadOnlyRequest } from "@/lib/integrations/hubspot/client"
 import { b2cPaymentLocalCorrectionSchema } from "@/lib/validation/b2c-review-contracts";
 import { isValidStripeSignature } from "@/lib/integrations/stripe/signature";
 import { resolveB2cReportingPeriod } from "@/server/repositories/b2c-dashboard-repository";
-import { processStripeWebhook, runStripeHistoricalBackfillBatch, runStripeReconciliation } from "@/server/services/sync-stripe";
+import { processStripeWebhook, refreshStripePaymentEnrichment, runStripeEnrichmentRefresh, runStripeHistoricalBackfillBatch, runStripeReconciliation } from "@/server/services/sync-stripe";
 
 const charge = {
   id: "ch_123", amount: 12345, currency: "usd", created: 1_754_000_000,
@@ -329,6 +329,78 @@ describe("Stripe ingestion orchestration", () => {
     const refundBatch = await runStripeHistoricalBackfillBatch({ source, productReferenceMetadataKey: "product_id", repository, restartCompleted: true });
     expect(refundBatch).toMatchObject({ processed: 1, failed: 0, totalProcessed: 2, hasMore: false });
     expect(repository.persistRefund).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-fetches one already-imported payment's Stripe charge and enrichment on demand", async () => {
+    const repository = {
+      persistCharge: vi.fn().mockResolvedValue({ paymentId: "payment-1", inserted: false }),
+      persistRefund: vi.fn(),
+      persistStripeDetails: vi.fn(),
+      getProviderTransactionId: vi.fn().mockResolvedValue("ch_123"),
+    };
+    const source = {
+      fetchCharge: vi.fn().mockResolvedValue(charge),
+      fetchCustomer: vi.fn().mockResolvedValue({ id: "cus_123", phone: "+447545793640" }),
+    };
+
+    const result = await refreshStripePaymentEnrichment({ paymentId: "payment-1", source, productReferenceMetadataKey: "product_id", repository });
+
+    expect(result).toEqual({ refreshed: true });
+    expect(repository.getProviderTransactionId).toHaveBeenCalledWith("payment-1");
+    expect(source.fetchCharge).toHaveBeenCalledWith("ch_123");
+    expect(repository.persistCharge).toHaveBeenCalledWith(expect.objectContaining({ chargeId: "ch_123", reconciliationSource: "manual_evidence_refresh" }));
+  });
+
+  it("does nothing when the payment does not belong to this provider", async () => {
+    const repository = { persistCharge: vi.fn(), persistRefund: vi.fn(), getProviderTransactionId: vi.fn().mockResolvedValue(null) };
+    const source = { fetchCharge: vi.fn() };
+
+    const result = await refreshStripePaymentEnrichment({ paymentId: "payment-1", source, productReferenceMetadataKey: "product_id", repository });
+
+    expect(result).toEqual({ refreshed: false });
+    expect(source.fetchCharge).not.toHaveBeenCalled();
+    expect(repository.persistCharge).not.toHaveBeenCalled();
+  });
+
+  it("re-checks every already-imported payment within the window, oldest first, tagging the run distinctly from reconciliation", async () => {
+    const repository = {
+      persistCharge: vi.fn().mockResolvedValue({ inserted: false }),
+      persistRefund: vi.fn(),
+      startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }),
+      completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn(),
+      listProviderTransactionIdsSince: vi.fn().mockResolvedValue(["ch_123", "ch_456"]),
+    };
+    const source = { fetchCharge: vi.fn().mockResolvedValue(charge) };
+    const sinceDate = new Date("2026-06-01T00:00:00.000Z");
+    const now = new Date("2026-08-30T00:00:00.000Z");
+
+    const result = await runStripeEnrichmentRefresh({ source, productReferenceMetadataKey: "product_id", repository, sinceDate, now });
+
+    expect(result).toEqual({ processed: 2, failed: 0 });
+    expect(repository.startSyncRun).toHaveBeenCalledWith(sinceDate, now, "enrichment_refresh");
+    expect(repository.listProviderTransactionIdsSince).toHaveBeenCalledWith(sinceDate);
+    expect(source.fetchCharge).toHaveBeenNthCalledWith(1, "ch_123");
+    expect(source.fetchCharge).toHaveBeenNthCalledWith(2, "ch_456");
+    expect(repository.completeSyncRun).toHaveBeenCalledWith("run-1");
+  });
+
+  it("records one failed charge without stopping the rest of the refresh window", async () => {
+    const repository = {
+      persistCharge: vi.fn()
+        .mockRejectedValueOnce(new Error("Stripe lookup failed"))
+        .mockResolvedValueOnce({ inserted: false }),
+      persistRefund: vi.fn(),
+      startSyncRun: vi.fn().mockResolvedValue({ id: "run-1" }),
+      completeSyncRun: vi.fn(), failSyncRun: vi.fn(), recordSyncError: vi.fn(),
+      listProviderTransactionIdsSince: vi.fn().mockResolvedValue(["ch_bad", "ch_123"]),
+    };
+    const source = { fetchCharge: vi.fn().mockResolvedValue(charge) };
+
+    const result = await runStripeEnrichmentRefresh({ source, productReferenceMetadataKey: "product_id", repository, sinceDate: null, now: new Date("2026-08-30T00:00:00.000Z") });
+
+    expect(result).toEqual({ processed: 1, failed: 1 });
+    expect(repository.recordSyncError).toHaveBeenCalledWith("run-1", expect.any(Error), "Stripe charge ch_bad");
+    expect(repository.completeSyncRun).toHaveBeenCalledWith("run-1");
   });
 });
 

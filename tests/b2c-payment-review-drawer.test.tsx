@@ -104,6 +104,44 @@ describe("B2C payment review drawer", () => {
     expect(within(dialog).getAllByText("Audit history")).toHaveLength(1);
   });
 
+  it("refreshes a Stripe payment's evidence on demand and closes the drawer once the server confirms it", async () => {
+    const fetchMock = stubFetchByUrl([["/refresh-stripe-evidence", () => ({ ok: true, json: async () => ({ ok: true }) })]]);
+    const onClose = renderDrawer({ kind: "row", row: baseRow() });
+    const dialog = screen.getByRole("dialog");
+    const disclosure = within(dialog).getByText("Show source evidence & history").closest("details") as HTMLElement;
+
+    const refreshButton = within(disclosure).getByRole("button", { name: "Refresh from Stripe" });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(refreshButton);
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/b2c/payments/payment-1/refresh-stripe-evidence", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("shows an error and keeps the drawer open when the Stripe refresh fails", async () => {
+    stubFetchByUrl([["/refresh-stripe-evidence", () => ({ ok: false, json: async () => ({ error: "Could not refresh this payment's Stripe evidence." }) })]]);
+    const onClose = renderDrawer({ kind: "row", row: baseRow() });
+    const dialog = screen.getByRole("dialog");
+    const disclosure = within(dialog).getByText("Show source evidence & history").closest("details") as HTMLElement;
+
+    fireEvent.click(within(disclosure).getByRole("button", { name: "Refresh from Stripe" }));
+
+    await screen.findByText("Could not refresh this payment's Stripe evidence.");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("does not offer a Stripe refresh for a non-Stripe payment", () => {
+    stubFetchByUrl([]);
+    renderDrawer({ kind: "row", row: baseRow({ sourceSystem: "tap", source: "Tap" }) });
+    expect(screen.queryByRole("button", { name: "Refresh from Stripe" })).not.toBeInTheDocument();
+  });
+
+  it("hides the Stripe refresh action from a Viewer", () => {
+    stubFetchByUrl([]);
+    renderDrawer({ kind: "row", row: baseRow() }, "viewer");
+    expect(screen.queryByRole("button", { name: "Refresh from Stripe" })).not.toBeInTheDocument();
+  });
+
   it("exposes exactly one drawer action instead of separate evidence/edit triggers", () => {
     stubFetchByUrl([]);
     renderDrawer({ kind: "row", row: baseRow() });

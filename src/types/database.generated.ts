@@ -21,7 +21,9 @@
  * `20270101000600_b2c_ledger_keyset_reads.sql`, which added the B2C Ledger's
  * keyset-paginated read RPCs, and for
  * `20270101000700_b2c_duplicate_window_setting.sql`, which added the
- * Admin-configurable B2C duplicate-detection window (`b2c_settings`).
+ * Admin-configurable B2C duplicate-detection window (`b2c_settings`), and for
+ * `20270101001200_b2c_stripe_enrichment_refresh.sql`, which widened
+ * `integration_sync_runs.operation_type` to add `'enrichment_refresh'`.
  */
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -270,7 +272,7 @@ export interface Database {
       review_flag_resolutions: Table<{ id: Uuid; flag_id: Uuid; resolution_status: "resolved" | "dismissed"; resolution_note: string; created_by: Uuid; created_at: Timestamp }>;
       review_notes: Table<{ id: Uuid; flag_id: Uuid; note: string; created_by: Uuid; created_at: Timestamp }>;
       audit_events: Table<{ id: Uuid; actor_profile_id: Uuid | null; actor_email: string | null; area: string; record_id: Uuid | null; action: "insert" | "update" | "delete"; before_value: Json | null; after_value: Json | null; reason: string | null; request_context: Json; occurred_at: Timestamp }>;
-      integration_sync_runs: Table<{ id: Uuid; provider: string; status: Database["public"]["Enums"]["integration_status"]; operation_type: "reconciliation" | "historical_backfill"; continuation_cursor: string | null; records_processed: number; records_failed: number; started_at: Timestamp | null; completed_at: Timestamp | null; failed_at: Timestamp | null; retry_count: number; safe_error_summary: string | null; requested_range_start: Timestamp | null; requested_range_end: Timestamp | null; created_at: Timestamp }>;
+      integration_sync_runs: Table<{ id: Uuid; provider: string; status: Database["public"]["Enums"]["integration_status"]; operation_type: "reconciliation" | "historical_backfill" | "enrichment_refresh"; continuation_cursor: string | null; records_processed: number; records_failed: number; started_at: Timestamp | null; completed_at: Timestamp | null; failed_at: Timestamp | null; retry_count: number; safe_error_summary: string | null; requested_range_start: Timestamp | null; requested_range_end: Timestamp | null; created_at: Timestamp }>;
       integration_events: Table<{ id: Uuid; provider: string; external_event_id: string; event_type: string; status: Database["public"]["Enums"]["integration_status"]; processing_attempts: number; received_at: Timestamp; processed_at: Timestamp | null; safe_metadata: Json; sync_run_id: Uuid | null; created_at: Timestamp }>;
       integration_errors: Table<{ id: Uuid; provider: string; integration_event_id: Uuid | null; sync_run_id: Uuid | null; safe_error_summary: string; source_reference: string | null; occurred_at: Timestamp; resolved_at: Timestamp | null; resolved_by: Uuid | null; resolution_note: string | null; created_at: Timestamp }>;
       reconciliation_runs: Table<{ id: Uuid; provider: string; lookback_start: Timestamp; lookback_end: Timestamp; status: Database["public"]["Enums"]["integration_status"]; records_examined: number; records_inserted: number; duplicates_detected: number; safe_error_summary: string | null; started_at: Timestamp | null; completed_at: Timestamp | null; created_at: Timestamp }>;

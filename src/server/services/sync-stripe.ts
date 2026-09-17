@@ -23,6 +23,10 @@ type StripeRepository = Pick<SupabaseStripeSyncRepository, "persistCharge" | "pe
 type StripeWebhookRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "recordWebhookEvent" | "markEventCompleted" | "failEvent">;
 type StripeReconciliationRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "startSyncRun" | "completeSyncRun" | "failSyncRun" | "recordSyncError">;
 type StripeBackfillRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "getOrStartHistoricalBackfill" | "finishHistoricalBackfillBatch" | "failSyncRun" | "recordSyncError">;
+type StripeEnrichmentRefreshRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "startSyncRun" | "completeSyncRun" | "failSyncRun" | "recordSyncError" | "listProviderTransactionIdsSince">;
+type StripeSinglePaymentRefreshRepository = StripeRepository & Pick<SupabaseStripeSyncRepository, "getProviderTransactionId">;
+/** A re-fetch of an already-known charge never needs to discover new charges/refunds. */
+type StripeEnrichmentSource = Pick<StripeSource, "fetchCharge"> & Partial<StripeSource>;
 
 function chargeReference(chargeId: string): string { return `Stripe charge ${chargeId}`; }
 function refundReference(refundId: string): string { return `Stripe refund ${refundId}`; }
@@ -201,6 +205,67 @@ export async function runStripeReconciliation(input: { source: StripeSource; pro
     }
     await input.repository.completeSyncRun(run.id);
     return { processed, failed, inserted, lookbackStart, lookbackEnd };
+  } catch (error) {
+    await input.repository.failSyncRun(run.id, error);
+    throw error;
+  }
+}
+
+/**
+ * Re-fetches one already-imported payment's Stripe charge and enrichment
+ * right now. A payment's contact/settlement evidence can go stale after
+ * import -- Stripe never notifies PLAYBOOK when a customer updates their
+ * profile later -- so this exists purely to refresh presentation-layer
+ * evidence on demand. It never fabricates or removes a value:
+ * b2c_payments.customer_email stays exactly what the charge itself provided.
+ */
+export async function refreshStripePaymentEnrichment(input: {
+  paymentId: string;
+  source: StripeEnrichmentSource;
+  productReferenceMetadataKey: string;
+  repository: StripeSinglePaymentRefreshRepository;
+}): Promise<{ refreshed: boolean }> {
+  const chargeId = await input.repository.getProviderTransactionId(input.paymentId);
+  if (!chargeId) return { refreshed: false };
+  const charge = await input.source.fetchCharge(chargeId);
+  await persistCharge({ charge, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "manual_evidence_refresh" });
+  return { refreshed: true };
+}
+
+/**
+ * Re-fetches Stripe enrichment for every already-imported payment within a
+ * window, oldest first. Unlike the mandatory 48-hour reconciliation (which
+ * discovers charges Stripe created recently), this re-checks payments
+ * PLAYBOOK already has, purely to catch a Stripe profile or payment-method
+ * update that happened after the original import. `sinceDate: null` covers
+ * full history -- meant for a one-time catch-up, not the daily schedule.
+ */
+export async function runStripeEnrichmentRefresh(input: {
+  source: StripeEnrichmentSource;
+  productReferenceMetadataKey: string;
+  repository: StripeEnrichmentRefreshRepository;
+  sinceDate: Date | null;
+  now?: Date;
+}): Promise<{ processed: number; failed: number }> {
+  const rangeEnd = input.now ?? new Date();
+  const rangeStart = input.sinceDate ?? new Date(0);
+  const run = await input.repository.startSyncRun(rangeStart, rangeEnd, "enrichment_refresh");
+  let processed = 0;
+  let failed = 0;
+  try {
+    const chargeIds = await input.repository.listProviderTransactionIdsSince(input.sinceDate);
+    for (const chargeId of chargeIds) {
+      try {
+        const charge = await input.source.fetchCharge(chargeId);
+        await persistCharge({ charge, source: input.source, productReferenceMetadataKey: input.productReferenceMetadataKey, repository: input.repository, reconciliationSource: "stripe_enrichment_refresh", syncRunId: run.id });
+        processed += 1;
+      } catch (error) {
+        await input.repository.recordSyncError(run.id, error, chargeReference(chargeId));
+        failed += 1;
+      }
+    }
+    await input.repository.completeSyncRun(run.id);
+    return { processed, failed };
   } catch (error) {
     await input.repository.failSyncRun(run.id, error);
     throw error;

@@ -54,12 +54,35 @@ export class SupabaseB2cProviderSyncRepository {
 
   private get providerLabel(): string { return this.provider === "stripe" ? "Stripe" : "Tap"; }
 
-  async startSyncRun(rangeStart: Date, rangeEnd: Date): Promise<ProviderSyncRun> {
+  async startSyncRun(rangeStart: Date, rangeEnd: Date, operationType: "reconciliation" | "enrichment_refresh" = "reconciliation"): Promise<ProviderSyncRun> {
     const { data, error } = await this.client.from("integration_sync_runs")
-      .insert({ provider: this.provider, status: "processing", started_at: rangeStart.toISOString(), requested_range_start: rangeStart.toISOString(), requested_range_end: rangeEnd.toISOString() })
+      .insert({ provider: this.provider, operation_type: operationType, status: "processing", started_at: rangeStart.toISOString(), requested_range_start: rangeStart.toISOString(), requested_range_end: rangeEnd.toISOString() })
       .select("id").single();
     if (error) throw new Error(`Could not create ${this.providerLabel} sync run: ${error.message}`);
     return data;
+  }
+
+  /** The one provider transaction ID a specific already-imported payment needs to re-fetch itself, or null when it belongs to a different provider or does not exist. */
+  async getProviderTransactionId(paymentId: string): Promise<string | null> {
+    const { data, error } = await this.client.from("b2c_payments")
+      .select("provider_transaction_id")
+      .eq("id", paymentId)
+      .eq("source_system", this.provider)
+      .maybeSingle();
+    if (error) throw new Error(`Could not load the ${this.providerLabel} payment to refresh: ${error.message}`);
+    return data?.provider_transaction_id ?? null;
+  }
+
+  /** Existing payment IDs eligible for a re-fetch, oldest first, not the safe evidence itself. */
+  async listProviderTransactionIdsSince(sinceDate: Date | null): Promise<string[]> {
+    let query = this.client.from("b2c_payments")
+      .select("provider_transaction_id")
+      .eq("source_system", this.provider)
+      .order("occurred_on", { ascending: true });
+    if (sinceDate) query = query.gte("occurred_on", sinceDate.toISOString().slice(0, 10));
+    const { data, error } = await query;
+    if (error) throw new Error(`Could not list ${this.providerLabel} payments for enrichment refresh: ${error.message}`);
+    return data.flatMap((row) => row.provider_transaction_id ? [row.provider_transaction_id] : []);
   }
 
   async completeSyncRun(syncRunId: string): Promise<void> {
